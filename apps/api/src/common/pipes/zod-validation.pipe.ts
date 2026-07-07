@@ -1,0 +1,60 @@
+import type { PipeTransform } from '@nestjs/common';
+import type { FieldError, FieldErrorCode } from '@linkedout/contracts';
+import type { ZodError, ZodType, infer as zInfer } from 'zod';
+
+import { AppErrors } from '../errors/app-exception';
+
+type ZodIssueLike = ZodError['issues'][number];
+
+function pathToField(path: ReadonlyArray<PropertyKey>): string {
+  let out = '';
+  for (const segment of path) {
+    if (typeof segment === 'number') {
+      out += `[${segment}]`;
+    } else {
+      out += out.length > 0 ? `.${String(segment)}` : String(segment);
+    }
+  }
+  return out;
+}
+
+function issueToCode(issue: ZodIssueLike): FieldErrorCode {
+  switch (issue.code) {
+    case 'invalid_type':
+      return 'required';
+    case 'too_small':
+      return 'too_short';
+    case 'too_big':
+      return 'origin' in issue && issue.origin === 'array' ? 'too_many' : 'too_long';
+    case 'invalid_value':
+      return 'invalid_enum';
+    case 'invalid_format':
+      return 'format' in issue && issue.format === 'url' ? 'not_a_url' : 'invalid_format';
+    default:
+      return 'invalid_format';
+  }
+}
+
+export function zodErrorToFieldErrors(error: ZodError): FieldError[] {
+  return error.issues.map((issue) => ({
+    field: pathToField(issue.path),
+    code: issueToCode(issue),
+    message: issue.message,
+  }));
+}
+
+/**
+ * Validates a single controller argument against a Zod schema and returns the parsed,
+ * fully-typed value. On failure throws the standard VALIDATION_ERROR envelope.
+ */
+export class ZodValidationPipe<TSchema extends ZodType> implements PipeTransform {
+  constructor(private readonly schema: TSchema) {}
+
+  transform(value: unknown): zInfer<TSchema> {
+    const result = this.schema.safeParse(value);
+    if (!result.success) {
+      throw AppErrors.validation(zodErrorToFieldErrors(result.error));
+    }
+    return result.data;
+  }
+}

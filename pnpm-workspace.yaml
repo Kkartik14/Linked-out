@@ -1,0 +1,14 @@
+# Backend workspace. Deliberately EXCLUDES apps/web — the frontend team runs it as its
+# own self-contained workspace (own lockfile). Globbing apps/* here would create a nested
+# workspace clash and break their install. We only manage the API and shared packages.
+packages:
+  - apps/api
+  - packages/*
+
+# pnpm v11 blocks dependency build scripts by default. Allow the ones we trust
+# (Prisma needs its engine download + client generation; esbuild needs its binary).
+allowBuilds:
+  '@prisma/client': true
+  '@prisma/engines': true
+  prisma: true
+  esbuild: true

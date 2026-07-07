@@ -1,0 +1,137 @@
+@import "tailwindcss";
+@import "tw-animate-css";
+
+@custom-variant dark (&:is(.dark *));
+
+/*
+  LinkedOut design tokens — calm, honest, human, reflective, minimal.
+  Warm near-neutral paper in light; warm near-black in dark. One restrained
+  slate-indigo accent. Low chroma throughout so the writing carries the page.
+  shadcn-compatible variable set, mapped into Tailwind via @theme inline.
+*/
+
+:root {
+  --radius: 0.625rem;
+
+  --background: oklch(0.994 0.003 95);
+  --foreground: oklch(0.22 0.01 90);
+
+  --card: oklch(0.998 0.002 95);
+  --card-foreground: oklch(0.22 0.01 90);
+
+  --popover: oklch(1 0 0);
+  --popover-foreground: oklch(0.22 0.01 90);
+
+  --primary: oklch(0.45 0.062 255);
+  --primary-foreground: oklch(0.985 0.002 95);
+
+  --secondary: oklch(0.965 0.005 95);
+  --secondary-foreground: oklch(0.28 0.01 90);
+
+  --muted: oklch(0.965 0.004 95);
+  --muted-foreground: oklch(0.52 0.01 90);
+
+  --accent: oklch(0.955 0.008 95);
+  --accent-foreground: oklch(0.28 0.01 90);
+
+  --destructive: oklch(0.58 0.19 27);
+  --destructive-foreground: oklch(0.985 0 0);
+
+  --border: oklch(0.9 0.004 95);
+  --input: oklch(0.9 0.004 95);
+  --ring: oklch(0.45 0.062 255);
+}
+
+.dark {
+  --background: oklch(0.17 0.005 90);
+  --foreground: oklch(0.93 0.004 95);
+
+  --card: oklch(0.205 0.006 90);
+  --card-foreground: oklch(0.93 0.004 95);
+
+  --popover: oklch(0.205 0.006 90);
+  --popover-foreground: oklch(0.93 0.004 95);
+
+  --primary: oklch(0.72 0.07 255);
+  --primary-foreground: oklch(0.18 0.02 255);
+
+  --secondary: oklch(0.26 0.006 90);
+  --secondary-foreground: oklch(0.93 0.004 95);
+
+  --muted: oklch(0.26 0.006 90);
+  --muted-foreground: oklch(0.66 0.008 95);
+
+  --accent: oklch(0.28 0.008 90);
+  --accent-foreground: oklch(0.93 0.004 95);
+
+  --destructive: oklch(0.62 0.19 25);
+  --destructive-foreground: oklch(0.98 0 0);
+
+  --border: oklch(1 0 0 / 10%);
+  --input: oklch(1 0 0 / 14%);
+  --ring: oklch(0.72 0.07 255);
+}
+
+@theme inline {
+  --color-background: var(--background);
+  --color-foreground: var(--foreground);
+  --color-card: var(--card);
+  --color-card-foreground: var(--card-foreground);
+  --color-popover: var(--popover);
+  --color-popover-foreground: var(--popover-foreground);
+  --color-primary: var(--primary);
+  --color-primary-foreground: var(--primary-foreground);
+  --color-secondary: var(--secondary);
+  --color-secondary-foreground: var(--secondary-foreground);
+  --color-muted: var(--muted);
+  --color-muted-foreground: var(--muted-foreground);
+  --color-accent: var(--accent);
+  --color-accent-foreground: var(--accent-foreground);
+  --color-destructive: var(--destructive);
+  --color-destructive-foreground: var(--destructive-foreground);
+  --color-border: var(--border);
+  --color-input: var(--input);
+  --color-ring: var(--ring);
+
+  --font-sans: var(--font-sans), ui-sans-serif, system-ui, -apple-system,
+    "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+  --font-serif: ui-serif, Georgia, Cambria, "Times New Roman", serif;
+  --font-mono: ui-monospace, SFMono-Regular, "SF Mono", Menlo, Consolas, monospace;
+
+  --radius-sm: calc(var(--radius) - 4px);
+  --radius-md: calc(var(--radius) - 2px);
+  --radius-lg: var(--radius);
+  --radius-xl: calc(var(--radius) + 4px);
+}
+
+@layer base {
+  * {
+    border-color: var(--border);
+    outline-color: color-mix(in oklch, var(--ring) 50%, transparent);
+  }
+
+  html {
+    --font-sans: ui-sans-serif, system-ui, -apple-system, "Segoe UI", Roboto,
+      Helvetica, Arial, sans-serif;
+  }
+
+  body {
+    background-color: var(--background);
+    color: var(--foreground);
+    font-family: var(--font-sans);
+    -webkit-font-smoothing: antialiased;
+    text-rendering: optimizeLegibility;
+  }
+
+  /* Respect reduced-motion for the whole app. */
+  @media (prefers-reduced-motion: reduce) {
+    *,
+    *::before,
+    *::after {
+      animation-duration: 0.01ms !important;
+      animation-iteration-count: 1 !important;
+      transition-duration: 0.01ms !important;
+      scroll-behavior: auto !important;
+    }
+  }
+}

@@ -1,0 +1,165 @@
+"use client";
+
+import * as React from "react";
+import { useRouter } from "next/navigation";
+import { toast } from "sonner";
+import type { AvatarContentType, JourneyStatus, UserProfile } from "@linkedout/contracts";
+
+import { errorMessage, patchMe, presignAvatar } from "@/lib/api";
+import { USE_MOCKS } from "@/lib/env";
+import { useMeta } from "@/components/meta-provider";
+import { UserAvatar } from "@/components/user-avatar";
+import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
+import { Label } from "@/components/ui/label";
+import { Textarea } from "@/components/ui/textarea";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
+
+const NO_STATUS = "NONE";
+const ALLOWED_TYPES: AvatarContentType[] = ["image/jpeg", "image/png", "image/webp"];
+const MAX_BYTES = 5 * 1024 * 1024;
+
+export function SettingsForm({ user }: { user: UserProfile }) {
+  const meta = useMeta();
+  const router = useRouter();
+
+  const [name, setName] = React.useState(user.name ?? "");
+  const [bio, setBio] = React.useState(user.bio ?? "");
+  const [status, setStatus] = React.useState<string>(user.status ?? NO_STATUS);
+  const [image, setImage] = React.useState(user.image);
+  const [saving, setSaving] = React.useState(false);
+  const [uploading, setUploading] = React.useState(false);
+
+  async function handleSave(e: React.FormEvent) {
+    e.preventDefault();
+    setSaving(true);
+    try {
+      await patchMe({
+        name: name.trim(),
+        bio: bio.trim(),
+        status: status === NO_STATUS ? null : (status as JourneyStatus),
+      });
+      toast.success("Profile updated.");
+      router.refresh();
+    } catch (err) {
+      toast.error(errorMessage(err));
+    } finally {
+      setSaving(false);
+    }
+  }
+
+  async function handleFile(file: File) {
+    if (!ALLOWED_TYPES.includes(file.type as AvatarContentType)) {
+      toast.error("Use a JPEG, PNG, or WebP image.");
+      return;
+    }
+    if (file.size > MAX_BYTES) {
+      toast.error("Image must be under 5 MB.");
+      return;
+    }
+    setUploading(true);
+    try {
+      const presign = await presignAvatar({
+        contentType: file.type as AvatarContentType,
+        contentLength: file.size,
+      });
+      if (!USE_MOCKS) {
+        const put = await fetch(presign.uploadUrl, {
+          method: "PUT",
+          headers: presign.headers,
+          body: file,
+        });
+        if (!put.ok) throw new Error("Upload failed. Please try again.");
+      }
+      const updated = await patchMe({ image: presign.publicUrl });
+      setImage(updated.image ?? presign.publicUrl);
+      toast.success("Avatar updated.");
+      router.refresh();
+    } catch (err) {
+      toast.error(errorMessage(err));
+    } finally {
+      setUploading(false);
+    }
+  }
+
+  return (
+    <form onSubmit={handleSave} className="flex flex-col gap-6">
+      <div className="flex items-center gap-4">
+        <UserAvatar name={name || user.name} username={user.username} image={image} className="size-16 text-lg" />
+        <div className="flex flex-col gap-1">
+          <Button asChild variant="outline" size="sm" disabled={uploading}>
+            <label className="cursor-pointer">
+              {uploading ? "Uploading…" : "Change avatar"}
+              <input
+                type="file"
+                accept="image/jpeg,image/png,image/webp"
+                className="sr-only"
+                onChange={(e) => {
+                  const file = e.target.files?.[0];
+                  if (file) void handleFile(file);
+                  e.target.value = "";
+                }}
+              />
+            </label>
+          </Button>
+          <span className="text-muted-foreground text-xs">JPEG, PNG, or WebP · up to 5 MB</span>
+        </div>
+      </div>
+
+      <div className="grid gap-2">
+        <Label htmlFor="username">Username</Label>
+        <Input id="username" value={user.username} disabled />
+        <span className="text-muted-foreground text-xs">@{user.username}</span>
+      </div>
+
+      <div className="grid gap-2">
+        <Label htmlFor="name">Name</Label>
+        <Input id="name" value={name} onChange={(e) => setName(e.target.value)} maxLength={80} />
+      </div>
+
+      <div className="grid gap-2">
+        <div className="flex items-center justify-between">
+          <Label htmlFor="bio">Bio</Label>
+          <span className="text-muted-foreground text-xs tabular-nums">{bio.length}/280</span>
+        </div>
+        <Textarea
+          id="bio"
+          value={bio}
+          onChange={(e) => setBio(e.target.value)}
+          maxLength={280}
+          rows={3}
+          placeholder="A short line about where you are in your journey."
+        />
+      </div>
+
+      <div className="grid gap-2">
+        <Label>Journey status</Label>
+        <Select value={status} onValueChange={setStatus}>
+          <SelectTrigger className="sm:w-64">
+            <SelectValue />
+          </SelectTrigger>
+          <SelectContent>
+            <SelectItem value={NO_STATUS}>None</SelectItem>
+            {meta.journeyStatus.map((s) => (
+              <SelectItem key={s.value} value={s.value}>
+                <span aria-hidden>{s.dot}</span> {s.label}
+              </SelectItem>
+            ))}
+          </SelectContent>
+        </Select>
+      </div>
+
+      <div className="flex justify-end">
+        <Button type="submit" disabled={saving}>
+          {saving ? "Saving…" : "Save changes"}
+        </Button>
+      </div>
+    </form>
+  );
+}

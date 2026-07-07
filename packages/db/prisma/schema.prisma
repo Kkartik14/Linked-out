@@ -1,0 +1,295 @@
+// LinkedOut — "LinkedIn for your Ls". See ARCHITECTURE.md + contract.md.
+// Boring-wins Postgres. ULID ids (assigned by the client extension in src/ulid.ts).
+// One `L` entity + enums. Denormalized counters. Postgres FTS via a tsvector column
+// (added in a raw migration — Prisma can't express generated columns).
+
+generator client {
+  provider = "prisma-client-js"
+  output   = "../generated/client"
+}
+
+datasource db {
+  provider  = "postgresql"
+  url       = env("DATABASE_URL")
+  directUrl = env("DIRECT_URL")
+}
+
+// ─── Enums ────────────────────────────────────────────────────────────────────
+
+enum LType {
+  L
+  WIN
+  STORY
+  SCAR
+  PLOT_TWIST
+  CHECKPOINT
+  BATTLE
+  LESSON
+}
+
+enum LCategory {
+  INTERVIEWS
+  STARTUPS
+  LAYOFFS
+  PRODUCTION
+  CAREER
+  LEARNING
+}
+
+enum Visibility {
+  PUBLIC
+  FOLLOWERS
+  PRIVATE
+}
+
+enum ReactionType {
+  BEEN_THERE
+  HELPFUL
+  RESPECT
+  PAIN
+  SAVED
+}
+
+enum JourneyStatus {
+  INTERVIEWING
+  BUILDING
+  WORKING
+  STARTING_UP
+  RECOVERING
+  TAKING_A_BREAK
+}
+
+enum NotificationType {
+  RELATED
+  HELPED
+  NEW_FOLLOWER
+  COMMENT
+}
+
+// ─── User + Auth ──────────────────────────────────────────────────────────────
+
+model User {
+  id            String         @id @default(cuid()) // ULID (overridden by the client extension; default is a type-level fallback)
+  // Nullable until onboarding completes → `needsOnboarding = username == null`.
+  username      String?        @unique
+  email         String?        @unique
+  emailVerified DateTime?
+  name          String?
+  image         String?
+  bio           String?
+  status        JourneyStatus?
+
+  // Denormalized reputation counters. Updated in the same tx as the triggering write.
+  storiesShared      Int @default(0)
+  lessonsShared      Int @default(0)
+  buildersHelped     Int @default(0)
+  lsShared           Int @default(0)
+  collectionsCreated Int @default(0)
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  ls            L[]
+  reactions     Reaction[]
+  comments      Comment[]
+  collections   Collection[]
+  following     Follow[]       @relation("follower")
+  followers     Follow[]       @relation("following")
+  notifications Notification[] @relation("recipient")
+  actorEvents   Notification[] @relation("actor")
+  accounts      Account[]
+  sessions      Session[]
+
+  @@index([status])
+}
+
+model Account {
+  id                String  @id @default(cuid()) // ULID (overridden by the client extension; default is a type-level fallback)
+  userId            String
+  type              String
+  provider          String
+  providerAccountId String
+  refresh_token     String?
+  access_token      String?
+  expires_at        Int?
+  token_type        String?
+  scope             String?
+  id_token          String?
+  session_state     String?
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([provider, providerAccountId])
+  @@index([userId])
+}
+
+model Session {
+  id           String   @id @default(cuid()) // ULID (overridden by the client extension; default is a type-level fallback)
+  sessionToken String   @unique
+  userId       String
+  expires      DateTime
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId])
+}
+
+model VerificationToken {
+  identifier String
+  token      String   @unique
+  expires    DateTime
+
+  @@unique([identifier, token])
+}
+
+// ─── L — the core object ──────────────────────────────────────────────────────
+
+model L {
+  id       String @id @default(cuid()) // ULID (overridden by the client extension; default is a type-level fallback)
+  author   User   @relation(fields: [authorId], references: [id], onDelete: Cascade)
+  authorId String
+
+  title         String
+  story         String
+  lessonLearned String?
+  type          LType      @default(L)
+  category      LCategory?
+  company       String?
+  tags          String[]
+  eventDate     DateTime?
+
+  visibility  Visibility @default(PUBLIC)
+  isAnonymous Boolean    @default(false)
+
+  // Battles are ongoing until resolved.
+  resolvedAt DateTime?
+
+  // Denormalized counters — keep feed sorts + card rendering index-only (no COUNT joins).
+  reactionCount  Int   @default(0)
+  beenThereCount Int   @default(0)
+  helpfulCount   Int   @default(0)
+  respectCount   Int   @default(0)
+  painCount      Int   @default(0)
+  savedCount     Int   @default(0)
+  commentCount   Int   @default(0)
+  trendingScore  Float @default(0)
+
+  // FTS vector — the GENERATED-ALWAYS tsvector + GIN index are created in a raw migration.
+  searchVector Unsupported("tsvector")?
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  reactions     Reaction[]
+  comments      Comment[]
+  collectionLs  CollectionL[]
+  notifications Notification[]
+
+  @@index([visibility, createdAt(sort: Desc)])
+  @@index([visibility, trendingScore(sort: Desc)])
+  @@index([visibility, helpfulCount(sort: Desc)])
+  @@index([category, visibility, createdAt(sort: Desc)])
+  @@index([authorId, createdAt(sort: Desc)])
+  @@index([authorId, type])
+  @@index([tags], type: Gin)
+}
+
+// ─── Reactions ────────────────────────────────────────────────────────────────
+
+model Reaction {
+  id     String       @id @default(cuid()) // ULID (overridden by the client extension; default is a type-level fallback)
+  type   ReactionType
+  user   User         @relation(fields: [userId], references: [id], onDelete: Cascade)
+  userId String
+  l      L            @relation(fields: [lId], references: [id], onDelete: Cascade)
+  lId    String
+
+  createdAt DateTime @default(now())
+
+  @@unique([userId, lId, type])
+  @@index([lId, type])
+  @@index([userId, type])
+}
+
+// ─── Comments (threaded) ──────────────────────────────────────────────────────
+
+model Comment {
+  id       String  @id @default(cuid()) // ULID (overridden by the client extension; default is a type-level fallback)
+  body     String
+  author   User    @relation(fields: [authorId], references: [id], onDelete: Cascade)
+  authorId String
+  l        L       @relation(fields: [lId], references: [id], onDelete: Cascade)
+  lId      String
+
+  parent   Comment?  @relation("thread", fields: [parentId], references: [id], onDelete: Cascade)
+  parentId String?
+  replies  Comment[] @relation("thread")
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@index([lId, createdAt])
+  @@index([parentId])
+}
+
+// ─── Follow (social graph) ────────────────────────────────────────────────────
+
+model Follow {
+  id          String @id @default(cuid()) // ULID (overridden by the client extension; default is a type-level fallback)
+  follower    User   @relation("follower", fields: [followerId], references: [id], onDelete: Cascade)
+  followerId  String
+  following   User   @relation("following", fields: [followingId], references: [id], onDelete: Cascade)
+  followingId String
+
+  createdAt DateTime @default(now())
+
+  @@unique([followerId, followingId])
+  @@index([followingId])
+  @@index([followerId])
+}
+
+// ─── Collections ──────────────────────────────────────────────────────────────
+
+model Collection {
+  id        String   @id @default(cuid()) // ULID (overridden by the client extension; default is a type-level fallback)
+  owner     User     @relation(fields: [ownerId], references: [id], onDelete: Cascade)
+  ownerId   String
+  title     String
+  slug      String
+  createdAt DateTime @default(now())
+
+  ls CollectionL[]
+
+  @@unique([ownerId, slug])
+  @@index([ownerId])
+}
+
+model CollectionL {
+  collection   Collection @relation(fields: [collectionId], references: [id], onDelete: Cascade)
+  collectionId String
+  l            L          @relation(fields: [lId], references: [id], onDelete: Cascade)
+  lId          String
+  position     Int        @default(0)
+
+  @@id([collectionId, lId])
+  @@index([lId])
+}
+
+// ─── Notifications ────────────────────────────────────────────────────────────
+
+model Notification {
+  id          String           @id @default(cuid()) // ULID (overridden by the client extension; default is a type-level fallback)
+  type        NotificationType
+  recipient   User             @relation("recipient", fields: [recipientId], references: [id], onDelete: Cascade)
+  recipientId String
+  actor       User?            @relation("actor", fields: [actorId], references: [id], onDelete: SetNull)
+  actorId     String?
+  l           L?               @relation(fields: [lId], references: [id], onDelete: Cascade)
+  lId         String?
+  readAt      DateTime?
+
+  createdAt DateTime @default(now())
+
+  @@index([recipientId, createdAt(sort: Desc)])
+  @@index([recipientId, readAt])
+}

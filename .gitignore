@@ -1,0 +1,21 @@
+node_modules/
+dist/
+build/
+.next/
+coverage/
+
+# env
+.env
+.env.local
+!.env.example
+
+# prisma generated client (regenerated on install)
+packages/db/generated/
+
+# logs / os
+*.log
+.DS_Store
+
+# turbo / caches
+.turbo/
+*.tsbuildinfo

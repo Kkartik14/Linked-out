@@ -1,0 +1,116 @@
+"use client";
+
+import * as React from "react";
+import type {
+  Collection,
+  JourneyNode,
+  LCard as LCardType,
+  LType,
+  Paginated,
+} from "@linkedout/contracts";
+
+import { getUserCollections, getUserLs } from "@/lib/api";
+import { InfiniteList } from "@/components/infinite-list";
+import { EmptyState } from "@/components/empty-state";
+import { LCard } from "@/components/l/l-card";
+import { LCardSkeleton } from "@/components/l/l-card-skeleton";
+import { JourneyTimeline } from "@/components/profile/journey-timeline";
+import { CollectionCard } from "@/components/profile/collection-card";
+import { typeSectionLabel, useMeta } from "@/components/meta-provider";
+import { Skeleton } from "@/components/ui/skeleton";
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
+
+const SECTION_TYPES: LType[] = [
+  "STORY",
+  "BATTLE",
+  "SCAR",
+  "PLOT_TWIST",
+  "CHECKPOINT",
+  "LESSON",
+  "WIN",
+];
+
+function LsList({ username, type, empty }: { username: string; type?: LType; empty: string }) {
+  return (
+    <InfiniteList<LCardType>
+      queryKey={["user-ls", username, type ?? "all"]}
+      queryFn={(cursor) => getUserLs(username, type, cursor)}
+      getItemKey={(l) => l.id}
+      renderItem={(l) => <LCard l={l} />}
+      empty={<EmptyState description={empty} />}
+      skeleton={
+        <>
+          <LCardSkeleton />
+          <LCardSkeleton />
+        </>
+      }
+      className="flex flex-col gap-4"
+    />
+  );
+}
+
+function CollectionsList({ username, empty }: { username: string; empty: string }) {
+  return (
+    <InfiniteList<Collection>
+      queryKey={["user-collections", username]}
+      queryFn={(cursor) => getUserCollections(username, cursor)}
+      getItemKey={(c) => c.id}
+      renderItem={(c) => <CollectionCard collection={c} />}
+      empty={<EmptyState description={empty} />}
+      skeleton={<Skeleton className="h-16 w-full" />}
+      className="flex flex-col gap-3"
+    />
+  );
+}
+
+export function ProfileTabs({
+  username,
+  journeyInitial,
+  isSelf,
+}: {
+  username: string;
+  journeyInitial?: Paginated<JourneyNode>;
+  isSelf: boolean;
+}) {
+  const meta = useMeta();
+  const [tab, setTab] = React.useState("journey");
+  const emptyMsg = isSelf ? "Nothing here yet — share your first L." : "Nothing here yet.";
+
+  return (
+    <Tabs value={tab} onValueChange={setTab} className="mt-6">
+      <div className="overflow-x-auto pb-1">
+        <TabsList className="w-max">
+          <TabsTrigger value="journey">Journey</TabsTrigger>
+          <TabsTrigger value="all">All</TabsTrigger>
+          {SECTION_TYPES.map((t) => (
+            <TabsTrigger key={t} value={t}>
+              {typeSectionLabel(meta, t)}
+            </TabsTrigger>
+          ))}
+          <TabsTrigger value="collections">Collections</TabsTrigger>
+        </TabsList>
+      </div>
+
+      <TabsContent value="journey" className="mt-6">
+        <JourneyTimeline username={username} initial={journeyInitial} />
+      </TabsContent>
+
+      <TabsContent value="all" className="mt-6">
+        <LsList username={username} empty={emptyMsg} />
+      </TabsContent>
+
+      {SECTION_TYPES.map((t) => (
+        <TabsContent key={t} value={t} className="mt-6">
+          <LsList username={username} type={t} empty={emptyMsg} />
+        </TabsContent>
+      ))}
+
+      <TabsContent value="collections" className="mt-6">
+        <CollectionsList
+          username={username}
+          empty={isSelf ? "No collections yet." : "No collections."}
+        />
+      </TabsContent>
+    </Tabs>
+  );
+}
