@@ -3,6 +3,7 @@
 import * as React from "react";
 import Link from "next/link";
 import { useRouter, useSearchParams } from "next/navigation";
+import { isSafeReturnTo } from "@linkedout/contracts";
 
 import { getMe } from "@/lib/api";
 import { Button } from "@/components/ui/button";
@@ -14,7 +15,7 @@ const ERROR_MESSAGES: Record<string, string> = {
 };
 
 function safeReturnTo(value: string | null): string {
-  return value && value.startsWith("/") && !value.startsWith("//") ? value : "/";
+  return value && isSafeReturnTo(value) ? value : "/";
 }
 
 function Centered({ children }: { children: React.ReactNode }) {

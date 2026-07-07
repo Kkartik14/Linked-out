@@ -13,6 +13,7 @@ import {
 } from '@linkedout/contracts';
 
 import { CurrentUser, OptionalUser } from '../../common/decorators/current-user.decorator';
+import { AppErrors } from '../../common/errors/app-exception';
 import { JwtAuthGuard } from '../../common/guards/jwt-auth.guard';
 import { OptionalAuthGuard } from '../../common/guards/optional-auth.guard';
 import { ZodValidationPipe } from '../../common/pipes/zod-validation.pipe';
@@ -20,7 +21,12 @@ import type { AuthUser } from '../../common/types/auth';
 import { LsService } from '../ls/ls.service';
 import { UsersService } from './users.service';
 
-const updatePipe = new ZodValidationPipe(updateUserInputSchema);
+const updatePipe = new ZodValidationPipe(updateUserInputSchema, {
+  mapError: (error) =>
+    error.issues.some((issue) => issue.path[0] === 'username')
+      ? AppErrors.usernameInvalid()
+      : null,
+});
 const userLsPipe = new ZodValidationPipe(userLsQuerySchema);
 const journeyPipe = new ZodValidationPipe(journeyQuerySchema);
 

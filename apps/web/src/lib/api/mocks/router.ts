@@ -74,8 +74,8 @@ function handle(method: string, seg: (string | undefined)[], url: URLSearchParam
   // ── Auth ──
   if (a === "auth") {
     if (b === "me" && method === "GET") return { user: db.meProfile(), needsOnboarding: false };
-    if (b === "logout" && method === "POST") return undefined;
-    if (b === "refresh" && method === "POST") return undefined;
+    if (b === "logout" && method === "POST") return { ok: true };
+    if (b === "refresh" && method === "POST") return { ok: true };
   }
 
   // ── Feed ──
@@ -96,7 +96,7 @@ function handle(method: string, seg: (string | undefined)[], url: URLSearchParam
       if (method === "PATCH") return db.patchLRec(b, body as UpdateLInput) ?? notFound("L_NOT_FOUND", "This L does not exist.");
       if (method === "DELETE") {
         if (!db.deleteLRec(b)) notFound("L_NOT_FOUND", "This L does not exist.");
-        return undefined;
+        return { ok: true };
       }
     }
     if (b !== undefined && c === "comments" && d === undefined) {
@@ -122,7 +122,7 @@ function handle(method: string, seg: (string | undefined)[], url: URLSearchParam
     }
     if (c === undefined && method === "DELETE") {
       if (!db.deleteCommentRec(b)) notFound("COMMENT_NOT_FOUND", "This comment does not exist.");
-      return undefined;
+      return { ok: true };
     }
   }
 
@@ -168,14 +168,20 @@ function handle(method: string, seg: (string | undefined)[], url: URLSearchParam
       if (method === "PATCH") return db.renameCollectionRec(b, (body as { title: string }).title) ?? notFound("COLLECTION_NOT_FOUND", "This collection does not exist.");
       if (method === "DELETE") {
         if (!db.deleteCollectionRec(b)) notFound("COLLECTION_NOT_FOUND", "This collection does not exist.");
-        return undefined;
+        return { ok: true };
       }
     }
     if (b !== undefined && c === "ls" && d !== undefined) {
-      if (method === "PUT") return db.addToCollectionRec(b, d, (body as { position?: number } | undefined)?.position) ?? notFound("COLLECTION_NOT_FOUND", "This collection does not exist.");
+      if (method === "PUT") {
+        if (!db.addToCollectionRec(b, d, (body as { position?: number } | undefined)?.position)) {
+          return notFound("COLLECTION_NOT_FOUND", "This collection does not exist.");
+        }
+        return db.collectionDetail(b);
+      }
       if (method === "DELETE") {
-        if (!db.removeFromCollectionRec(b, d)) notFound("COLLECTION_NOT_FOUND", "Not found in collection.");
-        return undefined;
+        if (!db.collectionDetail(b)) return notFound("COLLECTION_NOT_FOUND", "This collection does not exist.");
+        db.removeFromCollectionRec(b, d);
+        return db.collectionDetail(b);
       }
     }
   }
@@ -193,11 +199,11 @@ function handle(method: string, seg: (string | undefined)[], url: URLSearchParam
     if (b === "unread-count" && method === "GET") return { count: db.unreadCount() };
     if (b === "read-all" && method === "POST") {
       db.markAllNotifsRead();
-      return undefined;
+      return { ok: true };
     }
     if (b !== undefined && c === "read" && method === "POST") {
       db.markNotifRead(b);
-      return undefined;
+      return { ok: true };
     }
   }
 

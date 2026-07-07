@@ -2,7 +2,7 @@ import type { PipeTransform } from '@nestjs/common';
 import type { FieldError, FieldErrorCode } from '@linkedout/contracts';
 import type { ZodError, ZodType, infer as zInfer } from 'zod';
 
-import { AppErrors } from '../errors/app-exception';
+import { AppErrors, type AppException } from '../errors/app-exception';
 
 type ZodIssueLike = ZodError['issues'][number];
 
@@ -43,16 +43,25 @@ export function zodErrorToFieldErrors(error: ZodError): FieldError[] {
   }));
 }
 
+interface ZodValidationPipeOptions {
+  mapError?: (error: ZodError) => AppException | null;
+}
+
 /**
  * Validates a single controller argument against a Zod schema and returns the parsed,
  * fully-typed value. On failure throws the standard VALIDATION_ERROR envelope.
  */
 export class ZodValidationPipe<TSchema extends ZodType> implements PipeTransform {
-  constructor(private readonly schema: TSchema) {}
+  constructor(
+    private readonly schema: TSchema,
+    private readonly options: ZodValidationPipeOptions = {},
+  ) {}
 
   transform(value: unknown): zInfer<TSchema> {
     const result = this.schema.safeParse(value);
     if (!result.success) {
+      const mapped = this.options.mapError?.(result.error);
+      if (mapped) throw mapped;
       throw AppErrors.validation(zodErrorToFieldErrors(result.error));
     }
     return result.data;

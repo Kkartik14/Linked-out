@@ -1,4 +1,5 @@
 import type { Metadata } from "next";
+import { isSafeReturnTo } from "@linkedout/contracts";
 
 import { oauthLoginUrl } from "@/lib/api";
 import { Button } from "@/components/ui/button";
@@ -12,7 +13,7 @@ const ERROR_MESSAGES: Record<string, string> = {
 };
 
 function safeReturnTo(value: string | undefined): string {
-  return value && value.startsWith("/") && !value.startsWith("//") ? value : "/";
+  return value && isSafeReturnTo(value) ? value : "/";
 }
 
 export default async function LoginPage({

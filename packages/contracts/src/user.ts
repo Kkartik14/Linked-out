@@ -43,14 +43,17 @@ export const userProfileSchema = z.object({
 });
 export type UserProfile = z.infer<typeof userProfileSchema>;
 
+export const usernameInputSchema = z
+  .string()
+  .min(3)
+  .max(30)
+  .regex(/^[a-z0-9_]+$/, 'Use lowercase letters, numbers, and underscores');
+export type UsernameInput = z.infer<typeof usernameInputSchema>;
+
 /** PATCH /users/me — all optional; only send what changed. Nulls clear a field. */
 export const updateUserInputSchema = z
   .object({
-    username: z
-      .string()
-      .min(3)
-      .max(30)
-      .regex(/^[a-z0-9_]+$/, 'Use lowercase letters, numbers, and underscores'),
+    username: usernameInputSchema,
     name: z.string().max(80).nullable(),
     bio: z.string().max(280).nullable(),
     image: z.url().nullable(),

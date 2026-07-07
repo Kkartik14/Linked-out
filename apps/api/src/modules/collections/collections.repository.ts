@@ -1,5 +1,5 @@
 import { Injectable } from '@nestjs/common';
-import { Prisma } from '@linkedout/db';
+import { Prisma, type Visibility } from '@linkedout/db';
 
 import { PrismaService } from '../../prisma/prisma.service';
 import { USER_SUMMARY_SELECT } from '../../common/mappers/user-summary.mapper';
@@ -10,6 +10,13 @@ const COLLECTION_INCLUDE = {
   owner: { select: USER_SUMMARY_SELECT },
   _count: { select: { ls: true } },
 } satisfies Prisma.CollectionInclude;
+
+export class CollectionSlugConflictError extends Error {
+  constructor() {
+    super('Collection slug already exists.');
+    this.name = 'CollectionSlugConflictError';
+  }
+}
 
 export type CollectionWithMeta = Prisma.CollectionGetPayload<{
   include: {
@@ -23,18 +30,25 @@ export class CollectionsRepository {
   constructor(private readonly prisma: PrismaService) {}
 
   async create(ownerId: string, title: string, slug: string): Promise<CollectionWithMeta> {
-    return this.prisma.db.$transaction(async (tx) => {
-      const collection = await tx.collection.create({
-        data: { ownerId, title, slug },
-        include: COLLECTION_INCLUDE,
+    try {
+      return await this.prisma.db.$transaction(async (tx) => {
+        const collection = await tx.collection.create({
+          data: { ownerId, title, slug },
+          include: COLLECTION_INCLUDE,
+        });
+        await tx.user.update({
+          where: { id: ownerId },
+          data: { collectionsCreated: { increment: 1 } },
+          select: { id: true },
+        });
+        return collection;
       });
-      await tx.user.update({
-        where: { id: ownerId },
-        data: { collectionsCreated: { increment: 1 } },
-        select: { id: true },
-      });
-      return collection;
-    });
+    } catch (error) {
+      if (error instanceof Prisma.PrismaClientKnownRequestError && error.code === 'P2002') {
+        throw new CollectionSlugConflictError();
+      }
+      throw error;
+    }
   }
 
   findById(id: string): Promise<CollectionWithMeta | null> {
@@ -48,12 +62,19 @@ export class CollectionsRepository {
     });
   }
 
-  update(id: string, title: string, slug: string): Promise<CollectionWithMeta> {
-    return this.prisma.db.collection.update({
-      where: { id },
-      data: { title, slug },
-      include: COLLECTION_INCLUDE,
-    });
+  async update(id: string, title: string, slug: string): Promise<CollectionWithMeta> {
+    try {
+      return await this.prisma.db.collection.update({
+        where: { id },
+        data: { title, slug },
+        include: COLLECTION_INCLUDE,
+      });
+    } catch (error) {
+      if (error instanceof Prisma.PrismaClientKnownRequestError && error.code === 'P2002') {
+        throw new CollectionSlugConflictError();
+      }
+      throw error;
+    }
   }
 
   async delete(id: string, ownerId: string): Promise<void> {
@@ -81,6 +102,19 @@ export class CollectionsRepository {
     return buildPage(rows, limit, (row) => encodeCursor({ id: row.id }));
   }
 
+  async visibleLCounts(
+    collectionIds: string[],
+    visibilities: Visibility[],
+  ): Promise<Map<string, number>> {
+    if (collectionIds.length === 0) return new Map();
+    const rows = await this.prisma.db.collectionL.groupBy({
+      by: ['collectionId'],
+      where: { collectionId: { in: collectionIds }, l: { visibility: { in: visibilities } } },
+      _count: { _all: true },
+    });
+    return new Map(rows.map((row) => [row.collectionId, row._count._all]));
+  }
+
   async orderedLIds(collectionId: string): Promise<string[]> {
     const rows = await this.prisma.db.collectionL.findMany({
       where: { collectionId },
@@ -94,11 +128,16 @@ export class CollectionsRepository {
     return this.prisma.db.l.findUnique({ where: { id: lId }, select: { authorId: true } });
   }
 
-  async addL(collectionId: string, lId: string, position: number): Promise<void> {
+  async addL(
+    collectionId: string,
+    lId: string,
+    position: number,
+    moveExisting: boolean,
+  ): Promise<void> {
     await this.prisma.db.collectionL.upsert({
       where: { collectionId_lId: { collectionId, lId } },
       create: { collectionId, lId, position },
-      update: { position },
+      update: moveExisting ? { position } : {},
     });
   }
 
@@ -106,9 +145,13 @@ export class CollectionsRepository {
     await this.prisma.db.collectionL.deleteMany({ where: { collectionId, lId } });
   }
 
-  async slugTaken(ownerId: string, slug: string): Promise<boolean> {
-    const existing = await this.prisma.db.collection.findUnique({
-      where: { ownerId_slug: { ownerId, slug } },
+  async slugTaken(ownerId: string, slug: string, exceptCollectionId?: string): Promise<boolean> {
+    const existing = await this.prisma.db.collection.findFirst({
+      where: {
+        ownerId,
+        slug,
+        ...(exceptCollectionId ? { id: { not: exceptCollectionId } } : {}),
+      },
       select: { id: true },
     });
     return existing !== null;

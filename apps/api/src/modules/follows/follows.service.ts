@@ -8,7 +8,6 @@ import { mapPage } from '../../common/pagination/paginate';
 import type { AuthUser } from '../../common/types/auth';
 import { UsersRepository } from '../users/users.repository';
 import { UsersService } from '../users/users.service';
-import { NotificationsService } from '../notifications/notifications.service';
 import { FollowsRepository } from './follows.repository';
 
 @Injectable()
@@ -17,7 +16,6 @@ export class FollowsService {
     private readonly repo: FollowsRepository,
     private readonly users: UsersService,
     private readonly usersRepo: UsersRepository,
-    private readonly notifications: NotificationsService,
   ) {}
 
   async follow(user: AuthUser, username: string): Promise<FollowResult> {
@@ -25,10 +23,13 @@ export class FollowsService {
     if (targetId === user.id) {
       throw AppErrors.validationMessage('You cannot follow yourself.');
     }
-    const created = await this.repo.follow(user.id, targetId);
-    if (created) {
-      await this.notifications.notifyFollow({ recipientId: targetId, actorId: user.id });
-    }
+    await this.repo.follow(user.id, targetId, {
+      type: 'NEW_FOLLOWER',
+      recipientId: targetId,
+      actorId: user.id,
+      lId: null,
+      dedupeKey: null,
+    });
     return { isFollowing: true, counts: await this.usersRepo.counts(targetId) };
   }
 

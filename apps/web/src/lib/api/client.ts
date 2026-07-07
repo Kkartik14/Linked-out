@@ -108,7 +108,7 @@ export async function apiFetch<T>(path: string, init: ApiFetchInit = {}): Promis
   if (res.status === 401) {
     const body = await safeJson(res);
     const code = (body as ErrorEnvelope | null)?.error?.code;
-    if (code === "TOKEN_EXPIRED" && !skipRefresh) {
+    if (code === "TOKEN_EXPIRED" && !skipRefresh && typeof window !== "undefined") {
       const refreshedCookie = await refreshSession(headers.get("cookie"));
       return apiFetch<T>(path, {
         ...init,

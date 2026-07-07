@@ -71,8 +71,15 @@ export const AppErrors = {
     new AppException(409, { code: 'USERNAME_TAKEN', message: 'That username is already taken.' }),
   usernameInvalid: (): AppException =>
     new AppException(422, { code: 'USERNAME_INVALID', message: 'That username is not allowed.' }),
+  emailTaken: (): AppException =>
+    new AppException(409, {
+      code: 'EMAIL_TAKEN',
+      message: 'That email is already connected to another login method.',
+    }),
   alreadyFollowing: (): AppException =>
     new AppException(409, { code: 'ALREADY_FOLLOWING', message: 'You already follow this user.' }),
+  rateLimited: (): AppException =>
+    new AppException(429, { code: 'RATE_LIMITED', message: 'Too many requests. Try again soon.' }),
   uploadsDisabled: (): AppException =>
     new AppException(503, {
       code: 'UPLOADS_DISABLED',

@@ -1,4 +1,4 @@
-import { Controller, Get, Post, Req, Res, UseGuards } from '@nestjs/common';
+import { Controller, Get, HttpCode, Post, Req, Res, UseGuards } from '@nestjs/common';
 import type { AuthMeResponse } from '@linkedout/contracts';
 import type { Request, Response } from 'express';
 
@@ -13,7 +13,8 @@ import { UsersService } from '../users/users.service';
 import { AuthService } from './auth.service';
 import { GithubAuthGuard, GoogleAuthGuard } from './oauth.guards';
 import { REFRESH_COOKIE, TokenService } from './token.service';
-import { decodeReturnTo } from './oauth-state';
+import { decodeOAuthState, OAUTH_STATE_COOKIE } from './oauth-state';
+import type { OAuthRequest } from './oauth.guards';
 
 @Controller('auth')
 export class AuthController {
@@ -36,8 +37,8 @@ export class AuthController {
     @OptionalUser() user: AuthUser | undefined,
     @Req() req: Request,
     @Res() res: Response,
-  ): void {
-    this.completeOAuth(user, req, res);
+  ): Promise<void> {
+    return this.completeOAuth(user, req, res);
   }
 
   @Get('github')
@@ -52,8 +53,8 @@ export class AuthController {
     @OptionalUser() user: AuthUser | undefined,
     @Req() req: Request,
     @Res() res: Response,
-  ): void {
-    this.completeOAuth(user, req, res);
+  ): Promise<void> {
+    return this.completeOAuth(user, req, res);
   }
 
   @Get('me')
@@ -63,36 +64,64 @@ export class AuthController {
       return { user: null, needsOnboarding: false };
     }
     const profile = await this.users.getSelfProfile(user.id);
-    return { user: profile, needsOnboarding: user.username === null };
+    return { user: profile, needsOnboarding: profile.username.length === 0 };
   }
 
   @Post('refresh')
+  @HttpCode(200)
   async refresh(
     @Req() req: Request,
     @Res({ passthrough: true }) res: Response,
   ): Promise<{ ok: true }> {
     const token = getCookie(req, REFRESH_COOKIE);
     if (!token) throw AppErrors.unauthenticated();
-    const user = await this.auth.userFromRefresh(token);
+    const { user, refreshToken } = await this.auth.rotateRefresh(token);
     this.tokens.setAccessCookie(res, user);
+    this.tokens.setRefreshCookie(res, refreshToken);
     return { ok: true };
   }
 
   @Post('logout')
+  @HttpCode(200)
   @UseGuards(JwtAuthGuard)
-  logout(@Res({ passthrough: true }) res: Response): { ok: true } {
+  async logout(
+    @Req() req: Request,
+    @Res({ passthrough: true }) res: Response,
+  ): Promise<{ ok: true }> {
+    const token = getCookie(req, REFRESH_COOKIE);
+    if (token) await this.auth.revokeRefresh(token);
     this.tokens.clearAuthCookies(res);
     return { ok: true };
   }
 
-  private completeOAuth(user: AuthUser | undefined, req: Request, res: Response): void {
+  private async completeOAuth(
+    user: AuthUser | undefined,
+    req: Request,
+    res: Response,
+  ): Promise<void> {
+    res.clearCookie(OAUTH_STATE_COOKIE, {
+      domain: this.config.cookieDomain,
+      path: '/v1/auth',
+    });
     if (!user) {
-      const error = req.query.error === 'access_denied' ? 'access_denied' : 'oauth_failed';
+      const oauthReq = req as OAuthRequest;
+      const error =
+        oauthReq.oauthError ??
+        (req.query.error === 'access_denied' ? 'access_denied' : 'oauth_failed');
       res.redirect(`${this.config.webUrl}/auth/callback?error=${error}`);
       return;
     }
-    const returnTo = decodeReturnTo(req.query.state);
-    this.tokens.setAuthCookies(res, user);
+    const returnTo = decodeOAuthState(
+      req.query.state,
+      getCookie(req, OAUTH_STATE_COOKIE),
+      this.config.jwtAccessSecret,
+    );
+    if (!returnTo) {
+      res.redirect(`${this.config.webUrl}/auth/callback?error=oauth_failed`);
+      return;
+    }
+    const { refreshToken } = await this.auth.startSession(user);
+    this.tokens.setAuthCookies(res, user, refreshToken);
     res.redirect(`${this.config.webUrl}/auth/callback?returnTo=${encodeURIComponent(returnTo)}`);
   }
 }

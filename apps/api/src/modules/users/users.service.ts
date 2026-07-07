@@ -1,9 +1,10 @@
 import { Injectable } from '@nestjs/common';
-import type { UpdateUserInput, UserProfile } from '@linkedout/contracts';
+import { usernameInputSchema, type UpdateUserInput, type UserProfile } from '@linkedout/contracts';
 import { Prisma } from '@linkedout/db';
 
 import { AppErrors } from '../../common/errors/app-exception';
 import type { AuthUser } from '../../common/types/auth';
+import { AppConfigService } from '../../config/app-config.service';
 import { UsersRepository, type UserProfileRow } from './users.repository';
 import { toUserProfile } from './users.mapper';
 
@@ -19,7 +20,10 @@ function buildUpdate(input: UpdateUserInput): Prisma.UserUpdateInput {
 
 @Injectable()
 export class UsersService {
-  constructor(private readonly repo: UsersRepository) {}
+  constructor(
+    private readonly repo: UsersRepository,
+    private readonly config: AppConfigService,
+  ) {}
 
   async getProfileByUsername(
     username: string,
@@ -38,7 +42,13 @@ export class UsersService {
   }
 
   async updateMe(user: AuthUser, input: UpdateUserInput): Promise<UserProfile> {
+    if (input.image !== undefined && input.image !== null) {
+      this.assertOwnedAvatarUrl(user.id, input.image);
+    }
     if (input.username !== undefined) {
+      if (!usernameInputSchema.safeParse(input.username).success) {
+        throw AppErrors.usernameInvalid();
+      }
       if (await this.repo.usernameTaken(input.username, user.id)) {
         throw AppErrors.usernameTaken();
       }
@@ -72,5 +82,13 @@ export class UsersService {
     const isFollowing =
       viewerId !== undefined && !isSelf ? await this.repo.isFollowing(viewerId, user.id) : false;
     return toUserProfile(user, counts, { isSelf, isFollowing });
+  }
+
+  private assertOwnedAvatarUrl(userId: string, imageUrl: string): void {
+    const baseUrl = this.config.r2.publicBaseUrl.replace(/\/+$/, '');
+    const prefix = `${baseUrl}/avatars/${userId}/`;
+    if (!baseUrl || !imageUrl.startsWith(prefix)) {
+      throw AppErrors.validationMessage('Avatar image must come from your uploaded avatar URL.');
+    }
   }
 }

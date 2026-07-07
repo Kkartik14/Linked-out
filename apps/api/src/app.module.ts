@@ -1,7 +1,11 @@
 import { Module } from '@nestjs/common';
+import { APP_INTERCEPTOR } from '@nestjs/core';
 
 import { ConfigModule } from './config/config.module';
 import { PrismaModule } from './prisma/prisma.module';
+import { RateLimitInterceptor } from './common/interceptors/rate-limit.interceptor';
+import { RequestLoggingInterceptor } from './common/interceptors/request-logging.interceptor';
+import { RateLimitRepository } from './common/rate-limit/rate-limit.repository';
 import { AuthModule } from './modules/auth/auth.module';
 import { UsersModule } from './modules/users/users.module';
 import { LsModule } from './modules/ls/ls.module';
@@ -31,6 +35,11 @@ import { MetaModule } from './modules/meta/meta.module';
     SearchModule,
     UploadsModule,
     MetaModule,
+  ],
+  providers: [
+    RateLimitRepository,
+    { provide: APP_INTERCEPTOR, useClass: RequestLoggingInterceptor },
+    { provide: APP_INTERCEPTOR, useClass: RateLimitInterceptor },
   ],
 })
 export class AppModule {}

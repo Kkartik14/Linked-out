@@ -13,6 +13,7 @@ import {
 } from '@linkedout/contracts';
 
 import { MetaRepository } from './meta.repository';
+import { buildOpenApiDocument, type OpenApiDocument } from './openapi';
 
 @Injectable()
 export class MetaService {
@@ -40,6 +41,10 @@ export class MetaService {
       notificationType: NOTIFICATION_TYPE_META.map((m) => ({ value: m.value, label: m.label })),
       reputation: REPUTATION_META.map((m) => ({ key: m.key, label: m.label })),
     };
+  }
+
+  getOpenApi(): OpenApiDocument {
+    return buildOpenApiDocument();
   }
 
   async popularTags(query: PopularTagsQuery): Promise<PopularTagsResponse> {

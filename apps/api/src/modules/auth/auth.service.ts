@@ -1,76 +1,62 @@
 import { Injectable } from '@nestjs/common';
 
-import { PrismaService } from '../../prisma/prisma.service';
 import { AppErrors } from '../../common/errors/app-exception';
 import type { AuthUser } from '../../common/types/auth';
 import { TokenService } from './token.service';
 import type { NormalizedOAuthProfile } from './oauth-profile';
+import { AuthRepository, OAuthEmailConflictError } from './auth.repository';
 
 @Injectable()
 export class AuthService {
   constructor(
-    private readonly prisma: PrismaService,
+    private readonly repo: AuthRepository,
     private readonly tokens: TokenService,
   ) {}
 
   /** Upserts the user + linked OAuth account, returning the authenticated principal. */
   async validateOAuthLogin(profile: NormalizedOAuthProfile): Promise<AuthUser> {
-    return this.prisma.db.$transaction(async (tx) => {
-      const linked = await tx.account.findUnique({
-        where: {
-          provider_providerAccountId: {
-            provider: profile.provider,
-            providerAccountId: profile.providerAccountId,
-          },
-        },
-        select: { user: { select: { id: true, username: true } } },
-      });
-      if (linked) {
-        return { id: linked.user.id, username: linked.user.username };
-      }
+    const linked = await this.repo.findLinkedUser(profile.provider, profile.providerAccountId);
+    if (linked) return { id: linked.id, username: linked.username };
 
-      const existingByEmail = profile.email
-        ? await tx.user.findUnique({
-            where: { email: profile.email },
-            select: { id: true, username: true },
-          })
-        : null;
+    if (profile.email && (await this.repo.findUserByEmail(profile.email))) {
+      throw AppErrors.emailTaken();
+    }
 
-      const user =
-        existingByEmail ??
-        (await tx.user.create({
-          data: {
-            email: profile.email,
-            name: profile.name,
-            image: profile.image,
-            emailVerified: profile.email ? new Date() : null,
-          },
-          select: { id: true, username: true },
-        }));
-
-      await tx.account.create({
-        data: {
-          userId: user.id,
-          type: 'oauth',
-          provider: profile.provider,
-          providerAccountId: profile.providerAccountId,
-        },
-        select: { id: true },
-      });
-
+    try {
+      const user = await this.repo.createUserWithAccount(profile);
       return { id: user.id, username: user.username };
-    });
+    } catch (error) {
+      if (error instanceof OAuthEmailConflictError) {
+        throw AppErrors.emailTaken();
+      }
+      throw error;
+    }
   }
 
   /** Resolves a refresh token to the current principal, or 401s. */
-  async userFromRefresh(token: string): Promise<AuthUser> {
+  async startSession(user: AuthUser): Promise<{ refreshToken: string }> {
+    const refresh = this.tokens.issueRefresh(user.id);
+    await this.repo.createRefreshSession(user.id, refresh.tokenHash, refresh.expiresAt);
+    return { refreshToken: refresh.token };
+  }
+
+  /** Rotates a refresh token and resolves it to the current principal, or 401s. */
+  async rotateRefresh(token: string): Promise<{ user: AuthUser; refreshToken: string }> {
     const userId = this.tokens.verifyRefresh(token);
     if (!userId) throw AppErrors.unauthenticated();
-    const user = await this.prisma.db.user.findUnique({
-      where: { id: userId },
-      select: { id: true, username: true },
-    });
+    const refresh = this.tokens.issueRefresh(userId);
+    const user = await this.repo.rotateRefreshSession(
+      userId,
+      this.tokens.hashRefresh(token),
+      refresh.tokenHash,
+      refresh.expiresAt,
+    );
     if (!user) throw AppErrors.unauthenticated();
-    return { id: user.id, username: user.username };
+    return { user: { id: user.id, username: user.username }, refreshToken: refresh.token };
+  }
+
+  async revokeRefresh(token: string): Promise<void> {
+    if (!this.tokens.verifyRefresh(token)) return;
+    await this.repo.deleteRefreshSession(this.tokens.hashRefresh(token));
   }
 }

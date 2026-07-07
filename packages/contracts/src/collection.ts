@@ -34,5 +34,5 @@ export type UpdateCollectionInput = z.infer<typeof updateCollectionInputSchema>;
 
 export const addLToCollectionInputSchema = z.object({
   position: z.number().int().min(0).optional(),
-});
+}).default({});
 export type AddLToCollectionInput = z.infer<typeof addLToCollectionInputSchema>;

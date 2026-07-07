@@ -35,6 +35,18 @@ function reputationForType(type: LType): ReputationDelta {
   return delta;
 }
 
+function reputationDeltaForTypeChange(from: LType, to: LType | undefined): ReputationDelta {
+  if (to === undefined || to === from) return {};
+  const before = reputationForType(from);
+  const after = reputationForType(to);
+  const delta: ReputationDelta = {};
+  for (const field of ['storiesShared', 'lessonsShared'] as const) {
+    const value = (after[field] ?? 0) - (before[field] ?? 0);
+    if (value !== 0) delta[field] = value;
+  }
+  return delta;
+}
+
 function normalizeCreate(input: CreateLInput): WriteLData {
   return {
     title: input.title,
@@ -50,7 +62,7 @@ function normalizeCreate(input: CreateLInput): WriteLData {
   };
 }
 
-function buildUpdateData(input: UpdateLInput): Prisma.LUpdateInput {
+function buildUpdateData(input: UpdateLInput, effectiveType: LType): Prisma.LUpdateInput {
   return {
     title: input.title,
     story: input.story,
@@ -62,7 +74,12 @@ function buildUpdateData(input: UpdateLInput): Prisma.LUpdateInput {
     eventDate: input.eventDate,
     visibility: input.visibility,
     isAnonymous: input.isAnonymous,
-    resolvedAt: input.resolvedAt,
+    resolvedAt:
+      effectiveType === 'BATTLE'
+        ? input.resolvedAt
+        : input.type !== undefined || input.resolvedAt !== undefined
+          ? null
+          : undefined,
   };
 }
 
@@ -107,11 +124,9 @@ export class LsService {
   }
 
   async getFollowingFeed(userId: string, query: FeedQuery): Promise<Paginated<LCard>> {
-    const authorIds = await this.repo.followingIds(userId);
-    if (authorIds.length === 0) return { data: [], nextCursor: null };
     const page = await this.repo.feed({
       visibilities: ['PUBLIC', 'FOLLOWERS'],
-      authorIds,
+      followedByUserId: userId,
       category: query.filter ? FEED_FILTER_TO_CATEGORY[query.filter] : undefined,
       sort: query.sort,
       limit: query.limit,
@@ -162,6 +177,12 @@ export class LsService {
     return this.toCards(rows, viewerId);
   }
 
+  /** Hydrate ids and re-check visibility, used when ids came from raw SQL before hydration. */
+  async getVisibleCardsByIds(ids: string[], viewerId: string | undefined): Promise<LCard[]> {
+    const rows = await this.repo.hydrateVisibleOrdered(ids, viewerId);
+    return this.toCards(rows, viewerId);
+  }
+
   /** For collections: hydrate ids in order, keeping only Ls the viewer may see. */
   async getCardsByIdsFiltered(
     ids: string[],
@@ -191,10 +212,16 @@ export class LsService {
   }
 
   async update(user: AuthUser, id: string, input: UpdateLInput): Promise<LDetail> {
-    const existing = await this.repo.findById(id);
-    if (!existing) throw AppErrors.lNotFound();
-    if (existing.authorId !== user.id) throw AppErrors.notLOwner();
-    const updated = await this.repo.updateL(id, buildUpdateData(input));
+    const result = await this.repo.updateOwnedL(
+      id,
+      user.id,
+      input.type,
+      (effectiveType) => buildUpdateData(input, effectiveType),
+      reputationDeltaForTypeChange,
+    );
+    if (result.status === 'not_found') throw AppErrors.lNotFound();
+    if (result.status === 'not_owner') throw AppErrors.notLOwner();
+    const updated = result.row;
     const [collections, reactionMap] = await Promise.all([
       this.repo.collectionsForL(id),
       this.reactionMap(user.id, [id]),
@@ -203,10 +230,9 @@ export class LsService {
   }
 
   async remove(user: AuthUser, id: string): Promise<{ ok: true }> {
-    const existing = await this.repo.findById(id);
-    if (!existing) throw AppErrors.lNotFound();
-    if (existing.authorId !== user.id) throw AppErrors.notLOwner();
-    await this.repo.deleteL(id, user.id, reputationForType(existing.type));
+    const result = await this.repo.deleteOwnedL(id, user.id, reputationForType);
+    if (result.status === 'not_found') throw AppErrors.lNotFound();
+    if (result.status === 'not_owner') throw AppErrors.notLOwner();
     return { ok: true };
   }
 
@@ -256,15 +282,20 @@ export class LsService {
   }
 
   private async assertCanView(l: LWithAuthor, viewerId: string | undefined): Promise<void> {
-    if (l.visibility === 'PUBLIC') return;
-    if (viewerId && viewerId === l.authorId) return;
+    if (await this.canView(l, viewerId)) return;
+    throw AppErrors.lNotFound();
+  }
+
+  private async canView(l: LWithAuthor, viewerId: string | undefined): Promise<boolean> {
+    if (l.visibility === 'PUBLIC') return true;
+    if (viewerId && viewerId === l.authorId) return true;
     if (
       l.visibility === 'FOLLOWERS' &&
       viewerId &&
       (await this.repo.viewerFollows(viewerId, l.authorId))
     ) {
-      return;
+      return true;
     }
-    throw AppErrors.lNotFound();
+    return false;
   }
 }

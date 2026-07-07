@@ -45,6 +45,7 @@ export class UploadsService {
       Bucket: r2.bucket,
       Key: key,
       ContentType: input.contentType,
+      ContentLength: input.contentLength,
     });
     const uploadUrl = await getSignedUrl(this.client, command, { expiresIn: EXPIRES_IN_SECONDS });
     const publicUrl = `${r2.publicBaseUrl.replace(/\/+$/, '')}/${key}`;

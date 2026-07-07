@@ -1,5 +1,6 @@
 import type { Metadata } from "next";
 import { redirect } from "next/navigation";
+import { isSafeReturnTo } from "@linkedout/contracts";
 
 import { getSession } from "@/lib/session";
 import { OnboardingForm } from "@/components/onboarding-form";
@@ -7,7 +8,7 @@ import { OnboardingForm } from "@/components/onboarding-form";
 export const metadata: Metadata = { title: "Set up your profile" };
 
 function safeReturnTo(value: string | undefined): string {
-  return value && value.startsWith("/") && !value.startsWith("//") ? value : "/";
+  return value && isSafeReturnTo(value) ? value : "/";
 }
 
 export default async function OnboardingPage({

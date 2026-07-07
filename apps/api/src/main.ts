@@ -12,6 +12,9 @@ async function bootstrap(): Promise<void> {
   const app = await NestFactory.create(AppModule, { bufferLogs: false });
   const config = app.get(AppConfigService);
 
+  if (config.trustProxyHops > 0) {
+    app.getHttpAdapter().getInstance().set('trust proxy', config.trustProxyHops);
+  }
   app.setGlobalPrefix('v1');
   app.use(cookieParser());
   app.useGlobalFilters(new AllExceptionsFilter());

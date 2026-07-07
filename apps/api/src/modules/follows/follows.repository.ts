@@ -8,19 +8,34 @@ import {
 import { encodeCursor } from '../../common/pagination/cursor';
 import { buildPage, type EntityPage } from '../../common/pagination/paginate';
 
+export interface FollowNotificationWrite {
+  type: 'NEW_FOLLOWER';
+  recipientId: string;
+  actorId: string;
+  lId: null;
+  dedupeKey: null;
+}
+
 @Injectable()
 export class FollowsRepository {
   constructor(private readonly prisma: PrismaService) {}
 
   /** Idempotent follow. Returns true only when a new edge was created. */
-  async follow(followerId: string, followingId: string): Promise<boolean> {
-    const existing = await this.prisma.db.follow.findUnique({
-      where: { followerId_followingId: { followerId, followingId } },
-      select: { id: true },
+  async follow(
+    followerId: string,
+    followingId: string,
+    notification: FollowNotificationWrite,
+  ): Promise<boolean> {
+    const created = await this.prisma.db.$transaction(async (tx) => {
+      const result = await tx.follow.createMany({
+        data: [{ followerId, followingId }],
+        skipDuplicates: true,
+      });
+      if (result.count === 0) return false;
+      await tx.notification.create({ data: notification, select: { id: true } });
+      return true;
     });
-    if (existing) return false;
-    await this.prisma.db.follow.create({ data: { followerId, followingId }, select: { id: true } });
-    return true;
+    return created;
   }
 
   async unfollow(followerId: string, followingId: string): Promise<boolean> {

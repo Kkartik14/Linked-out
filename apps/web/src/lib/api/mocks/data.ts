@@ -688,9 +688,26 @@ function lDetailFromRec(l: LRec): LDetail {
   const inCollections = collections
     .filter((c) => c.lIds.includes(l.id))
     .map((c) => ({ id: c.id, title: c.title, slug: c.slug }));
-  // `card.storyPreview` is not part of LDetail; spreads are exempt from
-  // excess-property checks, and the full `story` takes its place.
-  return { ...card, story: l.story, collections: inCollections };
+  return {
+    id: card.id,
+    title: card.title,
+    story: l.story,
+    lessonLearned: card.lessonLearned,
+    type: card.type,
+    category: card.category,
+    company: card.company,
+    tags: card.tags,
+    eventDate: card.eventDate,
+    visibility: card.visibility,
+    isAnonymous: card.isAnonymous,
+    resolvedAt: card.resolvedAt,
+    author: card.author,
+    reactions: card.reactions,
+    commentCount: card.commentCount,
+    viewer: card.viewer,
+    createdAt: card.createdAt,
+    collections: inCollections,
+  };
 }
 
 function journeyNodeFromRec(l: LRec): JourneyNode {

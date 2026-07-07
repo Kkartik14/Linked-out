@@ -24,9 +24,11 @@ import type {
   UserProfile,
   UserSummary,
 } from "@linkedout/contracts";
+import { isSafeReturnTo } from "@linkedout/contracts";
 import { apiFetch } from "./client";
 
 type QueryValue = string | number | boolean | undefined | null;
+type OkResponse = { ok: true };
 
 function qs(params: Record<string, QueryValue>): string {
   const sp = new URLSearchParams();
@@ -45,10 +47,13 @@ function json(body: unknown): { method?: string; body: string } {
 
 // ── Auth ────────────────────────────────────────────────────────────────────
 export const getMe = () => apiFetch<AuthMeResponse>("/auth/me");
-export const logout = () => apiFetch<void>("/auth/logout", { method: "POST" });
+export const logout = () => apiFetch<OkResponse>("/auth/logout", { method: "POST" });
 
 /** Full backend URL to start an OAuth flow (a browser navigation, not a fetch). */
 export function oauthLoginUrl(provider: "google" | "github", returnTo = "/"): string {
+  if (!isSafeReturnTo(returnTo)) {
+    throw new Error("returnTo must be a safe relative path.");
+  }
   return `${API_BASE_URL}/auth/${provider}?returnTo=${encodeURIComponent(returnTo)}`;
 }
 
@@ -82,7 +87,7 @@ export const createL = (body: CreateLInput) =>
   apiFetch<LDetail>("/ls", { method: "POST", ...json(body) });
 export const patchL = (id: string, body: UpdateLInput) =>
   apiFetch<LDetail>(`/ls/${id}`, { method: "PATCH", ...json(body) });
-export const deleteL = (id: string) => apiFetch<void>(`/ls/${id}`, { method: "DELETE" });
+export const deleteL = (id: string) => apiFetch<OkResponse>(`/ls/${id}`, { method: "DELETE" });
 
 // ── Reactions ────────────────────────────────────────────────────────────────
 export const addReaction = (id: string, type: ReactionType) =>
@@ -93,32 +98,32 @@ export const getSaved = (cursor?: string, limit?: number) =>
   apiFetch<Paginated<LCard>>(`/me/saved${qs({ cursor, limit })}`);
 
 // ── Comments ─────────────────────────────────────────────────────────────────
-export const getComments = (lId: string, cursor?: string) =>
-  apiFetch<Paginated<Comment>>(`/ls/${lId}/comments${qs({ cursor })}`);
+export const getComments = (lId: string, cursor?: string, limit?: number) =>
+  apiFetch<Paginated<Comment>>(`/ls/${lId}/comments${qs({ cursor, limit })}`);
 export const addComment = (lId: string, body: CreateCommentInput) =>
   apiFetch<Comment>(`/ls/${lId}/comments`, { method: "POST", ...json(body) });
-export const getReplies = (commentId: string, cursor?: string) =>
-  apiFetch<Paginated<Comment>>(`/comments/${commentId}/replies${qs({ cursor })}`);
+export const getReplies = (commentId: string, cursor?: string, limit?: number) =>
+  apiFetch<Paginated<Comment>>(`/comments/${commentId}/replies${qs({ cursor, limit })}`);
 export const addReply = (commentId: string, body: CreateCommentInput) =>
   apiFetch<Comment>(`/comments/${commentId}/replies`, { method: "POST", ...json(body) });
 export const deleteComment = (id: string) =>
-  apiFetch<void>(`/comments/${id}`, { method: "DELETE" });
+  apiFetch<OkResponse>(`/comments/${id}`, { method: "DELETE" });
 
 // ── Users & profiles ─────────────────────────────────────────────────────────
 export const getProfile = (username: string) =>
   apiFetch<UserProfile>(`/users/${username}`);
 export const patchMe = (body: UpdateUserInput) =>
   apiFetch<UserProfile>("/users/me", { method: "PATCH", ...json(body) });
-export const getUserLs = (username: string, type?: LType, cursor?: string) =>
-  apiFetch<Paginated<LCard>>(`/users/${username}/ls${qs({ type, cursor })}`);
-export const getJourney = (username: string, cursor?: string) =>
-  apiFetch<Paginated<JourneyNode>>(`/users/${username}/journey${qs({ cursor })}`);
-export const getUserCollections = (username: string, cursor?: string) =>
-  apiFetch<Paginated<Collection>>(`/users/${username}/collections${qs({ cursor })}`);
-export const getFollowers = (username: string, cursor?: string) =>
-  apiFetch<Paginated<UserSummary>>(`/users/${username}/followers${qs({ cursor })}`);
-export const getFollowing = (username: string, cursor?: string) =>
-  apiFetch<Paginated<UserSummary>>(`/users/${username}/following${qs({ cursor })}`);
+export const getUserLs = (username: string, type?: LType, cursor?: string, limit?: number) =>
+  apiFetch<Paginated<LCard>>(`/users/${username}/ls${qs({ type, cursor, limit })}`);
+export const getJourney = (username: string, cursor?: string, limit?: number) =>
+  apiFetch<Paginated<JourneyNode>>(`/users/${username}/journey${qs({ cursor, limit })}`);
+export const getUserCollections = (username: string, cursor?: string, limit?: number) =>
+  apiFetch<Paginated<Collection>>(`/users/${username}/collections${qs({ cursor, limit })}`);
+export const getFollowers = (username: string, cursor?: string, limit?: number) =>
+  apiFetch<Paginated<UserSummary>>(`/users/${username}/followers${qs({ cursor, limit })}`);
+export const getFollowing = (username: string, cursor?: string, limit?: number) =>
+  apiFetch<Paginated<UserSummary>>(`/users/${username}/following${qs({ cursor, limit })}`);
 export const follow = (username: string) =>
   apiFetch<FollowResult>(`/users/${username}/follow`, { method: "PUT" });
 export const unfollow = (username: string) =>
@@ -132,30 +137,30 @@ export const getCollection = (id: string) =>
 export const renameCollection = (id: string, title: string) =>
   apiFetch<Collection>(`/collections/${id}`, { method: "PATCH", ...json({ title }) });
 export const deleteCollection = (id: string) =>
-  apiFetch<void>(`/collections/${id}`, { method: "DELETE" });
+  apiFetch<OkResponse>(`/collections/${id}`, { method: "DELETE" });
 export const addLToCollection = (id: string, lId: string, position?: number) =>
-  apiFetch<Collection>(`/collections/${id}/ls/${lId}`, {
+  apiFetch<CollectionDetail>(`/collections/${id}/ls/${lId}`, {
     method: "PUT",
     ...(position !== undefined ? json({ position }) : {}),
   });
 export const removeLFromCollection = (id: string, lId: string) =>
-  apiFetch<void>(`/collections/${id}/ls/${lId}`, { method: "DELETE" });
+  apiFetch<CollectionDetail>(`/collections/${id}/ls/${lId}`, { method: "DELETE" });
 
 // ── Search ───────────────────────────────────────────────────────────────────
-export const searchLs = (q: string, filter?: string, cursor?: string) =>
-  apiFetch<Paginated<LCard>>(`/search${qs({ q, type: "ls", filter, cursor })}`);
-export const searchUsers = (q: string, cursor?: string) =>
-  apiFetch<Paginated<UserSummary>>(`/search${qs({ q, type: "users", cursor })}`);
+export const searchLs = (q: string, filter?: string, cursor?: string, limit?: number) =>
+  apiFetch<Paginated<LCard>>(`/search${qs({ q, type: "ls", filter, cursor, limit })}`);
+export const searchUsers = (q: string, cursor?: string, limit?: number) =>
+  apiFetch<Paginated<UserSummary>>(`/search${qs({ q, type: "users", cursor, limit })}`);
 
 // ── Notifications ────────────────────────────────────────────────────────────
-export const getNotifications = (cursor?: string) =>
-  apiFetch<Paginated<Notification>>(`/notifications${qs({ cursor })}`);
+export const getNotifications = (cursor?: string, limit?: number) =>
+  apiFetch<Paginated<Notification>>(`/notifications${qs({ cursor, limit })}`);
 export const getUnreadCount = () =>
   apiFetch<{ count: number }>("/notifications/unread-count");
 export const markNotificationRead = (id: string) =>
-  apiFetch<void>(`/notifications/${id}/read`, { method: "POST" });
+  apiFetch<OkResponse>(`/notifications/${id}/read`, { method: "POST" });
 export const markAllNotificationsRead = () =>
-  apiFetch<void>("/notifications/read-all", { method: "POST" });
+  apiFetch<OkResponse>("/notifications/read-all", { method: "POST" });
 
 // ── Media upload ─────────────────────────────────────────────────────────────
 export const presignAvatar = (body: AvatarUploadRequest) =>

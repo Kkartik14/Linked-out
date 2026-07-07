@@ -1,4 +1,4 @@
-import { Controller, Get, Param, Post, Query, UseGuards } from '@nestjs/common';
+import { Controller, Get, HttpCode, Param, Post, Query, UseGuards } from '@nestjs/common';
 import {
   paginationQuerySchema,
   type Notification,
@@ -34,11 +34,13 @@ export class NotificationsController {
   }
 
   @Post('read-all')
+  @HttpCode(200)
   markAllRead(@CurrentUser() user: AuthUser): Promise<{ ok: true }> {
     return this.notifications.markAllRead(user.id);
   }
 
   @Post(':id/read')
+  @HttpCode(200)
   markRead(
     @CurrentUser() user: AuthUser,
     @Param('id') id: string,

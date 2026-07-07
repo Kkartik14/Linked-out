@@ -8,6 +8,7 @@ import {
 
 import { ZodValidationPipe } from '../../common/pipes/zod-validation.pipe';
 import { MetaService } from './meta.service';
+import type { OpenApiDocument } from './openapi';
 
 const tagsQueryPipe = new ZodValidationPipe(popularTagsQuerySchema);
 
@@ -18,6 +19,11 @@ export class MetaController {
   @Get('meta/enums')
   enums(): MetaEnumsResponse {
     return this.meta.getEnums();
+  }
+
+  @Get('openapi.json')
+  openApi(): OpenApiDocument {
+    return this.meta.getOpenApi();
   }
 
   @Get('tags/popular')

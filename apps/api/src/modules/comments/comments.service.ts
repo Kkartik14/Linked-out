@@ -11,7 +11,6 @@ import { decodeCursorId } from '../../common/pagination/cursor';
 import { mapPage } from '../../common/pagination/paginate';
 import type { AuthUser } from '../../common/types/auth';
 import { LsService } from '../ls/ls.service';
-import { NotificationsService } from '../notifications/notifications.service';
 import { CommentsRepository } from './comments.repository';
 import { toComment } from './comments.mapper';
 
@@ -20,7 +19,6 @@ export class CommentsService {
   constructor(
     private readonly repo: CommentsRepository,
     private readonly ls: LsService,
-    private readonly notifications: NotificationsService,
   ) {}
 
   async createOnL(user: AuthUser, lId: string, input: CreateCommentInput): Promise<Comment> {
@@ -31,11 +29,16 @@ export class CommentsService {
       lId,
       body: input.body,
       parentId: null,
-    });
-    await this.notifications.notifyComment({
-      recipientId: l.authorId,
-      actorId: user.id,
-      lId,
+      notification:
+        l.authorId === user.id
+          ? null
+          : {
+              type: 'COMMENT',
+              recipientId: l.authorId,
+              actorId: user.id,
+              lId,
+              dedupeKey: null,
+            },
     });
     return toComment(comment, user.id);
   }
@@ -48,17 +51,25 @@ export class CommentsService {
     if (!user.username) throw AppErrors.onboardingRequired();
     const parent = await this.repo.findMeta(parentCommentId);
     if (!parent) throw AppErrors.commentNotFound();
+    if (parent.parentId !== null) {
+      throw AppErrors.validationMessage('Replies can only be added to top-level comments.');
+    }
     const l = await this.ls.getViewableL(parent.lId, user.id);
     const comment = await this.repo.create({
       authorId: user.id,
       lId: parent.lId,
       body: input.body,
       parentId: parent.id,
-    });
-    await this.notifications.notifyComment({
-      recipientId: l.authorId,
-      actorId: user.id,
-      lId: parent.lId,
+      notification:
+        l.authorId === user.id
+          ? null
+          : {
+              type: 'COMMENT',
+              recipientId: l.authorId,
+              actorId: user.id,
+              lId: parent.lId,
+              dedupeKey: null,
+            },
     });
     return toComment(comment, user.id);
   }

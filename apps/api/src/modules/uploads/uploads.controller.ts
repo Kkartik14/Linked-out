@@ -1,4 +1,4 @@
-import { Body, Controller, Post, UseGuards } from '@nestjs/common';
+import { Body, Controller, HttpCode, Post, UseGuards } from '@nestjs/common';
 import {
   avatarUploadRequestSchema,
   type AvatarUploadRequest,
@@ -19,6 +19,7 @@ export class UploadsController {
   constructor(private readonly uploads: UploadsService) {}
 
   @Post('avatar')
+  @HttpCode(200)
   avatar(
     @CurrentUser() user: AuthUser,
     @Body(uploadPipe) body: AvatarUploadRequest,

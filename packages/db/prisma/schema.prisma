@@ -186,9 +186,15 @@ model L {
   notifications Notification[]
 
   @@index([visibility, createdAt(sort: Desc)])
+  @@index([visibility, id(sort: Desc)])
   @@index([visibility, trendingScore(sort: Desc)])
+  @@index([visibility, trendingScore(sort: Desc), id(sort: Desc)])
   @@index([visibility, helpfulCount(sort: Desc)])
+  @@index([visibility, helpfulCount(sort: Desc), id(sort: Desc)])
   @@index([category, visibility, createdAt(sort: Desc)])
+  @@index([category, visibility, id(sort: Desc)])
+  @@index([category, visibility, trendingScore(sort: Desc), id(sort: Desc)])
+  @@index([category, visibility, helpfulCount(sort: Desc), id(sort: Desc)])
   @@index([authorId, createdAt(sort: Desc)])
   @@index([authorId, type])
   @@index([tags], type: Gin)
@@ -286,10 +292,21 @@ model Notification {
   actorId     String?
   l           L?               @relation(fields: [lId], references: [id], onDelete: Cascade)
   lId         String?
+  dedupeKey   String?          @unique
   readAt      DateTime?
 
   createdAt DateTime @default(now())
 
   @@index([recipientId, createdAt(sort: Desc)])
   @@index([recipientId, readAt])
+}
+
+// Shared limiter state so all API instances enforce the same buckets.
+model RateLimitBucket {
+  key       String   @id
+  count     Int      @default(0)
+  resetAt   DateTime
+  updatedAt DateTime @updatedAt
+
+  @@index([resetAt])
 }

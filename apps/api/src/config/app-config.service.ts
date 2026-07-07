@@ -47,6 +47,10 @@ export class AppConfigService {
     return this.env.WEB_URL;
   }
 
+  get trustProxyHops(): number {
+    return this.env.TRUST_PROXY_HOPS;
+  }
+
   get jwtAccessSecret(): string {
     return this.env.JWT_ACCESS_SECRET;
   }
@@ -80,7 +84,8 @@ export class AppConfigService {
     const configured =
       this.env.R2_ENDPOINT.length > 0 &&
       this.env.R2_ACCESS_KEY_ID.length > 0 &&
-      this.env.R2_SECRET_ACCESS_KEY.length > 0;
+      this.env.R2_SECRET_ACCESS_KEY.length > 0 &&
+      this.env.R2_PUBLIC_BASE_URL.length > 0;
     return {
       accountId: this.env.R2_ACCOUNT_ID,
       accessKeyId: this.env.R2_ACCESS_KEY_ID,

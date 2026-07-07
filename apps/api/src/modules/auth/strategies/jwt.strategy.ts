@@ -4,9 +4,9 @@ import { ExtractJwt, Strategy, type StrategyOptionsWithoutRequest } from 'passpo
 import type { Request } from 'express';
 
 import { AppConfigService } from '../../../config/app-config.service';
-import { PrismaService } from '../../../prisma/prisma.service';
 import { getCookie } from '../../../common/http/cookies';
 import type { AuthUser } from '../../../common/types/auth';
+import { AuthRepository } from '../auth.repository';
 import { ACCESS_COOKIE } from '../token.service';
 
 function accessTokenFromCookie(req: Request): string | null {
@@ -17,7 +17,7 @@ function accessTokenFromCookie(req: Request): string | null {
 export class JwtStrategy extends PassportStrategy(Strategy, 'jwt') {
   constructor(
     config: AppConfigService,
-    private readonly prisma: PrismaService,
+    private readonly repo: AuthRepository,
   ) {
     const options: StrategyOptionsWithoutRequest = {
       jwtFromRequest: ExtractJwt.fromExtractors([accessTokenFromCookie]),
@@ -35,10 +35,7 @@ export class JwtStrategy extends PassportStrategy(Strategy, 'jwt') {
     if (typeof sub !== 'string') {
       throw new UnauthorizedException();
     }
-    const user = await this.prisma.db.user.findUnique({
-      where: { id: sub },
-      select: { id: true, username: true },
-    });
+    const user = await this.repo.findUserById(sub);
     if (!user) {
       throw new UnauthorizedException();
     }

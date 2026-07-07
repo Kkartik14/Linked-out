@@ -37,8 +37,16 @@ export interface WriteLData {
   isAnonymous: boolean;
 }
 
-export type ReputationField = 'lsShared' | 'storiesShared' | 'lessonsShared';
+export type ReputationField = 'lsShared' | 'storiesShared' | 'lessonsShared' | 'buildersHelped';
 export type ReputationDelta = Partial<Record<ReputationField, number>>;
+export type OwnedLWriteResult<T> =
+  | { status: 'ok'; row: T }
+  | { status: 'not_found' }
+  | { status: 'not_owner' };
+
+type BuildUpdateData = (effectiveType: LType) => Prisma.LUpdateInput;
+type TypeChangeDelta = (from: LType, to: LType | undefined) => ReputationDelta;
+type DeleteReputation = (type: LType) => ReputationDelta;
 
 function cursorString(value: string | number | undefined): string {
   if (typeof value !== 'string') throw AppErrors.badCursor();
@@ -54,6 +62,10 @@ function feedOrderBy(sort: FeedSort): Prisma.LOrderByWithRelationInput[] {
   if (sort === 'trending') return [{ trendingScore: 'desc' }, { id: 'desc' }];
   if (sort === 'helpful') return [{ helpfulCount: 'desc' }, { id: 'desc' }];
   return [{ id: 'desc' }];
+}
+
+function isWriteConflict(error: unknown): boolean {
+  return error instanceof Prisma.PrismaClientKnownRequestError && error.code === 'P2034';
 }
 
 function feedCursorWhere(sort: FeedSort, cursor: string | undefined): Prisma.LWhereInput | null {
@@ -117,23 +129,6 @@ export class LsRepository {
     });
   }
 
-  updateL(id: string, data: Prisma.LUpdateInput): Promise<LWithAuthor> {
-    return this.prisma.db.l.update({ where: { id }, data, include: AUTHOR_INCLUDE });
-  }
-
-  async deleteL(id: string, authorId: string, reputation: ReputationDelta): Promise<void> {
-    await this.prisma.db.$transaction(async (tx) => {
-      await tx.l.delete({ where: { id }, select: { id: true } });
-      if (Object.keys(reputation).length > 0) {
-        await tx.user.update({
-          where: { id: authorId },
-          data: incrementReputation(reputation, -1),
-          select: { id: true },
-        });
-      }
-    });
-  }
-
   /** Viewer's own reactions on the given Ls, for card viewer-context. */
   async viewerReactions(
     viewerId: string,
@@ -149,6 +144,7 @@ export class LsRepository {
   async feed(params: {
     visibilities: Visibility[];
     authorIds?: string[];
+    followedByUserId?: string;
     category?: LCategory;
     sort: FeedSort;
     limit: number;
@@ -159,6 +155,9 @@ export class LsRepository {
       visibility: { in: params.visibilities },
       ...(params.category ? { category: params.category } : {}),
       ...(params.authorIds ? { authorId: { in: params.authorIds } } : {}),
+      ...(params.followedByUserId
+        ? { author: { followers: { some: { followerId: params.followedByUserId } } } }
+        : {}),
       ...(cursorWhere ? { AND: [cursorWhere] } : {}),
     };
     const rows = await this.prisma.db.l.findMany({
@@ -203,6 +202,16 @@ export class LsRepository {
       where: {
         userId: viewerId,
         type: 'SAVED',
+        l: {
+          OR: [
+            { visibility: 'PUBLIC' },
+            { authorId: viewerId },
+            {
+              visibility: 'FOLLOWERS',
+              author: { followers: { some: { followerId: viewerId } } },
+            },
+          ],
+        },
         ...(cursorReactionId ? { id: { lt: cursorReactionId } } : {}),
       },
       select: { id: true, l: { include: AUTHOR_INCLUDE } },
@@ -258,13 +267,37 @@ export class LsRepository {
     return ordered;
   }
 
-  /** Ids of everyone the user follows (for the following feed). */
-  async followingIds(userId: string): Promise<string[]> {
-    const rows = await this.prisma.db.follow.findMany({
-      where: { followerId: userId },
-      select: { followingId: true },
+  /** Fetch visible Ls by id in the requested order, with visibility enforced in SQL. */
+  async hydrateVisibleOrdered(
+    ids: string[],
+    viewerId: string | undefined,
+  ): Promise<LWithAuthor[]> {
+    if (ids.length === 0) return [];
+    const rows = await this.prisma.db.l.findMany({
+      where: {
+        id: { in: ids },
+        OR: [
+          { visibility: 'PUBLIC' },
+          ...(viewerId
+            ? [
+                { authorId: viewerId },
+                {
+                  visibility: 'FOLLOWERS' as const,
+                  author: { followers: { some: { followerId: viewerId } } },
+                },
+              ]
+            : []),
+        ],
+      },
+      include: AUTHOR_INCLUDE,
     });
-    return rows.map((row) => row.followingId);
+    const byId = new Map(rows.map((row) => [row.id, row]));
+    const ordered: LWithAuthor[] = [];
+    for (const id of ids) {
+      const row = byId.get(id);
+      if (row) ordered.push(row);
+    }
+    return ordered;
   }
 
   /** Does the viewer follow the author? Used for FOLLOWERS-visibility checks. */
@@ -275,6 +308,92 @@ export class LsRepository {
     });
     return follow !== null;
   }
+
+  async updateOwnedL(
+    id: string,
+    authorId: string,
+    requestedType: LType | undefined,
+    buildData: BuildUpdateData,
+    typeChangeDelta: TypeChangeDelta,
+  ): Promise<OwnedLWriteResult<LWithAuthor>> {
+    let attempt = 0;
+    while (true) {
+      try {
+        return await this.prisma.db.$transaction(
+          async (tx) => {
+            const existing = await tx.l.findUnique({
+              where: { id },
+              select: { authorId: true, type: true },
+            });
+            if (!existing) return { status: 'not_found' };
+            if (existing.authorId !== authorId) return { status: 'not_owner' };
+
+            const effectiveType = requestedType ?? existing.type;
+            const reputation = typeChangeDelta(existing.type, requestedType);
+            const row = await tx.l.update({
+              where: { id },
+              data: buildData(effectiveType),
+              include: AUTHOR_INCLUDE,
+            });
+            if (Object.keys(reputation).length > 0) {
+              await tx.user.update({
+                where: { id: authorId },
+                data: incrementReputation(reputation),
+                select: { id: true },
+              });
+            }
+            return { status: 'ok', row };
+          },
+          { isolationLevel: Prisma.TransactionIsolationLevel.Serializable },
+        );
+      } catch (error) {
+        attempt += 1;
+        if (!isWriteConflict(error) || attempt >= 3) throw error;
+      }
+    }
+  }
+
+  async deleteOwnedL(
+    id: string,
+    authorId: string,
+    deleteReputation: DeleteReputation,
+  ): Promise<OwnedLWriteResult<null>> {
+    let attempt = 0;
+    while (true) {
+      try {
+        return await this.prisma.db.$transaction(
+          async (tx) => {
+            const existing = await tx.l.findUnique({
+              where: { id },
+              select: { authorId: true, type: true },
+            });
+            if (!existing) return { status: 'not_found' };
+            if (existing.authorId !== authorId) return { status: 'not_owner' };
+
+            const helpfulFromOthers = await tx.reaction.count({
+              where: { lId: id, type: 'HELPFUL', userId: { not: authorId } },
+            });
+            const reputation = deleteReputation(existing.type);
+            if (helpfulFromOthers > 0) reputation.buildersHelped = helpfulFromOthers;
+
+            await tx.l.delete({ where: { id }, select: { id: true } });
+            if (Object.keys(reputation).length > 0) {
+              await tx.user.update({
+                where: { id: authorId },
+                data: incrementReputation(reputation, -1),
+                select: { id: true },
+              });
+            }
+            return { status: 'ok', row: null };
+          },
+          { isolationLevel: Prisma.TransactionIsolationLevel.Serializable },
+        );
+      } catch (error) {
+        attempt += 1;
+        if (!isWriteConflict(error) || attempt >= 3) throw error;
+      }
+    }
+  }
 }
 
 function incrementReputation(
@@ -283,6 +402,9 @@ function incrementReputation(
 ): Prisma.UserUpdateInput {
   const update: Prisma.UserUpdateInput = {};
   if (delta.lsShared !== undefined) update.lsShared = { increment: sign * delta.lsShared };
+  if (delta.buildersHelped !== undefined) {
+    update.buildersHelped = { increment: sign * delta.buildersHelped };
+  }
   if (delta.storiesShared !== undefined) {
     update.storiesShared = { increment: sign * delta.storiesShared };
   }
