@@ -16,13 +16,24 @@ import { CommentForm } from "@/components/comments/comment-form";
 import { Button } from "@/components/ui/button";
 import { timeAgo } from "@/lib/format";
 
-function CommentBody({ comment, lId, depth }: { comment: Comment; lId: string; depth: number }) {
+function CommentBody({
+  comment,
+  lId,
+  depth,
+  onDeleted,
+}: {
+  comment: Comment;
+  lId: string;
+  depth: number;
+  onDeleted?: () => void;
+}) {
   const { user } = useSession();
   const meta = useMeta();
   const queryClient = useQueryClient();
   const [replying, setReplying] = React.useState(false);
   const [showReplies, setShowReplies] = React.useState(false);
   const [confirmDelete, setConfirmDelete] = React.useState(false);
+  const replyCount = comment.replyCount;
 
   const status = comment.author ? statusOption(meta, comment.author.status) : undefined;
 
@@ -39,7 +50,8 @@ function CommentBody({ comment, lId, depth }: { comment: Comment; lId: string; d
     onSuccess: () => {
       setReplying(false);
       setShowReplies(true);
-      queryClient.invalidateQueries({ queryKey: ["replies", comment.id] });
+      void queryClient.invalidateQueries({ queryKey: ["replies", comment.id] });
+      void queryClient.invalidateQueries({ queryKey: ["comments", lId] });
     },
   });
 
@@ -48,8 +60,9 @@ function CommentBody({ comment, lId, depth }: { comment: Comment; lId: string; d
     onSuccess: () => {
       setConfirmDelete(false);
       toast.success("Comment deleted.");
-      queryClient.invalidateQueries({ queryKey: ["comments", lId] });
-      queryClient.invalidateQueries({ queryKey: ["replies"] });
+      onDeleted?.();
+      void queryClient.invalidateQueries({ queryKey: ["comments", lId] });
+      void queryClient.invalidateQueries({ queryKey: ["replies"] });
     },
     onError: (err) => toast.error(errorMessage(err)),
   });
@@ -104,14 +117,14 @@ function CommentBody({ comment, lId, depth }: { comment: Comment; lId: string; d
               Delete
             </button>
           ) : null}
-          {comment.replyCount > 0 ? (
+          {replyCount > 0 ? (
             <button
               type="button"
               className="hover:text-foreground inline-flex items-center gap-1"
               onClick={() => setShowReplies((v) => !v)}
             >
               {showReplies ? <ChevronUp className="size-3.5" /> : <ChevronDown className="size-3.5" />}
-              {comment.replyCount} {comment.replyCount === 1 ? "reply" : "replies"}
+              {replyCount} {replyCount === 1 ? "reply" : "replies"}
             </button>
           ) : null}
         </div>
@@ -135,7 +148,14 @@ function CommentBody({ comment, lId, depth }: { comment: Comment; lId: string; d
             {replies.isLoading ? (
               <p className="text-muted-foreground text-xs">Loading replies…</p>
             ) : (
-              replyItems.map((r) => <CommentBody key={r.id} comment={r} lId={lId} depth={depth + 1} />)
+              replyItems.map((r) => (
+                <CommentBody
+                  key={r.id}
+                  comment={r}
+                  lId={lId}
+                  depth={depth + 1}
+                />
+              ))
             )}
             {replies.hasNextPage ? (
               <Button
@@ -164,6 +184,14 @@ function CommentBody({ comment, lId, depth }: { comment: Comment; lId: string; d
   );
 }
 
-export function CommentItem({ comment, lId }: { comment: Comment; lId: string }) {
-  return <CommentBody comment={comment} lId={lId} depth={0} />;
+export function CommentItem({
+  comment,
+  lId,
+  onDeleted,
+}: {
+  comment: Comment;
+  lId: string;
+  onDeleted?: () => void;
+}) {
+  return <CommentBody comment={comment} lId={lId} depth={0} onDeleted={onDeleted} />;
 }

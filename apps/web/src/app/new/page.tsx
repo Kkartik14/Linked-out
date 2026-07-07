@@ -16,7 +16,7 @@ export default async function NewLPage() {
       <p className="text-muted-foreground mt-1 mb-6 text-sm">
         Document a career event honestly — the loss, and what it taught you.
       </p>
-      <LComposer mode="create" />
+      <LComposer />
     </div>
   );
 }

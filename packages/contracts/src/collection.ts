@@ -10,6 +10,9 @@ export const collectionSchema = z.object({
   slug: z.string(),
   owner: userSummarySchema,
   lCount: z.number().int(),
+  viewer: z.object({
+    canEdit: z.boolean(),
+  }),
   createdAt: isoTimestampSchema,
 });
 export type Collection = z.infer<typeof collectionSchema>;

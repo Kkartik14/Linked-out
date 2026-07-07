@@ -88,8 +88,8 @@ export const META: MetaEnumsResponse = {
 interface UserRec {
   id: string;
   username: string;
-  name: string;
-  bio: string;
+  name: string | null;
+  bio: string | null;
   status: JourneyStatus | null;
   followers: number;
   following: number;
@@ -726,7 +726,15 @@ function commentFromRec(c: CommentRec): Comment {
 
 function collectionFromRec(c: CollectionRec): Collection {
   const owner = toSummaryById(c.ownerId)!;
-  return { id: c.id, title: c.title, slug: c.slug, owner, lCount: c.lIds.length, createdAt: c.createdAt };
+  return {
+    id: c.id,
+    title: c.title,
+    slug: c.slug,
+    owner,
+    lCount: c.lIds.length,
+    viewer: { canEdit: c.ownerId === meId() },
+    createdAt: c.createdAt,
+  };
 }
 
 // ── Queries (used by the router) ─────────────────────────────────────────────
@@ -860,7 +868,7 @@ export function searchLsQuery(q: string, filter: string | null): LCard[] {
 export function searchUsersQuery(q: string): UserSummary[] {
   const needle = q.toLowerCase();
   return users
-    .filter((u) => u.name.toLowerCase().includes(needle) || u.username.includes(needle))
+    .filter((u) => (u.name ?? "").toLowerCase().includes(needle) || u.username.includes(needle))
     .map(toSummary);
 }
 
@@ -1025,8 +1033,8 @@ export function deleteCommentRec(id: string): boolean {
 
 export function patchMeRec(body: UpdateUserInput): UserProfile {
   const me = userByUsername(ME_USERNAME)!;
-  if (body.name != null) me.name = body.name;
-  if (body.bio != null) me.bio = body.bio;
+  if (body.name !== undefined) me.name = body.name;
+  if (body.bio !== undefined) me.bio = body.bio;
   if (body.status !== undefined) me.status = body.status ?? null;
   return toProfile(me);
 }

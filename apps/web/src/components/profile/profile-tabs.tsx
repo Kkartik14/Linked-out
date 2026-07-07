@@ -16,11 +16,13 @@ import { LCard } from "@/components/l/l-card";
 import { LCardSkeleton } from "@/components/l/l-card-skeleton";
 import { JourneyTimeline } from "@/components/profile/journey-timeline";
 import { CollectionCard } from "@/components/profile/collection-card";
+import { CreateCollectionButton } from "@/components/collections/create-collection-button";
 import { typeSectionLabel, useMeta } from "@/components/meta-provider";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 
 const SECTION_TYPES: LType[] = [
+  "L",
   "STORY",
   "BATTLE",
   "SCAR",
@@ -49,17 +51,34 @@ function LsList({ username, type, empty }: { username: string; type?: LType; emp
   );
 }
 
-function CollectionsList({ username, empty }: { username: string; empty: string }) {
+function CollectionsList({
+  username,
+  empty,
+  canCreate,
+}: {
+  username: string;
+  empty: string;
+  canCreate: boolean;
+}) {
+  const queryKey = ["user-collections", username];
+
   return (
-    <InfiniteList<Collection>
-      queryKey={["user-collections", username]}
-      queryFn={(cursor) => getUserCollections(username, cursor)}
-      getItemKey={(c) => c.id}
-      renderItem={(c) => <CollectionCard collection={c} />}
-      empty={<EmptyState description={empty} />}
-      skeleton={<Skeleton className="h-16 w-full" />}
-      className="flex flex-col gap-3"
-    />
+    <div className="flex flex-col gap-3">
+      {canCreate ? (
+        <div className="flex justify-end">
+          <CreateCollectionButton queryKey={queryKey} />
+        </div>
+      ) : null}
+      <InfiniteList<Collection>
+        queryKey={queryKey}
+        queryFn={(cursor) => getUserCollections(username, cursor)}
+        getItemKey={(c) => c.id}
+        renderItem={(c) => <CollectionCard collection={c} />}
+        empty={<EmptyState description={empty} />}
+        skeleton={<Skeleton className="h-16 w-full" />}
+        className="flex flex-col gap-3"
+      />
+    </div>
   );
 }
 
@@ -108,6 +127,7 @@ export function ProfileTabs({
       <TabsContent value="collections" className="mt-6">
         <CollectionsList
           username={username}
+          canCreate={isSelf}
           empty={isSelf ? "No collections yet." : "No collections."}
         />
       </TabsContent>

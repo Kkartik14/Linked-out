@@ -4,7 +4,7 @@ import Link from "next/link";
 import { CheckCheck } from "lucide-react";
 import { useInfiniteQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 
-import { getNotifications, markAllNotificationsRead } from "@/lib/api";
+import { getNotifications, markAllNotificationsRead, markNotificationRead } from "@/lib/api";
 import { EmptyState } from "@/components/empty-state";
 import { Button } from "@/components/ui/button";
 import { Skeleton } from "@/components/ui/skeleton";
@@ -23,7 +23,16 @@ export function NotificationsList() {
 
   const markAll = useMutation({
     mutationFn: markAllNotificationsRead,
-    onSuccess: () => queryClient.invalidateQueries({ queryKey: ["notifications"] }),
+    onSuccess: () => {
+      void queryClient.invalidateQueries({ queryKey: ["notifications"] });
+    },
+  });
+
+  const markOne = useMutation({
+    mutationFn: markNotificationRead,
+    onSuccess: () => {
+      void queryClient.invalidateQueries({ queryKey: ["notifications"] });
+    },
   });
 
   const items = query.data?.pages.flatMap((p) => p.data) ?? [];
@@ -76,7 +85,13 @@ export function NotificationsList() {
             return (
               <li key={n.id}>
                 {n.target ? (
-                  <Link href={`/ls/${n.target.lId}`} className="block">
+                  <Link
+                    href={`/ls/${n.target.lId}`}
+                    className="block"
+                    onClick={() => {
+                      if (n.readAt === null) markOne.mutate(n.id);
+                    }}
+                  >
                     {inner}
                   </Link>
                 ) : (

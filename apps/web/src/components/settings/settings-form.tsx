@@ -41,8 +41,8 @@ export function SettingsForm({ user }: { user: UserProfile }) {
     setSaving(true);
     try {
       await patchMe({
-        name: name.trim(),
-        bio: bio.trim(),
+        name: name.trim() || null,
+        bio: bio.trim() || null,
         status: status === NO_STATUS ? null : (status as JourneyStatus),
       });
       toast.success("Profile updated.");

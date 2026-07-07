@@ -4,7 +4,12 @@ import Link from "next/link";
 import { Bell, CheckCheck } from "lucide-react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 
-import { getNotifications, getUnreadCount, markAllNotificationsRead } from "@/lib/api";
+import {
+  getNotifications,
+  getUnreadCount,
+  markAllNotificationsRead,
+  markNotificationRead,
+} from "@/lib/api";
 import { timeAgo } from "@/lib/format";
 import { cn } from "@/lib/utils";
 import { Button } from "@/components/ui/button";
@@ -31,7 +36,14 @@ export function NotificationsBell() {
   const markAll = useMutation({
     mutationFn: markAllNotificationsRead,
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ["notifications"] });
+      void queryClient.invalidateQueries({ queryKey: ["notifications"] });
+    },
+  });
+
+  const markOne = useMutation({
+    mutationFn: markNotificationRead,
+    onSuccess: () => {
+      void queryClient.invalidateQueries({ queryKey: ["notifications"] });
     },
   });
 
@@ -96,7 +108,14 @@ export function NotificationsBell() {
                 </div>
               );
               return n.target ? (
-                <Link key={n.id} href={`/ls/${n.target.lId}`} className="hover:bg-accent block">
+                <Link
+                  key={n.id}
+                  href={`/ls/${n.target.lId}`}
+                  className="hover:bg-accent block"
+                  onClick={() => {
+                    if (n.readAt === null) markOne.mutate(n.id);
+                  }}
+                >
                   {body}
                 </Link>
               ) : (

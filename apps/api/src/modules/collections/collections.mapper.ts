@@ -3,17 +3,26 @@ import type { Collection, CollectionDetail, LCard } from '@linkedout/contracts';
 import { toUserSummary } from '../../common/mappers/user-summary.mapper';
 import type { CollectionWithMeta } from './collections.repository';
 
-export function toCollection(c: CollectionWithMeta): Collection {
+export function toCollection(
+  c: CollectionWithMeta,
+  lCount = c._count.ls,
+  viewerId?: string,
+): Collection {
   return {
     id: c.id,
     title: c.title,
     slug: c.slug,
     owner: toUserSummary(c.owner),
-    lCount: c._count.ls,
+    lCount,
+    viewer: { canEdit: viewerId === c.ownerId },
     createdAt: c.createdAt.toISOString(),
   };
 }
 
-export function toCollectionDetail(c: CollectionWithMeta, ls: LCard[]): CollectionDetail {
-  return { ...toCollection(c), ls };
+export function toCollectionDetail(
+  c: CollectionWithMeta,
+  ls: LCard[],
+  viewerId?: string,
+): CollectionDetail {
+  return { ...toCollection(c, ls.length, viewerId), ls };
 }

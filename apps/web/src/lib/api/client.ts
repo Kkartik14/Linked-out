@@ -5,6 +5,8 @@ import { ApiError } from "./errors";
 export interface ApiFetchInit extends RequestInit {
   /** Internal: prevents an infinite refresh loop on repeated 401s. */
   skipRefresh?: boolean;
+  /** Internal: server-side retry cookie after a refresh response sets cookies. */
+  cookieHeader?: string;
 }
 
 /**
@@ -42,6 +44,40 @@ function toApiError(status: number, body: unknown): ApiError {
   );
 }
 
+function splitSetCookie(value: string): string[] {
+  return value.split(/,(?=\s*[^;,=\s]+=[^;,]+)/g).map((part) => part.trim()).filter(Boolean);
+}
+
+function mergeCookieHeader(current: string | null, setCookies: string[]): string | null {
+  if (setCookies.length === 0) return current;
+
+  const cookies = new Map<string, string>();
+  for (const part of current?.split(";") ?? []) {
+    const trimmed = part.trim();
+    if (!trimmed) continue;
+    const eq = trimmed.indexOf("=");
+    if (eq > 0) cookies.set(trimmed.slice(0, eq), trimmed.slice(eq + 1));
+  }
+
+  for (const setCookie of setCookies) {
+    const pair = setCookie.split(";", 1)[0]?.trim();
+    if (!pair) continue;
+    const eq = pair.indexOf("=");
+    if (eq > 0) cookies.set(pair.slice(0, eq), pair.slice(eq + 1));
+  }
+
+  const merged = [...cookies.entries()].map(([key, value]) => `${key}=${value}`).join("; ");
+  return merged || null;
+}
+
+function setCookiesFrom(headers: Headers): string[] {
+  const withGetSetCookie = headers as Headers & { getSetCookie?: () => string[] };
+  const setCookies = withGetSetCookie.getSetCookie?.();
+  if (setCookies?.length) return setCookies;
+  const joined = headers.get("set-cookie");
+  return joined ? splitSetCookie(joined) : [];
+}
+
 /**
  * The single seam through which all backend traffic flows. Returns parsed JSON
  * typed as `T`, or throws `ApiError`. Set `NEXT_PUBLIC_USE_MOCKS=1` to serve
@@ -53,9 +89,9 @@ export async function apiFetch<T>(path: string, init: ApiFetchInit = {}): Promis
     return mockFetch<T>(path, init);
   }
 
-  const { skipRefresh, ...rest } = init;
+  const { skipRefresh, cookieHeader, ...rest } = init;
   const headers = new Headers(rest.headers);
-  const cookie = await serverCookieHeader();
+  const cookie = cookieHeader ?? await serverCookieHeader();
   if (cookie) headers.set("cookie", cookie);
   if (rest.body && !headers.has("content-type")) {
     headers.set("content-type", "application/json");
@@ -73,8 +109,12 @@ export async function apiFetch<T>(path: string, init: ApiFetchInit = {}): Promis
     const body = await safeJson(res);
     const code = (body as ErrorEnvelope | null)?.error?.code;
     if (code === "TOKEN_EXPIRED" && !skipRefresh) {
-      await refreshSession(headers.get("cookie"));
-      return apiFetch<T>(path, { ...init, skipRefresh: true });
+      const refreshedCookie = await refreshSession(headers.get("cookie"));
+      return apiFetch<T>(path, {
+        ...init,
+        skipRefresh: true,
+        cookieHeader: refreshedCookie ?? cookieHeader,
+      });
     }
     throw toApiError(401, body);
   }
@@ -85,13 +125,17 @@ export async function apiFetch<T>(path: string, init: ApiFetchInit = {}): Promis
 }
 
 /** Rotate the access cookie (contract §1.1). */
-async function refreshSession(cookie: string | null): Promise<void> {
-  await fetch(`${API_BASE_URL}/auth/refresh`, {
-    method: "POST",
-    credentials: "include",
-    headers: cookie ? { cookie } : undefined,
-    cache: "no-store",
-  }).catch(() => {
-    /* swallow — the retried request will surface a fresh 401 if this failed */
-  });
+async function refreshSession(cookie: string | null): Promise<string | null> {
+  try {
+    const res = await fetch(`${API_BASE_URL}/auth/refresh`, {
+      method: "POST",
+      credentials: "include",
+      headers: cookie ? { cookie } : undefined,
+      cache: "no-store",
+    });
+    return mergeCookieHeader(cookie, setCookiesFrom(res.headers));
+  } catch {
+    // The retried request will surface a fresh 401 if refresh failed.
+    return null;
+  }
 }

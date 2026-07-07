@@ -4,6 +4,7 @@ import * as React from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { Bookmark, MessageCircle } from "lucide-react";
+import { useQueryClient } from "@tanstack/react-query";
 import { toast } from "sonner";
 import type { ReactionsSummary, ReactionType } from "@linkedout/contracts";
 
@@ -21,6 +22,18 @@ const COUNT_KEY: Record<ReactionType, keyof ReactionsSummary> = {
   SAVED: "saved",
 };
 
+function reactionStateKey(reactions: ReactionsSummary, viewerReactions: ReactionType[]): string {
+  return [
+    reactions.total,
+    reactions.beenThere,
+    reactions.helpful,
+    reactions.respect,
+    reactions.pain,
+    reactions.saved,
+    [...viewerReactions].sort().join(","),
+  ].join("|");
+}
+
 export function ReactionBar({
   lId,
   reactions,
@@ -37,10 +50,23 @@ export function ReactionBar({
   const { user } = useSession();
   const meta = useMeta();
   const router = useRouter();
+  const queryClient = useQueryClient();
 
-  const [summary, setSummary] = React.useState(reactions);
-  const [mine, setMine] = React.useState<Set<ReactionType>>(() => new Set(viewerReactions));
+  const sourceKey = reactionStateKey(reactions, viewerReactions);
+  const [state, setState] = React.useState(() => ({
+    sourceKey,
+    summary: reactions,
+    mine: new Set(viewerReactions),
+  }));
   const [pending, setPending] = React.useState<Set<ReactionType>>(() => new Set());
+
+  let current = state;
+  if (state.sourceKey !== sourceKey && pending.size === 0) {
+    current = { sourceKey, summary: reactions, mine: new Set(viewerReactions) };
+    setState(current);
+  }
+
+  const { summary, mine } = current;
 
   async function toggle(type: ReactionType) {
     if (!user) {
@@ -53,32 +79,34 @@ export function ReactionBar({
 
     const willAdd = !mine.has(type);
     const key = COUNT_KEY[type];
-    const prevSummary = summary;
-    const prevMine = mine;
+    const prevState = current;
+    const nextMine = new Set(mine);
+    if (willAdd) nextMine.add(type);
+    else nextMine.delete(type);
 
-    // Optimistic update.
-    setMine((prev) => {
-      const next = new Set(prev);
-      if (willAdd) next.add(type);
-      else next.delete(type);
-      return next;
-    });
-    setSummary((prev) => {
-      const delta = willAdd ? 1 : -1;
-      const next: ReactionsSummary = { ...prev, [key]: Math.max(0, prev[key] + delta) };
-      if (type !== "SAVED") next.total = Math.max(0, prev.total + delta);
-      return next;
-    });
+    const delta = willAdd ? 1 : -1;
+    const nextSummary: ReactionsSummary = {
+      ...summary,
+      [key]: Math.max(0, summary[key] + delta),
+    };
+    if (type !== "SAVED") nextSummary.total = Math.max(0, summary.total + delta);
+
+    setState({ ...current, summary: nextSummary, mine: nextMine });
     setPending((prev) => new Set(prev).add(type));
 
     try {
       const res = willAdd ? await addReaction(lId, type) : await removeReaction(lId, type);
       // Reconcile with the authoritative server response (contract §5).
-      setSummary(res.reactions);
-      setMine(new Set(res.viewer.reactions));
+      setState((prev) => ({
+        ...prev,
+        summary: res.reactions,
+        mine: new Set(res.viewer.reactions),
+      }));
+      if (type === "SAVED") {
+        void queryClient.invalidateQueries({ queryKey: ["saved"] });
+      }
     } catch (err) {
-      setSummary(prevSummary);
-      setMine(prevMine);
+      setState(prevState);
       toast.error(errorMessage(err, "Could not save your reaction."));
     } finally {
       setPending((prev) => {

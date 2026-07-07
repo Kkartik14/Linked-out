@@ -107,7 +107,7 @@ export class CollectionsService {
     const ids = await this.repo.orderedLIds(collection.id);
     const visibilities = await this.ls.allowedVisibilitiesFor(viewerId, collection.ownerId);
     const cards = await this.ls.getCardsByIdsFiltered(ids, viewerId, visibilities);
-    return toCollectionDetail(collection, cards);
+    return toCollectionDetail(collection, cards, viewerId);
   }
 
   private async assertOwner(id: string, userId: string): Promise<void> {

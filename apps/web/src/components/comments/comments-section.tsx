@@ -1,5 +1,6 @@
 "use client";
 
+import * as React from "react";
 import Link from "next/link";
 import { useInfiniteQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 
@@ -26,6 +27,7 @@ function CommentSkeleton() {
 export function CommentsSection({ lId, commentCount }: { lId: string; commentCount: number }) {
   const { user } = useSession();
   const queryClient = useQueryClient();
+  const [countDelta, setCountDelta] = React.useState(0);
 
   const query = useInfiniteQuery({
     queryKey: ["comments", lId],
@@ -36,16 +38,19 @@ export function CommentsSection({ lId, commentCount }: { lId: string; commentCou
 
   const add = useMutation({
     mutationFn: (body: string) => addComment(lId, { body }),
-    onSuccess: () => queryClient.invalidateQueries({ queryKey: ["comments", lId] }),
+    onSuccess: () => {
+      setCountDelta((count) => count + 1);
+      void queryClient.invalidateQueries({ queryKey: ["comments", lId] });
+    },
   });
 
   const comments = query.data?.pages.flatMap((p) => p.data) ?? [];
-  const total = Math.max(commentCount, comments.length);
+  const visibleTotal = Math.max(commentCount + countDelta, comments.length);
 
   return (
     <section aria-label="Comments">
       <h2 className="mb-4 text-lg font-semibold">
-        {total > 0 ? `${total} ${total === 1 ? "comment" : "comments"}` : "Comments"}
+        {visibleTotal > 0 ? `${visibleTotal} ${visibleTotal === 1 ? "comment" : "comments"}` : "Comments"}
       </h2>
 
       {user ? (
@@ -75,7 +80,14 @@ export function CommentsSection({ lId, commentCount }: { lId: string; commentCou
             No comments yet. Be the first who&apos;s been there.
           </p>
         ) : (
-          comments.map((c) => <CommentItem key={c.id} comment={c} lId={lId} />)
+          comments.map((c) => (
+            <CommentItem
+              key={c.id}
+              comment={c}
+              lId={lId}
+              onDeleted={() => setCountDelta((count) => count - 1)}
+            />
+          ))
         )}
       </div>
 

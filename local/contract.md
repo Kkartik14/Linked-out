@@ -272,7 +272,7 @@ Leaner than `LCard`; enough to render the timeline and open the L on tap.
 
 ### `Collection`
 ```json
-{ "id": "01J...", "title": "My Startup Journey", "slug": "my-startup-journey", "owner": { /* UserSummary */ }, "lCount": 8, "createdAt": "2026-02-01T00:00:00.000Z" }
+{ "id": "01J...", "title": "My Startup Journey", "slug": "my-startup-journey", "owner": { /* UserSummary */ }, "lCount": 8, "viewer": { "canEdit": true }, "createdAt": "2026-02-01T00:00:00.000Z" }
 ```
 `CollectionDetail` adds `"ls": [ /* ordered LCard[] */ ]`.
 

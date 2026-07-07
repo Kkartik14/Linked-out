@@ -49,13 +49,6 @@ export function ProfileHeader({ profile }: { profile: UserProfile }) {
 
       {profile.bio ? <p className="text-[15px] leading-relaxed">{profile.bio}</p> : null}
 
-      <p className="text-muted-foreground text-sm">
-        <span className="text-foreground font-medium">{compactNumber(profile.counts.followers)}</span>{" "}
-        followers ·{" "}
-        <span className="text-foreground font-medium">{compactNumber(profile.counts.following)}</span>{" "}
-        following
-      </p>
-
       <div className="flex flex-wrap gap-x-4 gap-y-1.5 rounded-lg border p-3 text-sm">
         {meta.reputation.map((r) => (
           <div key={r.key}>
@@ -66,6 +59,11 @@ export function ProfileHeader({ profile }: { profile: UserProfile }) {
           </div>
         ))}
       </div>
+
+      <p className="text-muted-foreground text-xs">
+        {compactNumber(profile.counts.followers)} followers ·{" "}
+        {compactNumber(profile.counts.following)} following
+      </p>
     </header>
   );
 }
