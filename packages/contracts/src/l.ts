@@ -22,7 +22,6 @@ const lViewerSchema = z.object({
 const lCoreSchema = z.object({
   id: ulidSchema,
   title: z.string(),
-  lessonLearned: z.string().nullable(),
   type: lTypeSchema,
   category: lCategorySchema.nullable(),
   company: z.string().nullable(),
@@ -73,7 +72,6 @@ export type JourneyNode = z.infer<typeof journeyNodeSchema>;
 export const createLInputSchema = z.object({
   title: z.string().min(1).max(140),
   story: z.string().min(1).max(10_000),
-  lessonLearned: z.string().max(500).nullable().optional(),
   type: lTypeSchema.default('L'),
   category: lCategorySchema.nullable().optional(),
   company: z.string().max(100).nullable().optional(),
@@ -89,7 +87,6 @@ export const updateLInputSchema = z
   .object({
     title: z.string().min(1).max(140),
     story: z.string().min(1).max(10_000),
-    lessonLearned: z.string().max(500).nullable(),
     type: lTypeSchema,
     category: lCategorySchema.nullable(),
     company: z.string().max(100).nullable(),

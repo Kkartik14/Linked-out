@@ -17,7 +17,7 @@ export async function generateMetadata({
   const { id } = await params;
   try {
     const l = await loadL(id);
-    return { title: l.title, description: l.lessonLearned ?? truncate(l.story, 155) };
+    return { title: l.title, description: truncate(l.story, 155) };
   } catch {
     return { title: "L" };
   }

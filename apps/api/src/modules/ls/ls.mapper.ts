@@ -37,7 +37,6 @@ function coreCard(l: LWithAuthor, viewer: LViewerContext) {
   return {
     id: l.id,
     title: l.title,
-    lessonLearned: l.lessonLearned,
     type: l.type,
     category: l.category,
     company: l.company,

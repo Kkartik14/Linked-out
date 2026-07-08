@@ -11,9 +11,10 @@ const nextConfig: NextConfig = {
   turbopack: { root: repoRoot },
   images: {
     remotePatterns: [
-      { protocol: "https", hostname: "cdn.linkedout.app" },
-      { protocol: "https", hostname: "**.googleusercontent.com" },
-      { protocol: "https", hostname: "avatars.githubusercontent.com" },
+      { protocol: "https", hostname: "cdn.linkedout.app" }, // prod CDN (custom domain)
+      { protocol: "https", hostname: "**.r2.dev" }, // R2 public dev URL (pub-<hash>.r2.dev)
+      { protocol: "https", hostname: "**.googleusercontent.com" }, // Google avatars
+      { protocol: "https", hostname: "avatars.githubusercontent.com" }, // GitHub avatars
     ],
   },
 };

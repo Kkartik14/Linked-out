@@ -6,7 +6,6 @@ import { toast } from "sonner";
 import type { AvatarContentType, JourneyStatus, UserProfile } from "@linkedout/contracts";
 
 import { errorMessage, patchMe, presignAvatar } from "@/lib/api";
-import { USE_MOCKS } from "@/lib/env";
 import { useMeta } from "@/components/meta-provider";
 import { UserAvatar } from "@/components/user-avatar";
 import { Button } from "@/components/ui/button";
@@ -69,14 +68,12 @@ export function SettingsForm({ user }: { user: UserProfile }) {
         contentType: file.type as AvatarContentType,
         contentLength: file.size,
       });
-      if (!USE_MOCKS) {
-        const put = await fetch(presign.uploadUrl, {
-          method: "PUT",
-          headers: presign.headers,
-          body: file,
-        });
-        if (!put.ok) throw new Error("Upload failed. Please try again.");
-      }
+      const put = await fetch(presign.uploadUrl, {
+        method: "PUT",
+        headers: presign.headers,
+        body: file,
+      });
+      if (!put.ok) throw new Error("Upload failed. Please try again.");
       const updated = await patchMe({ image: presign.publicUrl });
       setImage(updated.image ?? presign.publicUrl);
       toast.success("Avatar updated.");

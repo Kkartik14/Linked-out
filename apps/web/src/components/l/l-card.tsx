@@ -74,15 +74,6 @@ export function LCard({ l }: { l: LCardType }) {
         </Link>
         <p className="text-muted-foreground mt-2 text-sm leading-relaxed">{l.storyPreview}</p>
 
-        {l.lessonLearned ? (
-          <div className="border-primary/50 bg-muted/40 mt-3 rounded-md border-l-2 px-3 py-2">
-            <p className="text-muted-foreground text-xs font-medium tracking-wide uppercase">
-              Lesson learned
-            </p>
-            <p className="mt-0.5 text-sm">{l.lessonLearned}</p>
-          </div>
-        ) : null}
-
         {cat || l.company || l.eventDate ? (
           <div className="text-muted-foreground mt-3 flex flex-wrap items-center gap-2 text-xs">
             {cat ? (

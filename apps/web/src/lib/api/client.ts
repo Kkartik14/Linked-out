@@ -1,4 +1,4 @@
-import { API_BASE_URL, USE_MOCKS } from "@/lib/env";
+import { API_BASE_URL } from "@/lib/env";
 import type { ErrorEnvelope } from "@linkedout/contracts";
 import { ApiError } from "./errors";
 
@@ -80,15 +80,9 @@ function setCookiesFrom(headers: Headers): string[] {
 
 /**
  * The single seam through which all backend traffic flows. Returns parsed JSON
- * typed as `T`, or throws `ApiError`. Set `NEXT_PUBLIC_USE_MOCKS=1` to serve
- * fixtures instead (the mock module is code-split out of production builds).
+ * typed as `T`, or throws `ApiError`.
  */
 export async function apiFetch<T>(path: string, init: ApiFetchInit = {}): Promise<T> {
-  if (USE_MOCKS) {
-    const { mockFetch } = await import("./mocks/router");
-    return mockFetch<T>(path, init);
-  }
-
   const { skipRefresh, cookieHeader, ...rest } = init;
   const headers = new Headers(rest.headers);
   const cookie = cookieHeader ?? await serverCookieHeader();

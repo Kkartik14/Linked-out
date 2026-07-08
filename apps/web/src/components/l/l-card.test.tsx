@@ -10,7 +10,6 @@ function makeCard(overrides: Partial<LCardType> = {}): LCardType {
     id: "l1",
     title: "Rejected after the final round at Google",
     storyPreview: "Four rounds in, strong signals, and then silence…",
-    lessonLearned: "Optimize for signal, not for hope.",
     type: "STORY",
     category: "INTERVIEWS",
     company: "Google",
@@ -29,12 +28,11 @@ function makeCard(overrides: Partial<LCardType> = {}): LCardType {
 }
 
 describe("LCard", () => {
-  it("renders the title, author, and lesson, and links to the author's profile", () => {
+  it("renders the title and author, and links to the author's profile", () => {
     renderWithProviders(<LCard l={makeCard()} />);
 
     expect(screen.getByText("Rejected after the final round at Google")).toBeInTheDocument();
     expect(screen.getByText("Anaya Rao")).toBeInTheDocument();
-    expect(screen.getByText("Optimize for signal, not for hope.")).toBeInTheDocument();
 
     const hrefs = screen.getAllByRole("link").map((a) => a.getAttribute("href"));
     expect(hrefs).toContain("/u/anaya");

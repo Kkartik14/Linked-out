@@ -27,7 +27,6 @@ export type LWithAuthor = Prisma.LGetPayload<{
 export interface WriteLData {
   title: string;
   story: string;
-  lessonLearned: string | null;
   type: LType;
   category: LCategory | null;
   company: string | null;

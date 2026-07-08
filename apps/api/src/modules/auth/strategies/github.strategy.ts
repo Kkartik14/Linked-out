@@ -14,8 +14,8 @@ export class GithubStrategy extends PassportStrategy(Strategy, 'github') {
     private readonly auth: AuthService,
   ) {
     const options: StrategyOptions = {
-      clientID: config.github.clientId || 'unconfigured',
-      clientSecret: config.github.clientSecret || 'unconfigured',
+      clientID: config.github.clientId,
+      clientSecret: config.github.clientSecret,
       callbackURL: `${config.apiBaseUrl}/v1/auth/github/callback`,
       scope: ['user:email'],
     };

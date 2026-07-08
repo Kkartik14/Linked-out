@@ -151,7 +151,6 @@ model L {
 
   title         String
   story         String
-  lessonLearned String?
   type          LType      @default(L)
   category      LCategory?
   company       String?

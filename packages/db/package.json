@@ -16,10 +16,12 @@
     "migrate:deploy": "prisma migrate deploy",
     "studio": "prisma studio",
     "build": "prisma generate && tsc -p tsconfig.json",
-    "typecheck": "tsc -p tsconfig.json --noEmit"
+    "typecheck": "tsc -p tsconfig.json --noEmit",
+    "seed": "prisma db seed"
   },
   "prisma": {
-    "schema": "prisma/schema.prisma"
+    "schema": "prisma/schema.prisma",
+    "seed": "node prisma/seed.cjs"
   },
   "dependencies": {
     "@prisma/client": "^6.2.1",

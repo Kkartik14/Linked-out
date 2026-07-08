@@ -81,6 +81,7 @@ export class GoogleAuthGuard extends AuthGuard('google') {
   }
 
   override canActivate(context: ExecutionContext): ReturnType<CanActivate['canActivate']> {
+    if (!this.config.google.configured) throw AppErrors.providerNotConfigured('Google');
     const req = context.switchToHttp().getRequest<Request>();
     if (isCallbackRequest(req) && !callbackStateIsValid(context, this.config)) return true;
     return super.canActivate(context);
@@ -110,6 +111,7 @@ export class GithubAuthGuard extends AuthGuard('github') {
   }
 
   override canActivate(context: ExecutionContext): ReturnType<CanActivate['canActivate']> {
+    if (!this.config.github.configured) throw AppErrors.providerNotConfigured('GitHub');
     const req = context.switchToHttp().getRequest<Request>();
     if (isCallbackRequest(req) && !callbackStateIsValid(context, this.config)) return true;
     return super.canActivate(context);

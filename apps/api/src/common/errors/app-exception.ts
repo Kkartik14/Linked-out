@@ -80,6 +80,11 @@ export const AppErrors = {
     new AppException(409, { code: 'ALREADY_FOLLOWING', message: 'You already follow this user.' }),
   rateLimited: (): AppException =>
     new AppException(429, { code: 'RATE_LIMITED', message: 'Too many requests. Try again soon.' }),
+  providerNotConfigured: (provider: string): AppException =>
+    new AppException(503, {
+      code: 'PROVIDER_NOT_CONFIGURED',
+      message: `${provider} login is not configured on this server.`,
+    }),
   uploadsDisabled: (): AppException =>
     new AppException(503, {
       code: 'UPLOADS_DISABLED',

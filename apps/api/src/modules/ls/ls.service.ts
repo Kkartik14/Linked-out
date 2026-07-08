@@ -51,7 +51,6 @@ function normalizeCreate(input: CreateLInput): WriteLData {
   return {
     title: input.title,
     story: input.story,
-    lessonLearned: input.lessonLearned ?? null,
     type: input.type,
     category: input.category ?? null,
     company: input.company ?? null,
@@ -66,7 +65,6 @@ function buildUpdateData(input: UpdateLInput, effectiveType: LType): Prisma.LUpd
   return {
     title: input.title,
     story: input.story,
-    lessonLearned: input.lessonLearned,
     type: input.type,
     category: input.category,
     company: input.company,

@@ -14,8 +14,8 @@ export class GoogleStrategy extends PassportStrategy(Strategy, 'google') {
     private readonly auth: AuthService,
   ) {
     const options: StrategyOptions = {
-      clientID: config.google.clientId || 'unconfigured',
-      clientSecret: config.google.clientSecret || 'unconfigured',
+      clientID: config.google.clientId,
+      clientSecret: config.google.clientSecret,
       callbackURL: `${config.apiBaseUrl}/v1/auth/google/callback`,
       scope: ['email', 'profile'],
     };

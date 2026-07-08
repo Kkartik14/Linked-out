@@ -109,15 +109,6 @@ export function LDetailView({ l }: { l: LDetail }) {
 
       <div className="mt-5 text-[15px] leading-relaxed whitespace-pre-line">{l.story}</div>
 
-      {l.lessonLearned ? (
-        <div className="border-primary/50 bg-muted/40 mt-6 rounded-md border-l-2 px-4 py-3">
-          <p className="text-muted-foreground text-xs font-medium tracking-wide uppercase">
-            Lesson learned
-          </p>
-          <p className="mt-1 text-[15px]">{l.lessonLearned}</p>
-        </div>
-      ) : null}
-
       {l.tags.length > 0 ? (
         <div className="mt-4 flex flex-wrap gap-x-3 gap-y-1">
           {l.tags.map((tag) => (

@@ -13,23 +13,15 @@ The LinkedOut frontend — "LinkedIn for your Ls." Next.js App Router, a thin cl
 ## Running
 
 This app is its own pnpm workspace (the backend monorepo root deliberately excludes it).
+It talks to the real `@linkedout/api` backend, so start that first (see the repo-root
+README / commands), then:
 
 ```bash
 pnpm install
-pnpm dev            # http://localhost:3000
+pnpm dev            # http://localhost:3000  (expects the API at NEXT_PUBLIC_API_BASE_URL)
 ```
 
-### Mock mode (default)
-
-`NEXT_PUBLIC_USE_MOCKS=1` (in `.env.local`) serves realistic fixtures from
-`src/lib/api/mocks/`, so the whole UI runs with **no backend**. Flip it to `0`
-once `apps/api` is up to hit the real API — no code changes:
-
-```bash
-# .env.local
-NEXT_PUBLIC_API_BASE_URL=http://localhost:4000/v1
-NEXT_PUBLIC_USE_MOCKS=0
-```
+Point `NEXT_PUBLIC_API_BASE_URL` (in `.env.local`) at your API — default `http://localhost:4000/v1`.
 
 ## Scripts
 
@@ -47,8 +39,8 @@ NEXT_PUBLIC_USE_MOCKS=0
 - **Types come from `@linkedout/contracts`** (contract.md §0) — imported directly,
   never hand-written. It's a `file:` workspace dependency (`../../packages/contracts`).
 - **One API seam:** `src/lib/api/` — `client.ts` (credentials, error-envelope
-  decoding, 401→refresh→retry, cursor pagination), `endpoints.ts` (typed calls),
-  and `mocks/` (fixtures + router, code-split out of prod builds).
+  decoding, 401→refresh→retry with server-side cookie rotation, cursor pagination)
+  and `endpoints.ts` (typed calls). All backend traffic flows through here.
 - **No client-side business logic:** permissions come from `viewer.*` flags,
   reputation/enum copy from `GET /meta/enums`, notification strings rendered
   server-side and shown verbatim. Anonymous Ls (`author === null`) render an

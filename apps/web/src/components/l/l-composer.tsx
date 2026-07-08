@@ -44,7 +44,6 @@ const NO_CATEGORY = "NONE";
 const LIMITS = {
   title: 140,
   story: 10_000,
-  lessonLearned: 500,
   company: 100,
   tags: 5,
   tag: 30,
@@ -53,7 +52,6 @@ const LIMITS = {
 const formSchema = z.object({
   title: z.string().trim().min(1, "Give your L a title.").max(LIMITS.title),
   story: z.string().trim().min(1, "Tell the story.").max(LIMITS.story),
-  lessonLearned: z.string().trim().max(LIMITS.lessonLearned),
   type: lTypeSchema,
   category: z.string(),
   company: z.string().trim().max(LIMITS.company),
@@ -158,7 +156,6 @@ export function LComposer({ initial }: { initial?: LDetail }) {
       ? {
           title: initial.title,
           story: initial.story,
-          lessonLearned: initial.lessonLearned ?? "",
           type: initial.type,
           category: initial.category ?? NO_CATEGORY,
           company: initial.company ?? "",
@@ -170,7 +167,6 @@ export function LComposer({ initial }: { initial?: LDetail }) {
       : {
           title: "",
           story: "",
-          lessonLearned: "",
           type: "L",
           category: NO_CATEGORY,
           company: "",
@@ -185,7 +181,6 @@ export function LComposer({ initial }: { initial?: LDetail }) {
     const input: CreateLInput = {
       title: values.title,
       story: values.story,
-      lessonLearned: values.lessonLearned ? values.lessonLearned : null,
       type: values.type,
       category: values.category === NO_CATEGORY ? null : (values.category as LCategory),
       company: values.company ? values.company : null,
@@ -216,7 +211,6 @@ export function LComposer({ initial }: { initial?: LDetail }) {
 
   const titleLen = useWatch({ control: form.control, name: "title" }).length;
   const storyLen = useWatch({ control: form.control, name: "story" }).length;
-  const lessonLen = useWatch({ control: form.control, name: "lessonLearned" }).length;
   const visibility = useWatch({ control: form.control, name: "visibility" });
   const visibilityDesc = meta.visibility.find((v) => v.value === visibility)?.description;
 
@@ -255,25 +249,6 @@ export function LComposer({ initial }: { initial?: LDetail }) {
               </div>
               <FormControl>
                 <Textarea rows={8} placeholder="What happened, and how it felt…" {...field} />
-              </FormControl>
-              <FormMessage />
-            </FormItem>
-          )}
-        />
-
-        <FormField
-          control={form.control}
-          name="lessonLearned"
-          render={({ field }) => (
-            <FormItem>
-              <div className="flex items-center justify-between">
-                <FormLabel>Lesson learned (optional)</FormLabel>
-                <span className="text-muted-foreground text-xs tabular-nums">
-                  {lessonLen}/{LIMITS.lessonLearned}
-                </span>
-              </div>
-              <FormControl>
-                <Textarea rows={2} placeholder="What would you tell your past self?" {...field} />
               </FormControl>
               <FormMessage />
             </FormItem>
