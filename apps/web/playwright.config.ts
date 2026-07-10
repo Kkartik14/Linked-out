@@ -28,6 +28,11 @@ export default defineConfig({
   workers: 1,
   timeout: 30_000,
   expect: { timeout: 10_000 },
+  // Retry in CI: the first navigation to a route can click a submit button before the
+  // client form has hydrated (react-hook-form validation then never fires). A retry
+  // runs against a now-warm server with the route's JS cached, so it hydrates in time.
+  // `trace: "on-first-retry"` captures a trace when that happens.
+  retries: process.env.CI ? 2 : 0,
   reporter: "list",
   use: {
     baseURL: webBaseUrl,

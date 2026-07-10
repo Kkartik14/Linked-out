@@ -1,0 +1,24 @@
+# Code owners for Linked-out.
+#
+# Combined with branch protection (require review from Code Owners), this means:
+#   • a PR from anyone other than the owner needs @Kkartik14's approval to merge;
+#   • the owner's own PRs merge without approval (admin bypass — GitHub never lets an
+#     author approve their own PR);
+#   • any change under a test/CI path below always routes review to @Kkartik14.
+#
+# The LAST matching pattern for a given file wins.
+
+# Default owner for the whole repository.
+*                           @Kkartik14
+
+# ── Tests & test harnesses — changes here always require the owner's review. ────
+/apps/api/test/             @Kkartik14
+/apps/web/e2e/              @Kkartik14
+**/*.test.ts                @Kkartik14
+**/*.test.tsx               @Kkartik14
+**/*.test.cjs               @Kkartik14
+**/*.spec.ts                @Kkartik14
+
+# ── CI & repo automation. ───────────────────────────────────────────────────────
+/.github/                   @Kkartik14
+/scripts/                   @Kkartik14

@@ -17,6 +17,13 @@ test.describe("write actions against the real API", () => {
   test("the composer validates before it ever calls the API", async ({ page }) => {
     await page.goto("/new");
 
+    // Engage the form (type then clear) so react-hook-form has hydrated before we
+    // submit. An immediate empty submit on a freshly-loaded route can beat hydration
+    // and trigger a native form post that never runs client validation.
+    const title = page.getByLabel("Title");
+    await title.fill("x");
+    await title.fill("");
+
     await page.getByRole("button", { name: "Share this L" }).click();
 
     await expect(page.getByText("Give your L a title.")).toBeVisible();
