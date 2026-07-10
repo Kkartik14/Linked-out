@@ -49,14 +49,16 @@ jobs:
       - name: Install backend workspace
         run: pnpm install --frozen-lockfile
 
+      # Build BEFORE installing the web workspace: apps/web consumes
+      # @linkedout/contracts as a file: dependency, which pnpm materialises as a copy
+      # at install time. If contracts/dist doesn't exist yet, that copy has no types
+      # and every web import fails to resolve. Building first fills in the dist.
+      - name: Build packages + API
+        run: pnpm build
+
       - name: Install web workspace
         run: pnpm install --frozen-lockfile
         working-directory: apps/web
-
-      # Builds contracts + db (prisma generate) + api. Web typecheck needs the built
-      # contracts dist that apps/web consumes via its file: link.
-      - name: Build packages + API
-        run: pnpm build
 
       - name: Typecheck (contracts, db, api)
         run: pnpm typecheck
@@ -161,14 +163,16 @@ jobs:
       - name: Install backend workspace
         run: pnpm install --frozen-lockfile
 
+      # Build BEFORE installing web: it produces apps/api/dist/main.js (booted by
+      # Playwright's webServer) and, crucially, contracts/dist — which pnpm copies into
+      # the web workspace at install time. Installing web first would copy an empty
+      # dist and break `next build`.
+      - name: Build packages + API
+        run: pnpm build
+
       - name: Install web workspace
         run: pnpm install --frozen-lockfile
         working-directory: apps/web
-
-      # Produces apps/api/dist/main.js (booted by Playwright's webServer) and the
-      # built db/contracts packages the e2e backend helper imports.
-      - name: Build packages + API
-        run: pnpm build
 
       - name: Apply migrations to the test database
         run: pnpm --filter @linkedout/db run migrate:deploy
