@@ -97,9 +97,7 @@ export class CollectionsService {
     if (owner.authorId !== user.id) {
       throw AppErrors.forbidden('You can only add your own Ls to a collection.');
     }
-    const moveExisting = input.position !== undefined;
-    const position = input.position ?? (await this.repo.orderedLIds(id)).length;
-    await this.repo.addL(id, lId, position, moveExisting);
+    await this.repo.addL(id, lId, input.position);
     return this.getDetail(id, user.id);
   }
 

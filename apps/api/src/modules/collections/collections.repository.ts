@@ -25,6 +25,10 @@ export type CollectionWithMeta = Prisma.CollectionGetPayload<{
   };
 }>;
 
+function isWriteConflict(error: unknown): boolean {
+  return error instanceof Prisma.PrismaClientKnownRequestError && error.code === 'P2034';
+}
+
 @Injectable()
 export class CollectionsRepository {
   constructor(private readonly prisma: PrismaService) {}
@@ -128,17 +132,63 @@ export class CollectionsRepository {
     return this.prisma.db.l.findUnique({ where: { id: lId }, select: { authorId: true } });
   }
 
-  async addL(
-    collectionId: string,
-    lId: string,
-    position: number,
-    moveExisting: boolean,
-  ): Promise<void> {
-    await this.prisma.db.collectionL.upsert({
-      where: { collectionId_lId: { collectionId, lId } },
-      create: { collectionId, lId, position },
-      update: moveExisting ? { position } : {},
-    });
+  /**
+   * Adds or moves an L, then rewrites the collection's positions as a dense 0..n-1
+   * sequence. Storing the whole order (rather than only the touched row) is what makes
+   * `position` authoritative: without it, two rows can share a position and the final
+   * order silently falls back to the `lId` tiebreak in `orderedLIds`.
+   *
+   * `position === undefined` appends, and is a no-op for an L that is already a member
+   * (the idempotent `PUT` of contract §4.8). An out-of-range position clamps to the ends.
+   *
+   * This is a read-modify-write over the whole member set, so it takes a row lock on the
+   * owning Collection first. Concurrent adds then queue instead of aborting each other,
+   * which is what SERIALIZABLE would do to every writer but the first.
+   */
+  async addL(collectionId: string, lId: string, position: number | undefined): Promise<void> {
+    let attempt = 0;
+    while (true) {
+      try {
+        await this.prisma.db.$transaction(async (tx) => {
+          await tx.$queryRaw`SELECT "id" FROM "Collection" WHERE "id" = ${collectionId} FOR UPDATE`;
+
+          const rows = await tx.collectionL.findMany({
+            where: { collectionId },
+            select: { lId: true },
+            orderBy: [{ position: 'asc' }, { lId: 'asc' }],
+          });
+          const order = rows.map((row) => row.lId);
+          const currentIndex = order.indexOf(lId);
+
+          if (position === undefined) {
+            if (currentIndex !== -1) return;
+            order.push(lId);
+          } else {
+            if (currentIndex !== -1) order.splice(currentIndex, 1);
+            order.splice(Math.min(Math.max(position, 0), order.length), 0, lId);
+          }
+
+          if (currentIndex === -1) {
+            await tx.collectionL.create({
+              data: { collectionId, lId, position: order.indexOf(lId) },
+              select: { lId: true },
+            });
+          }
+
+          for (const [index, id] of order.entries()) {
+            await tx.collectionL.update({
+              where: { collectionId_lId: { collectionId, lId: id } },
+              data: { position: index },
+              select: { lId: true },
+            });
+          }
+        });
+        return;
+      } catch (error) {
+        attempt += 1;
+        if (!isWriteConflict(error) || attempt >= 3) throw error;
+      }
+    }
   }
 
   async removeL(collectionId: string, lId: string): Promise<void> {

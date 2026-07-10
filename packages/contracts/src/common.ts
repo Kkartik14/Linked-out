@@ -9,6 +9,19 @@ export const ulidSchema = z
 export const isoTimestampSchema = z.string();
 
 /**
+ * A date on the way *in*. Accepts an ISO 8601 string (or a `Date` from a typed caller)
+ * and yields a `Date`. Deliberately not `z.coerce.date()`: that runs `new Date(value)` on
+ * anything, so `true` becomes 1970-01-01T00:00:00.001Z and `12345` becomes an epoch offset
+ * — both silently persisted. Loose strings like `"1"` are rejected too; only bare ISO
+ * dates and ISO datetimes are accepted.
+ */
+const isoDateInputStringSchema = z.union([z.iso.date(), z.iso.datetime({ offset: true })]);
+
+export const dateInputSchema = z
+  .union([z.date(), isoDateInputStringSchema])
+  .transform((value) => new Date(value));
+
+/**
  * Cursor pagination query. `cursor` is opaque (base64) — never parsed by the client.
  * Factory lets endpoints tune the max/default page size (e.g. journey allows 100).
  */

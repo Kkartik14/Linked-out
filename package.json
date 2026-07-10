@@ -9,6 +9,13 @@
     "db:logs": "docker compose logs -f postgres",
     "build": "pnpm --filter @linkedout/contracts build && pnpm --filter @linkedout/db build && pnpm --filter @linkedout/api build",
     "typecheck": "pnpm --filter @linkedout/contracts typecheck && pnpm --filter @linkedout/db typecheck && pnpm --filter @linkedout/api typecheck",
+    "test": "pnpm test:api && pnpm test:web",
+    "test:all": "pnpm test && pnpm test:integration && pnpm test:e2e",
+    "test:api": "pnpm build && pnpm --filter @linkedout/api test:unit",
+    "test:integration": "pnpm db:test:setup && pnpm build && pnpm --filter @linkedout/api test:integration",
+    "test:web": "pnpm --dir apps/web test",
+    "test:e2e": "pnpm --dir apps/web test:e2e",
+    "db:test:setup": "bash scripts/setup-test-db.sh",
     "migrate": "pnpm --filter @linkedout/db migrate:dev",
     "generate": "pnpm --filter @linkedout/db generate",
     "dev": "pnpm --filter @linkedout/api dev"

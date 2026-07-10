@@ -6,7 +6,10 @@
     "build": "nest build",
     "dev": "nest start --watch",
     "start": "node dist/main.js",
-    "typecheck": "tsc -p tsconfig.json --noEmit"
+    "typecheck": "tsc -p tsconfig.json --noEmit",
+    "test": "pnpm --workspace-root test:api",
+    "test:unit": "node --test \"test/unit/**/*.test.cjs\"",
+    "test:integration": "node --test --test-concurrency=1 test/integration/index.test.cjs"
   },
   "dependencies": {
     "@aws-sdk/client-s3": "^3.726.0",

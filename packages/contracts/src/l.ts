@@ -1,6 +1,6 @@
 import { z } from 'zod';
 
-import { ulidSchema, isoTimestampSchema } from './common';
+import { ulidSchema, isoTimestampSchema, dateInputSchema } from './common';
 import { lTypeSchema, lCategorySchema, visibilitySchema, reactionTypeSchema } from './enums';
 import { reactionsSummarySchema } from './reaction';
 import { userSummarySchema } from './user';
@@ -76,7 +76,7 @@ export const createLInputSchema = z.object({
   category: lCategorySchema.nullable().optional(),
   company: z.string().max(100).nullable().optional(),
   tags: z.array(z.string().min(1).max(30)).max(5).default([]),
-  eventDate: z.coerce.date().nullable().optional(),
+  eventDate: dateInputSchema.nullable().optional(),
   visibility: visibilitySchema.default('PUBLIC'),
   isAnonymous: z.boolean().default(false),
 });
@@ -91,10 +91,10 @@ export const updateLInputSchema = z
     category: lCategorySchema.nullable(),
     company: z.string().max(100).nullable(),
     tags: z.array(z.string().min(1).max(30)).max(5),
-    eventDate: z.coerce.date().nullable(),
+    eventDate: dateInputSchema.nullable(),
     visibility: visibilitySchema,
     isAnonymous: z.boolean(),
-    resolvedAt: z.coerce.date().nullable(),
+    resolvedAt: dateInputSchema.nullable(),
   })
   .partial();
 export type UpdateLInput = z.infer<typeof updateLInputSchema>;

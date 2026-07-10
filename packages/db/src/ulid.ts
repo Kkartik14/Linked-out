@@ -1,6 +1,15 @@
-import { ulid } from 'ulid';
+import { monotonicFactory } from 'ulid';
 
 import { Prisma } from '../generated/client';
+
+/**
+ * Monotonic, not the plain `ulid()`: within a single millisecond the plain factory
+ * randomizes the low 80 bits, so rows created in the same tick sort arbitrarily. Every
+ * list in the API keysets on `ORDER BY id`, and contract.md §1.3 promises "sort by id asc
+ * = oldest-first" — that only holds if ids strictly increase. The factory increments the
+ * random component instead. Across processes the guarantee degrades to the millisecond.
+ */
+const ulid = monotonicFactory();
 
 /**
  * Models that have no scalar `id` column (composite PK or none) — never inject a ULID.

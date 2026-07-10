@@ -1,21 +1,118 @@
 import { expect, test } from "@playwright/test";
 
-test("the feed loads and shows Ls", async ({ page }) => {
-  await page.goto("/");
-  await expect(page.getByRole("heading", { name: "The Feed" })).toBeVisible();
-  await expect(page.getByText("Rejected after the final round at Google")).toBeVisible();
+import { disconnect, seedWorld, signIn, type World } from "./helpers";
+
+let world: World;
+
+test.beforeEach(async () => {
+  world = await seedWorld();
 });
 
-test("opening an L shows the full story and comments", async ({ page }) => {
-  await page.goto("/");
-  await page.getByRole("link", { name: /Rejected after the final round at Google/ }).click();
-  await expect(page).toHaveURL(/\/ls\//);
-  await expect(page.getByText("windowless room")).toBeVisible();
-  await expect(page.getByRole("heading", { name: /comments/i })).toBeVisible();
+test.afterAll(async () => {
+  await disconnect();
 });
 
-test("filtering the feed by category narrows results", async ({ page }) => {
-  await page.goto("/?filter=startups");
-  await expect(page.getByText("We shut down the startup after three years")).toBeVisible();
-  await expect(page.getByText("Rejected after the final round at Google")).toHaveCount(0);
+test.describe("feed & L detail", () => {
+  test("renders public Ls and opens a detail page with its comments", async ({ page }) => {
+    await page.goto("/");
+
+    await expect(page.getByRole("heading", { name: "The Feed" })).toBeVisible();
+    await expect(page.getByText(world.google.title)).toBeVisible();
+    await expect(page.getByText(world.startup.title)).toBeVisible();
+
+    await page.getByRole("link", { name: new RegExp(world.google.title) }).first().click();
+
+    await expect(page).toHaveURL(new RegExp(`/ls/${world.google.id}`));
+    await expect(page.getByRole("heading", { name: world.google.title })).toBeVisible();
+    await expect(page.getByText("onsite loop")).toBeVisible();
+    await expect(page.getByRole("heading", { name: /1 comment/i })).toBeVisible();
+    await expect(page.getByText("Interview loops can be brutal")).toBeVisible();
+  });
+
+  test("PRIVATE Ls are invisible to anonymous visitors, in the feed and by direct URL", async ({
+    page,
+  }) => {
+    await page.goto("/");
+    await expect(page.getByText(world.privateL.title)).toHaveCount(0);
+
+    const res = await page.goto(`/ls/${world.privateL.id}`);
+    expect(res?.status()).toBe(404);
+  });
+
+  test("an anonymous L renders as 'Anonymous builder' with no profile link", async ({ page }) => {
+    await page.goto(`/ls/${world.anonymous.id}`);
+
+    await expect(page.getByRole("heading", { name: world.anonymous.title })).toBeVisible();
+    await expect(page.getByText("Anonymous builder")).toBeVisible();
+    await expect(page.getByRole("link", { name: /Nadia Ray/ })).toHaveCount(0);
+  });
+
+  test("category filtering narrows the feed", async ({ page }) => {
+    await page.goto("/?filter=startups");
+
+    await expect(page.getByText(world.startup.title)).toBeVisible();
+    await expect(page.getByText(world.google.title)).toHaveCount(0);
+  });
+
+  test("sort=trending reorders the feed by the API's trendingScore", async ({ page }) => {
+    await page.goto("/?sort=trending");
+
+    const titles = await page.getByRole("heading", { level: 2 }).allInnerTexts();
+    const google = titles.findIndex((t) => t.includes("Rejected after the final round"));
+    const layoff = titles.findIndex((t) => t.includes("Laid off two weeks"));
+
+    expect(google).toBeGreaterThanOrEqual(0);
+    expect(layoff).toBeGreaterThan(google);
+  });
+
+  test("an unknown category filter falls back to the unfiltered feed", async ({ page }) => {
+    await page.goto("/?filter=not-a-category");
+
+    await expect(page.getByText(world.google.title)).toBeVisible();
+    await expect(page.getByText(world.startup.title)).toBeVisible();
+  });
+
+  test("the following feed shows only the authors the viewer follows", async ({ page, context }) => {
+    await signIn(context, world.kartik); // kartik follows nadia only
+    await page.goto("/?scope=following");
+
+    await expect(page.getByText(world.nadiaPublic.title)).toBeVisible();
+    await expect(page.getByText(world.google.title)).toHaveCount(0);
+  });
+
+  test("a logged-out visitor asking for the following feed gets the global feed", async ({
+    page,
+  }) => {
+    await page.goto("/?scope=following");
+    await expect(page.getByText(world.google.title)).toBeVisible();
+  });
+
+  test("a missing L renders the not-found page rather than crashing", async ({ page }) => {
+    const res = await page.goto("/ls/01ARZ3NDEKTSV4RRFFQ69G5FAV");
+    expect(res?.status()).toBe(404);
+  });
+
+  test("logged-out write routes redirect to login with a safe return path", async ({ page }) => {
+    await page.goto("/new");
+
+    await expect(page).toHaveURL(/\/login\?returnTo=/);
+    await expect(page.getByRole("heading", { name: "Welcome to LinkedOut" })).toBeVisible();
+    await expect(page.getByRole("link", { name: "Continue with Google" })).toHaveAttribute(
+      "href",
+      /returnTo=%2Fnew/,
+    );
+  });
+
+  test("login links point at the real API's OAuth start endpoints", async ({ page }) => {
+    await page.goto("/login");
+
+    await expect(page.getByRole("link", { name: "Continue with Google" })).toHaveAttribute(
+      "href",
+      /\/v1\/auth\/google\?returnTo=/,
+    );
+    await expect(page.getByRole("link", { name: "Continue with GitHub" })).toHaveAttribute(
+      "href",
+      /\/v1\/auth\/github\?returnTo=/,
+    );
+  });
 });
