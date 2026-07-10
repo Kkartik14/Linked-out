@@ -1,0 +1,191 @@
+name: CI
+
+# Runs on every PR into main, and on pushes to main so the branch always carries a
+# green (or red) status for the required checks below.
+on:
+  pull_request:
+  push:
+    branches: [main]
+
+# One in-flight run per branch/PR; a new push cancels the previous run.
+concurrency:
+  group: ci-${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+permissions:
+  contents: read
+
+env:
+  # pnpm's version is taken from the root package.json `packageManager` field.
+  NODE_VERSION: "22"
+  # The e2e/integration harnesses default to these secrets; pin them so the API the
+  # tests boot and the cookies the harness mints agree.
+  E2E_JWT_ACCESS_SECRET: e2e-access-secret-0123456789abcdef
+
+jobs:
+  # ── Static checks + web unit tests. No database needed. ──────────────────────
+  checks:
+    name: checks
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    env:
+      # Prisma generate reads the schema, not a live DB, but a value keeps it quiet.
+      DATABASE_URL: postgresql://linkedout:linkedout@localhost:5432/linkedout?schema=public
+    steps:
+      - uses: actions/checkout@v4
+
+      # No version input: pnpm's version comes from the root package.json
+      # `packageManager` field. Passing both sources errors.
+      - uses: pnpm/action-setup@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+          cache: pnpm
+          cache-dependency-path: |
+            pnpm-lock.yaml
+            apps/web/pnpm-lock.yaml
+
+      - name: Install backend workspace
+        run: pnpm install --frozen-lockfile
+
+      - name: Install web workspace
+        run: pnpm install --frozen-lockfile
+        working-directory: apps/web
+
+      # Builds contracts + db (prisma generate) + api. Web typecheck needs the built
+      # contracts dist that apps/web consumes via its file: link.
+      - name: Build packages + API
+        run: pnpm build
+
+      - name: Typecheck (contracts, db, api)
+        run: pnpm typecheck
+
+      - name: Typecheck (web)
+        run: pnpm --dir apps/web typecheck
+
+      - name: Lint (web)
+        run: pnpm --dir apps/web lint
+
+      - name: Unit tests (web)
+        run: pnpm --dir apps/web test
+
+  # ── API unit + integration against a real Postgres. ─────────────────────────
+  api-tests:
+    name: api-tests
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    services:
+      postgres:
+        image: postgres:16-alpine
+        env:
+          POSTGRES_USER: linkedout
+          POSTGRES_PASSWORD: linkedout
+          POSTGRES_DB: linkedout_test
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U linkedout -d linkedout_test"
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 10
+    env:
+      TEST_DATABASE_URL: postgresql://linkedout:linkedout@localhost:5432/linkedout_test?schema=public
+      DATABASE_URL: postgresql://linkedout:linkedout@localhost:5432/linkedout_test?schema=public
+      DIRECT_URL: postgresql://linkedout:linkedout@localhost:5432/linkedout_test?schema=public
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: pnpm/action-setup@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+          cache: pnpm
+          cache-dependency-path: pnpm-lock.yaml
+
+      - name: Install backend workspace
+        run: pnpm install --frozen-lockfile
+
+      - name: Build packages + API
+        run: pnpm build
+
+      - name: Apply migrations to the test database
+        run: pnpm --filter @linkedout/db run migrate:deploy
+
+      - name: Unit tests (API)
+        run: pnpm --filter @linkedout/api test:unit
+
+      # Boots the real NestJS server (twice — one with uploads, one without) over HTTP
+      # against the Postgres service, and validates every response with the shared Zod
+      # contract. See apps/api/test/README.md.
+      - name: Integration tests (API + real Postgres)
+        run: pnpm --filter @linkedout/api test:integration
+
+  # ── Full-stack e2e: real browser → real Next app → real API → real Postgres. ─
+  e2e-tests:
+    name: e2e-tests
+    runs-on: ubuntu-latest
+    timeout-minutes: 25
+    services:
+      postgres:
+        image: postgres:16-alpine
+        env:
+          POSTGRES_USER: linkedout
+          POSTGRES_PASSWORD: linkedout
+          POSTGRES_DB: linkedout_test
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U linkedout -d linkedout_test"
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 10
+    env:
+      TEST_DATABASE_URL: postgresql://linkedout:linkedout@localhost:5432/linkedout_test?schema=public
+      DATABASE_URL: postgresql://linkedout:linkedout@localhost:5432/linkedout_test?schema=public
+      DIRECT_URL: postgresql://linkedout:linkedout@localhost:5432/linkedout_test?schema=public
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: pnpm/action-setup@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+          cache: pnpm
+          cache-dependency-path: |
+            pnpm-lock.yaml
+            apps/web/pnpm-lock.yaml
+
+      - name: Install backend workspace
+        run: pnpm install --frozen-lockfile
+
+      - name: Install web workspace
+        run: pnpm install --frozen-lockfile
+        working-directory: apps/web
+
+      # Produces apps/api/dist/main.js (booted by Playwright's webServer) and the
+      # built db/contracts packages the e2e backend helper imports.
+      - name: Build packages + API
+        run: pnpm build
+
+      - name: Apply migrations to the test database
+        run: pnpm --filter @linkedout/db run migrate:deploy
+
+      - name: Install Playwright browser
+        run: pnpm --dir apps/web exec playwright install --with-deps chromium
+
+      # test:e2e builds the Next app, then Playwright boots the API + web servers and
+      # drives Chromium against them.
+      - name: e2e tests (Playwright + real API + real Postgres)
+        run: pnpm --dir apps/web test:e2e
+
+      - name: Upload Playwright artifacts on failure
+        if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: playwright-results
+          path: apps/web/test-results
+          retention-days: 7
+          if-no-files-found: ignore
