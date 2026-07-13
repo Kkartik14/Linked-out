@@ -12,16 +12,9 @@ import { AppErrors } from '../../common/errors/app-exception';
 import { decodeCursor, encodeCursor } from '../../common/pagination/cursor';
 import { LsService } from '../ls/ls.service';
 import { SearchRepository } from './search.repository';
-import type { SearchLCursor } from './search.repository';
+import type { SearchLCursor, SearchUserCursor } from './search.repository';
 
 export type SearchResult = Paginated<LCard> | Paginated<UserSummary>;
-
-function readOffset(cursor: string | undefined): number {
-  if (cursor === undefined) return 0;
-  const value = decodeCursor(cursor).offset;
-  if (typeof value !== 'number' || value < 0) throw AppErrors.badCursor();
-  return value;
-}
 
 function readRankCursor(cursor: string | undefined): SearchLCursor | null {
   if (cursor === undefined) return null;
@@ -30,6 +23,20 @@ function readRankCursor(cursor: string | undefined): SearchLCursor | null {
     throw AppErrors.badCursor();
   }
   return { rank: payload.rank, id: payload.id };
+}
+
+function readUserCursor(cursor: string | undefined): SearchUserCursor | null {
+  if (cursor === undefined) return null;
+  const payload = decodeCursor(cursor);
+  if (
+    typeof payload.username !== 'string' ||
+    payload.username.length === 0 ||
+    typeof payload.id !== 'string' ||
+    payload.id.length === 0
+  ) {
+    throw AppErrors.badCursor();
+  }
+  return { username: payload.username, id: payload.id };
 }
 
 @Injectable()
@@ -41,8 +48,7 @@ export class SearchService {
 
   async search(query: SearchQuery, viewerId: string | undefined): Promise<SearchResult> {
     if (query.type === 'users') {
-      const offset = readOffset(query.cursor);
-      return this.searchUsers(query, offset);
+      return this.searchUsers(query, readUserCursor(query.cursor));
     }
     return this.searchLs(query, viewerId);
   }
@@ -70,13 +76,17 @@ export class SearchService {
     };
   }
 
-  private async searchUsers(query: SearchQuery, offset: number): Promise<Paginated<UserSummary>> {
-    const rows = await this.repo.searchUsers(query.q, query.limit + 1, offset);
+  private async searchUsers(
+    query: SearchQuery,
+    cursor: SearchUserCursor | null,
+  ): Promise<Paginated<UserSummary>> {
+    const rows = await this.repo.searchUsers(query.q, query.limit + 1, cursor);
     const hasMore = rows.length > query.limit;
     const pageRows = hasMore ? rows.slice(0, query.limit) : rows;
+    const last = pageRows[pageRows.length - 1];
     return {
       data: pageRows.map(toUserSummary),
-      nextCursor: hasMore ? encodeCursor({ offset: offset + query.limit }) : null,
+      nextCursor: hasMore && last ? encodeCursor({ username: last.username, id: last.id }) : null,
     };
   }
 }

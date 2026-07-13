@@ -20,6 +20,8 @@ const assert = require('node:assert/strict');
 const { ulid } = require('ulid');
 const { createPrismaClient } = require('@linkedout/db');
 
+const { guardedReset } = require('../../../../scripts/db-safety-guard.cjs');
+
 const API_ROOT = path.resolve(__dirname, '..', '..');
 const MAIN_JS = path.join(API_ROOT, 'dist', 'main.js');
 
@@ -191,6 +193,7 @@ function expectError(res, status, code) {
 // ─── DB fixtures ──────────────────────────────────────────────────────────────
 
 const TABLES = [
+  'AvatarDeletionClaim',
   'Notification',
   'CollectionL',
   'Collection',
@@ -206,13 +209,21 @@ const TABLES = [
 ];
 
 async function resetDb() {
+  // TEST-01: verify (name allowlist + session role + fingerprinted marker) and TRUNCATE in ONE
+  // transaction, so the connection can't be swapped between the check and the destructive SQL.
   const list = TABLES.map((t) => `"${t}"`).join(', ');
-  await ctx.prisma.$executeRawUnsafe(`TRUNCATE TABLE ${list} RESTART IDENTITY CASCADE;`);
+  await guardedReset(ctx.prisma, {
+    url: DATABASE_URL,
+    statements: [`TRUNCATE TABLE ${list} RESTART IDENTITY CASCADE;`],
+  });
 }
 
 /** Clears only the shared limiter buckets (tests are not about rate limits). */
 async function resetRateLimits() {
-  await ctx.prisma.$executeRawUnsafe('TRUNCATE TABLE "RateLimitBucket";');
+  await guardedReset(ctx.prisma, {
+    url: DATABASE_URL,
+    statements: ['TRUNCATE TABLE "RateLimitBucket";'],
+  });
 }
 
 let userSeq = 0;
@@ -330,6 +341,8 @@ function spawnApi(port, env) {
 async function start() {
   ctx.prisma = createPrismaClient({ datasources: { db: { url: DATABASE_URL } } });
   await ctx.prisma.$connect();
+  // The fingerprinted marker is planted out-of-band (scripts/bootstrap-test-db.cjs, run before
+  // migrate). resetDb() fails closed here if it is absent.
   await resetDb();
 
   const main = spawnApi(PORT, R2_ENV);

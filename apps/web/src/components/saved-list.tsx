@@ -3,15 +3,19 @@
 import type { LCard as LCardType } from "@linkedout/contracts";
 
 import { getSaved } from "@/lib/api";
+import { queryKeys } from "@/lib/query-keys";
+import { usePrincipal } from "@/components/session-provider";
 import { InfiniteList } from "@/components/infinite-list";
 import { LCard } from "@/components/l/l-card";
 import { LCardSkeleton } from "@/components/l/l-card-skeleton";
 import { EmptyState } from "@/components/empty-state";
 
 export function SavedList() {
+  const principal = usePrincipal();
+
   return (
     <InfiniteList<LCardType>
-      queryKey={["saved"]}
+      queryKey={queryKeys.saved.all(principal)}
       queryFn={(cursor) => getSaved(cursor)}
       getItemKey={(l) => l.id}
       renderItem={(l) => <LCard l={l} />}

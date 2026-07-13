@@ -25,10 +25,42 @@ describe('20 · counter integrity under concurrency', () => {
   const makeUsers = (n) =>
     Promise.all(Array.from({ length: n }, (_, i) => h.createUser({ username: `u${i}` })));
 
+  /**
+   * `fetch` resolves normally for HTTP 4xx/5xx responses. Assert every concurrent response
+   * before inspecting aggregate DB state, otherwise partial failures can masquerade as a
+   * concurrency-safe implementation when the final counters merely match the successful subset.
+   */
+  async function concurrentHttp(requests, expectedStatus, operation) {
+    const responses = await Promise.all(requests);
+    for (const [index, response] of responses.entries()) {
+      assert.equal(
+        response.status,
+        expectedStatus,
+        `${operation} request ${index + 1}/${responses.length} returned ${response.status}: ${JSON.stringify(response.body)}`,
+      );
+    }
+    return responses;
+  }
+
+  async function assertFollowCounterParity(userId) {
+    const [user, followers, following] = await Promise.all([
+      h.ctx.prisma.user.findUniqueOrThrow({
+        where: { id: userId },
+        select: { followerCount: true, followingCount: true },
+      }),
+      h.ctx.prisma.follow.count({ where: { followingId: userId } }),
+      h.ctx.prisma.follow.count({ where: { followerId: userId } }),
+    ]);
+    assert.equal(user.followerCount, followers, 'persisted followerCount matches Follow edges');
+    assert.equal(user.followingCount, following, 'persisted followingCount matches Follow edges');
+  }
+
   test('concurrent reactions from many users produce an exact reactionCount', async () => {
     const users = await makeUsers(12);
-    await Promise.all(
+    await concurrentHttp(
       users.map((u) => h.put(`/ls/${l.id}/reactions/BEEN_THERE`, { cookie: u.cookie })),
+      200,
+      'add reaction',
     );
 
     const row = await h.ctx.prisma.l.findUnique({ where: { id: l.id } });
@@ -37,16 +69,20 @@ describe('20 · counter integrity under concurrency', () => {
     assert.equal(actual, 12, 'every reaction row was written');
     assert.equal(row.beenThereCount, 12, 'beenThereCount must match the rows');
     assert.equal(row.reactionCount, 12, 'reactionCount must match the rows');
-    assert.equal(row.trendingScore, 12 * 2, 'trendingScore must match the weights');
+    assert.equal(row.popularityScore, 12 * 2, 'popularityScore must match the weights');
   });
 
   test('the same user double-firing a reaction concurrently still counts once', async () => {
     const user = await h.createUser({ username: 'doubletap' });
-    await Promise.all([
-      h.put(`/ls/${l.id}/reactions/HELPFUL`, { cookie: user.cookie }),
-      h.put(`/ls/${l.id}/reactions/HELPFUL`, { cookie: user.cookie }),
-      h.put(`/ls/${l.id}/reactions/HELPFUL`, { cookie: user.cookie }),
-    ]);
+    await concurrentHttp(
+      [
+        h.put(`/ls/${l.id}/reactions/HELPFUL`, { cookie: user.cookie }),
+        h.put(`/ls/${l.id}/reactions/HELPFUL`, { cookie: user.cookie }),
+        h.put(`/ls/${l.id}/reactions/HELPFUL`, { cookie: user.cookie }),
+      ],
+      200,
+      'idempotent add reaction',
+    );
 
     const row = await h.ctx.prisma.l.findUnique({ where: { id: l.id } });
     const rows = await h.ctx.prisma.reaction.count({ where: { lId: l.id, type: 'HELPFUL' } });
@@ -60,24 +96,30 @@ describe('20 · counter integrity under concurrency', () => {
     const user = await h.createUser({ username: 'flipper' });
     await h.put(`/ls/${l.id}/reactions/RESPECT`, { cookie: user.cookie });
 
-    await Promise.all([
-      h.put(`/ls/${l.id}/reactions/RESPECT`, { cookie: user.cookie }),
-      h.del(`/ls/${l.id}/reactions/RESPECT`, { cookie: user.cookie }),
-      h.put(`/ls/${l.id}/reactions/RESPECT`, { cookie: user.cookie }),
-    ]);
+    await concurrentHttp(
+      [
+        h.put(`/ls/${l.id}/reactions/RESPECT`, { cookie: user.cookie }),
+        h.del(`/ls/${l.id}/reactions/RESPECT`, { cookie: user.cookie }),
+        h.put(`/ls/${l.id}/reactions/RESPECT`, { cookie: user.cookie }),
+      ],
+      200,
+      'mixed reaction add/remove',
+    );
 
     const row = await h.ctx.prisma.l.findUnique({ where: { id: l.id } });
     const rows = await h.ctx.prisma.reaction.count({ where: { lId: l.id, type: 'RESPECT' } });
 
     assert.equal(row.respectCount, rows, 'the counter always equals the row count');
     assert.equal(row.reactionCount, rows);
-    assert.equal(row.trendingScore, rows * 2);
+    assert.equal(row.popularityScore, rows * 2);
   });
 
   test('concurrent comments produce an exact commentCount', async () => {
     const users = await makeUsers(10);
-    await Promise.all(
+    await concurrentHttp(
       users.map((u) => h.post(`/ls/${l.id}/comments`, { cookie: u.cookie, body: { body: 'me too' } })),
+      201,
+      'create comment',
     );
 
     const row = await h.ctx.prisma.l.findUnique({ where: { id: l.id } });
@@ -85,19 +127,23 @@ describe('20 · counter integrity under concurrency', () => {
 
     assert.equal(actual, 10);
     assert.equal(row.commentCount, 10);
-    assert.equal(row.trendingScore, 10 * 2);
+    assert.equal(row.popularityScore, 10 * 2);
   });
 
   test('concurrent comment deletions leave commentCount exact', async () => {
     const users = await makeUsers(6);
-    const comments = await Promise.all(
+    const comments = await concurrentHttp(
       users.map((u) => h.post(`/ls/${l.id}/comments`, { cookie: u.cookie, body: { body: 'x' } })),
+      201,
+      'create comment before delete race',
     );
 
-    await Promise.all(
+    await concurrentHttp(
       comments
         .slice(0, 3)
         .map((c, i) => h.del(`/comments/${c.body.id}`, { cookie: users[i].cookie })),
+      200,
+      'delete comment',
     );
 
     const row = await h.ctx.prisma.l.findUnique({ where: { id: l.id } });
@@ -107,9 +153,47 @@ describe('20 · counter integrity under concurrency', () => {
     assert.equal(row.commentCount, 3);
   });
 
+  test('a reply racing its parent deletion cannot leave a ghost counter', async () => {
+    const replier = await h.createUser({ username: 'reply-racer' });
+
+    for (let iteration = 0; iteration < 10; iteration += 1) {
+      const root = await h.post(`/ls/${l.id}/comments`, {
+        cookie: author.cookie,
+        body: { body: `root ${iteration}` },
+      });
+      assert.equal(root.status, 201, JSON.stringify(root.body));
+
+      const [reply, removal] = await Promise.all([
+        h.post(`/comments/${root.body.id}/replies`, {
+          cookie: replier.cookie,
+          body: { body: `racing reply ${iteration}` },
+        }),
+        h.del(`/comments/${root.body.id}`, { cookie: author.cookie }),
+      ]);
+      assert.equal(removal.status, 200, `parent delete ${iteration + 1}: ${JSON.stringify(removal.body)}`);
+      assert.ok(
+        reply.status === 201 || reply.status === 404,
+        `reply ${iteration + 1} must either serialize first or see the deleted parent: ${reply.status} ${JSON.stringify(reply.body)}`,
+      );
+      if (reply.status === 404) h.expectError(reply, 404, 'COMMENT_NOT_FOUND');
+    }
+
+    const [row, actual] = await Promise.all([
+      h.ctx.prisma.l.findUniqueOrThrow({ where: { id: l.id } }),
+      h.ctx.prisma.comment.count({ where: { lId: l.id } }),
+    ]);
+    assert.equal(actual, 0, 'the parent cascade leaves no raced replies behind');
+    assert.equal(row.commentCount, 0, 'commentCount follows the serialized subtree deletes');
+    assert.equal(row.popularityScore, 0, 'comment popularity follows the same exact delta');
+  });
+
   test('concurrent HELPFUL reactions produce an exact buildersHelped', async () => {
     const users = await makeUsers(10);
-    await Promise.all(users.map((u) => h.put(`/ls/${l.id}/reactions/HELPFUL`, { cookie: u.cookie })));
+    await concurrentHttp(
+      users.map((u) => h.put(`/ls/${l.id}/reactions/HELPFUL`, { cookie: u.cookie })),
+      200,
+      'add HELPFUL reaction',
+    );
 
     const profile = await h.ctx.prisma.user.findUnique({ where: { id: author.id } });
     assert.equal(profile.buildersHelped, 10);
@@ -119,21 +203,28 @@ describe('20 · counter integrity under concurrency', () => {
     const target = await h.createUser({ username: 'target' });
     const users = await makeUsers(10);
 
-    await Promise.all(users.map((u) => h.put('/users/target/follow', { cookie: u.cookie })));
+    await concurrentHttp(
+      users.map((u) => h.put('/users/target/follow', { cookie: u.cookie })),
+      200,
+      'follow target',
+    );
 
     const res = await h.get('/users/target');
     const edges = await h.ctx.prisma.follow.count({ where: { followingId: target.id } });
 
     assert.equal(edges, 10);
     assert.equal(res.body.counts.followers, 10);
+    await Promise.all([assertFollowCounterParity(target.id), ...users.map((u) => assertFollowCounterParity(u.id))]);
   });
 
   test('the same user follow-spamming concurrently creates exactly one edge', async () => {
     await h.createUser({ username: 'target' });
     const user = await h.createUser({ username: 'spammer' });
 
-    await Promise.all(
+    await concurrentHttp(
       Array.from({ length: 5 }, () => h.put('/users/target/follow', { cookie: user.cookie })),
+      200,
+      'idempotent follow',
     );
 
     const res = await h.get('/users/target');
@@ -141,14 +232,79 @@ describe('20 · counter integrity under concurrency', () => {
 
     const notifications = await h.ctx.prisma.notification.count({ where: { type: 'NEW_FOLLOWER' } });
     assert.equal(notifications, 1, 'an idempotent follow must not spam notifications');
+    const target = await h.ctx.prisma.user.findUniqueOrThrow({ where: { username: 'target' } });
+    await Promise.all([assertFollowCounterParity(target.id), assertFollowCounterParity(user.id)]);
+  });
+
+  test('concurrent follow and unfollow commands always leave both endpoint counters exact', async () => {
+    const target = await h.createUser({ username: 'target' });
+    const user = await h.createUser({ username: 'edge-flipper' });
+
+    for (let iteration = 0; iteration < 4; iteration += 1) {
+      await concurrentHttp(
+        [
+          h.put('/users/target/follow', { cookie: user.cookie }),
+          h.del('/users/target/follow', { cookie: user.cookie }),
+          h.put('/users/target/follow', { cookie: user.cookie }),
+          h.del('/users/target/follow', { cookie: user.cookie }),
+        ],
+        200,
+        `mixed follow/unfollow iteration ${iteration + 1}`,
+      );
+      await Promise.all([assertFollowCounterParity(target.id), assertFollowCounterParity(user.id)]);
+    }
+  });
+
+  test('mutual follow writes lock endpoint counters in one stable order', async () => {
+    const left = await h.createUser({ username: 'left' });
+    const right = await h.createUser({ username: 'right' });
+
+    await concurrentHttp(
+      [
+        h.put('/users/right/follow', { cookie: left.cookie }),
+        h.put('/users/left/follow', { cookie: right.cookie }),
+      ],
+      200,
+      'mutual follows',
+    );
+
+    await Promise.all([assertFollowCounterParity(left.id), assertFollowCounterParity(right.id)]);
+    const [leftRow, rightRow] = await Promise.all([
+      h.ctx.prisma.user.findUniqueOrThrow({ where: { id: left.id } }),
+      h.ctx.prisma.user.findUniqueOrThrow({ where: { id: right.id } }),
+    ]);
+    assert.deepEqual(
+      [leftRow.followerCount, leftRow.followingCount, rightRow.followerCount, rightRow.followingCount],
+      [1, 1, 1, 1],
+    );
+  });
+
+  test('deleting a user repairs the surviving endpoints of cascaded follow edges', async () => {
+    const deleted = await h.createUser({ username: 'deleted' });
+    const follower = await h.createUser({ username: 'follower' });
+    const followed = await h.createUser({ username: 'followed' });
+    await h.put('/users/deleted/follow', { cookie: follower.cookie });
+    await h.put('/users/followed/follow', { cookie: deleted.cookie });
+
+    await h.ctx.prisma.user.delete({ where: { id: deleted.id } });
+
+    await Promise.all([assertFollowCounterParity(follower.id), assertFollowCounterParity(followed.id)]);
+    const [followerRow, followedRow] = await Promise.all([
+      h.ctx.prisma.user.findUniqueOrThrow({ where: { id: follower.id } }),
+      h.ctx.prisma.user.findUniqueOrThrow({ where: { id: followed.id } }),
+    ]);
+    assert.equal(followerRow.followingCount, 0);
+    assert.equal(followedRow.followerCount, 0);
   });
 
   test('concurrent Ls from one author produce an exact lsShared', async () => {
     const spammer = await h.createUser({ username: 'prolific' });
-    await Promise.all(
+    await concurrentHttp(
       Array.from({ length: 10 }, (_, i) =>
         h.post('/ls', { cookie: spammer.cookie, body: { title: `t${i}`, story: 's', type: 'STORY' } }),
       ),
+      201,
+      'create L',
     );
 
     const profile = await h.get('/users/prolific');
@@ -156,7 +312,7 @@ describe('20 · counter integrity under concurrency', () => {
     assert.equal(profile.body.reputation.storiesShared, 10);
   });
 
-  test('concurrent collection adds keep positions dense and unique', async () => {
+  test('concurrent collection adds keep gapped positions unique', async () => {
     const collection = await h.post('/collections', {
       cookie: author.cookie,
       body: { title: 'race' },
@@ -165,10 +321,12 @@ describe('20 · counter integrity under concurrency', () => {
       Array.from({ length: 6 }, (_, i) => h.createL(author.id, { title: `L${i}` })),
     );
 
-    await Promise.all(
+    await concurrentHttp(
       ls.map((item) =>
         h.put(`/collections/${collection.body.id}/ls/${item.id}`, { cookie: author.cookie }),
       ),
+      200,
+      'add L to collection',
     );
 
     const rows = await h.ctx.prisma.collectionL.findMany({
@@ -177,17 +335,109 @@ describe('20 · counter integrity under concurrency', () => {
     });
 
     assert.equal(rows.length, 6, 'every L was added exactly once');
+    const positions = rows.map((r) => r.position);
+    assert.equal(new Set(positions).size, positions.length, 'positions stay collision-free');
+    assert.ok(
+      positions.every((value, index) => index === 0 || value > positions[index - 1]),
+      'positions remain strictly ordered',
+    );
+  });
+
+  test('collection add and remove share the same serialization lock', async () => {
+    const collection = await h.post('/collections', {
+      cookie: author.cookie,
+      body: { title: 'serialized membership' },
+    });
+    const [kept, removed, added] = await Promise.all([
+      h.createL(author.id, { title: 'kept' }),
+      h.createL(author.id, { title: 'removed' }),
+      h.createL(author.id, { title: 'added' }),
+    ]);
+    for (const item of [kept, removed]) {
+      const response = await h.put(`/collections/${collection.body.id}/ls/${item.id}`, {
+        cookie: author.cookie,
+      });
+      assert.equal(response.status, 200);
+    }
+
+    let releaseCollectionLock;
+    const collectionLockReleased = new Promise((resolve) => {
+      releaseCollectionLock = resolve;
+    });
+    let markCollectionLocked;
+    const collectionLocked = new Promise((resolve) => {
+      markCollectionLocked = resolve;
+    });
+    const lockTransaction = h.ctx.prisma.$transaction(async (tx) => {
+      await tx.$queryRaw`SELECT "id" FROM "Collection" WHERE "id" = ${collection.body.id} FOR UPDATE`;
+      markCollectionLocked();
+      await collectionLockReleased;
+    });
+    await collectionLocked;
+
+    let addSettled = false;
+    let removeSettled = false;
+    const addRequest = h.put(`/collections/${collection.body.id}/ls/${added.id}`, {
+      cookie: author.cookie,
+      body: { position: 1 },
+    });
+    const removeRequest = h.del(`/collections/${collection.body.id}/ls/${removed.id}`, {
+      cookie: author.cookie,
+    });
+    void addRequest.then(
+      () => {
+        addSettled = true;
+      },
+      () => {
+        addSettled = true;
+      },
+    );
+    void removeRequest.then(
+      () => {
+        removeSettled = true;
+      },
+      () => {
+        removeSettled = true;
+      },
+    );
+
+    try {
+      // Both operations must be waiting on the Collection row. Before removeL acquired
+      // this lock, DELETE completed here while addL remained blocked in rank allocation.
+      await new Promise((resolve) => setTimeout(resolve, 100));
+      assert.equal(addSettled, false, 'add waits for the collection membership lock');
+      assert.equal(removeSettled, false, 'remove waits for the collection membership lock');
+    } finally {
+      // Never leave the test's transaction holding a row lock when an assertion fails;
+      // that would hang the suite and hide the actual serialization regression.
+      releaseCollectionLock();
+      await lockTransaction;
+    }
+    await concurrentHttp([addRequest, removeRequest], 200, 'serialized collection add/remove');
+
+    const rows = await h.ctx.prisma.collectionL.findMany({
+      where: { collectionId: collection.body.id },
+      orderBy: [{ position: 'asc' }, { lId: 'asc' }],
+    });
     assert.deepEqual(
-      rows.map((r) => r.position),
-      [0, 1, 2, 3, 4, 5],
-      'positions stay a dense, collision-free sequence',
+      new Set(rows.map(({ lId }) => lId)),
+      new Set([kept.id, added.id]),
+      'the removed member stays absent and the added member stays present',
+    );
+    const positions = rows.map(({ position }) => position);
+    assert.equal(new Set(positions).size, positions.length, 'serialized ranks remain unique');
+    assert.ok(
+      positions.every((value, index) => index === 0 || value > positions[index - 1]),
+      'serialized ranks remain strictly ordered',
     );
   });
 
   test('concurrent folded reactions still produce exactly one notification', async () => {
     const users = await makeUsers(8);
-    await Promise.all(
+    await concurrentHttp(
       users.map((u) => h.put(`/ls/${l.id}/reactions/BEEN_THERE`, { cookie: u.cookie })),
+      200,
+      'add folded reaction',
     );
 
     const count = await h.ctx.prisma.notification.count({ where: { recipientId: author.id } });
@@ -347,25 +597,52 @@ describe('21 · nullable relations & coercion edges', () => {
     );
   });
 
-  test('an unknown body field is ignored rather than persisted or rejected', async () => {
-    const res = await h.post('/ls', {
-      cookie: author.cookie,
-      body: { title: 't', story: 's', isAdmin: true, reactionCount: 9999 },
-    });
-    const created = h.expectShape(res, lDetailSchema, 201);
-    assert.equal(created.reactions.total, 0, 'counters can never be set from the wire');
+  test('an unknown body field is rejected, not silently stripped (CONTRACT-01)', async () => {
+    // Strict inputs turn mass-assignment attempts into a 400 rather than a quiet strip.
+    h.expectError(
+      await h.post('/ls', {
+        cookie: author.cookie,
+        body: { title: 't', story: 's', isAdmin: true, reactionCount: 9999 },
+      }),
+      400,
+      'VALIDATION_ERROR',
+    );
   });
 
-  test('counter fields cannot be injected through PATCH either', async () => {
+  test('counter/ownership fields cannot be injected through PATCH — the write is rejected', async () => {
     const l = await h.createL(author.id);
-    await h.patch(`/ls/${l.id}`, {
-      cookie: author.cookie,
-      body: { title: 'ok', reactionCount: 500, trendingScore: 999, authorId: actor.id },
-    });
+    h.expectError(
+      await h.patch(`/ls/${l.id}`, {
+        cookie: author.cookie,
+        body: { title: 'ok', reactionCount: 500, popularityScore: 999, authorId: actor.id },
+      }),
+      400,
+      'VALIDATION_ERROR',
+    );
 
+    // And nothing was persisted: the rejected PATCH left every field untouched.
     const row = await h.ctx.prisma.l.findUnique({ where: { id: l.id } });
     assert.equal(row.reactionCount, 0);
-    assert.equal(row.trendingScore, 0);
+    assert.equal(row.popularityScore, 0);
+    assert.equal(row.title, l.title, 'a rejected PATCH must not apply its valid fields either');
     assert.equal(row.authorId, author.id, 'ownership can never be reassigned from the wire');
+  });
+
+  test('a misspelled privacy field is rejected instead of defaulting to PUBLIC (CONTRACT-01)', async () => {
+    // `visiblity`/`isAnynomous` typos must 400 — never silently publish attributed content.
+    for (const body of [
+      { title: 'secret', story: 's', visiblity: 'PRIVATE' },
+      { title: 'secret', story: 's', isAnynomous: true },
+    ]) {
+      h.expectError(
+        await h.post('/ls', { cookie: author.cookie, body }),
+        400,
+        'VALIDATION_ERROR',
+      );
+    }
+    // Nothing leaked to the public feed from those rejected writes.
+    const feed = await h.get('/feed');
+    const titles = feed.body.data.map((l) => l.title);
+    assert.ok(!titles.includes('secret'), 'a typo’d-visibility L must never reach the public feed');
   });
 });

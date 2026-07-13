@@ -116,7 +116,7 @@ describe('10 · collections (contract §4.8)', () => {
     assert.deepEqual(detail.ls.map((l) => l.title), ['C', 'D'], 'D must append after C');
   });
 
-  test('positions stay dense (0..n-1) so ordering never depends on an id tiebreak', async () => {
+  test('positions stay unique and ordered while preserving rank gaps', async () => {
     const collection = await create();
     const ls = await Promise.all(['A', 'B', 'C'].map((title) => h.createL(owner.id, { title })));
     for (const l of ls) {
@@ -131,7 +131,16 @@ describe('10 · collections (contract §4.8)', () => {
       where: { collectionId: collection.body.id },
       orderBy: { position: 'asc' },
     });
-    assert.deepEqual(rows.map((r) => r.position), [0, 1, 2], 'no duplicate positions');
+    const positions = rows.map((r) => r.position);
+    assert.equal(new Set(positions).size, positions.length, 'no duplicate positions');
+    assert.ok(
+      positions.every((value, index) => index === 0 || value > positions[index - 1]),
+      'stored ranks are strictly increasing',
+    );
+    assert.ok(
+      positions.some((value, index) => index === 0 || value - positions[index - 1] > 1),
+      'normal inserts keep gaps instead of densely rewriting every member',
+    );
   });
 
   test('an out-of-range position clamps to the ends instead of erroring', async () => {
@@ -339,5 +348,14 @@ describe('10 · collections (contract §4.8)', () => {
     const detail = await h.get(`/ls/${l.id}`, { cookie: owner.cookie });
     assert.equal(detail.body.collections.length, 2);
     assert.deepEqual(detail.body.collections.map((c) => c.title).sort(), ['One', 'Two']);
+  });
+
+  test('an unknown field on collection create is rejected (CONTRACT-01)', async () => {
+    const owner = await h.createUser();
+    h.expectError(
+      await h.post('/collections', { cookie: owner.cookie, body: { title: 'Mine', ownerId: 'x' } }),
+      400,
+      'VALIDATION_ERROR',
+    );
   });
 });

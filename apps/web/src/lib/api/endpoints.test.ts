@@ -6,6 +6,7 @@ import { apiFetch } from "./client";
 import {
   createL,
   getFeed,
+  getMeta,
   getNotifications,
   getSaved,
   oauthLoginUrl,
@@ -23,15 +24,25 @@ describe("API endpoint helpers", () => {
   });
 
   it("builds global feed query strings without empty params", () => {
-    void getFeed({ sort: "helpful", filter: "startups", limit: 10 });
+    void getFeed({ sort: "popular", filter: "startups", limit: 10 });
 
-    expect(apiFetch).toHaveBeenCalledWith("/feed?sort=helpful&filter=startups&limit=10");
+    expect(apiFetch).toHaveBeenCalledWith("/feed?sort=popular&filter=startups&limit=10");
   });
 
   it("uses the following feed path when requested", () => {
     void getFeed({ scope: "following", cursor: "abc", limit: 5 });
 
     expect(apiFetch).toHaveBeenCalledWith("/feed/following?cursor=abc&limit=5");
+  });
+
+  it("fetches principal-independent enum metadata through Next's shared revalidation cache", () => {
+    void getMeta();
+
+    expect(apiFetch).toHaveBeenCalledWith("/meta/enums", {
+      cache: "force-cache",
+      credentials: "omit",
+      next: { revalidate: 86_400 },
+    });
   });
 
   it("sends create L writes as POST JSON", () => {

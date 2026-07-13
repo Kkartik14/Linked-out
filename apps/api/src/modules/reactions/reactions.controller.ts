@@ -1,6 +1,7 @@
 import { Controller, Delete, Param, Put, UseGuards } from '@nestjs/common';
 import { reactionTypeSchema, type ReactionResult, type ReactionType } from '@linkedout/contracts';
 
+import { ApiContract, API_ROUTE_CONTRACTS } from '../../common/contracts/api-route-contracts';
 import { CurrentUser } from '../../common/decorators/current-user.decorator';
 import { JwtAuthGuard } from '../../common/guards/jwt-auth.guard';
 import { ZodValidationPipe } from '../../common/pipes/zod-validation.pipe';
@@ -15,6 +16,7 @@ export class ReactionsController {
   constructor(private readonly reactions: ReactionsService) {}
 
   @Put(':type')
+  @ApiContract(API_ROUTE_CONTRACTS.lReact)
   react(
     @CurrentUser() user: AuthUser,
     @Param('id') id: string,
@@ -24,6 +26,7 @@ export class ReactionsController {
   }
 
   @Delete(':type')
+  @ApiContract(API_ROUTE_CONTRACTS.lUnreact)
   unreact(
     @CurrentUser() user: AuthUser,
     @Param('id') id: string,

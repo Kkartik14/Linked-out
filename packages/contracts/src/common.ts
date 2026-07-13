@@ -49,6 +49,24 @@ export interface Paginated<T> {
   nextCursor: string | null;
 }
 
+// ─── Strict-input helpers (CONTRACT-01) ────────────────────────────────────────
+
+/**
+ * Request **body** objects are `.strict()` (CONTRACT-01A) so a misspelled field (e.g.
+ * `visiblity`, `isAnynomous`) is rejected with a 400 instead of being silently stripped —
+ * which would otherwise let a privacy field fall back to its permissive default. PATCH bodies
+ * also require at least one recognized field via `hasAtLeastOneField`.
+ *
+ * NOTE: query objects (pagination/feed/search/auth/meta) are NOT yet strict — see
+ * `docs/contract-01-status.md` (CONTRACT-01B). Do not claim "all external request objects are
+ * strict" until 01B lands.
+ */
+export const AT_LEAST_ONE_FIELD = 'Provide at least one field to update.';
+
+export function hasAtLeastOneField(value: object): boolean {
+  return Object.keys(value).length > 0;
+}
+
 // ─── Error envelope (contract.md §1.7) ─────────────────────────────────────────
 
 export const fieldErrorCodeSchema = z.enum([

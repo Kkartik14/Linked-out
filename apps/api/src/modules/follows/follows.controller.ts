@@ -7,6 +7,7 @@ import {
   type UserSummary,
 } from '@linkedout/contracts';
 
+import { ApiContract, API_ROUTE_CONTRACTS } from '../../common/contracts/api-route-contracts';
 import { CurrentUser } from '../../common/decorators/current-user.decorator';
 import { JwtAuthGuard } from '../../common/guards/jwt-auth.guard';
 import { OptionalAuthGuard } from '../../common/guards/optional-auth.guard';
@@ -22,6 +23,7 @@ export class FollowsController {
 
   @Put(':username/follow')
   @UseGuards(JwtAuthGuard)
+  @ApiContract(API_ROUTE_CONTRACTS.userFollow)
   follow(
     @CurrentUser() user: AuthUser,
     @Param('username') username: string,
@@ -31,6 +33,7 @@ export class FollowsController {
 
   @Delete(':username/follow')
   @UseGuards(JwtAuthGuard)
+  @ApiContract(API_ROUTE_CONTRACTS.userUnfollow)
   unfollow(
     @CurrentUser() user: AuthUser,
     @Param('username') username: string,
@@ -40,6 +43,7 @@ export class FollowsController {
 
   @Get(':username/followers')
   @UseGuards(OptionalAuthGuard)
+  @ApiContract(API_ROUTE_CONTRACTS.userFollowers)
   followers(
     @Param('username') username: string,
     @Query(listPipe) query: PaginationQuery,
@@ -49,6 +53,7 @@ export class FollowsController {
 
   @Get(':username/following')
   @UseGuards(OptionalAuthGuard)
+  @ApiContract(API_ROUTE_CONTRACTS.userFollowing)
   following(
     @Param('username') username: string,
     @Query(listPipe) query: PaginationQuery,

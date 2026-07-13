@@ -1,5 +1,4 @@
-import type { ReactionType } from '@linkedout/contracts';
-import type { NotificationType } from '@linkedout/db';
+import type { NotificationType, ReactionType } from '@linkedout/contracts';
 
 export function reactionNotificationType(reaction: ReactionType): NotificationType | null {
   if (reaction === 'BEEN_THERE') return 'RELATED';

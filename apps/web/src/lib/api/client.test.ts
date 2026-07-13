@@ -27,6 +27,24 @@ describe("apiFetch", () => {
     expect(new Headers(init?.headers).get("content-type")).toBe("application/json");
   });
 
+  it("preserves an explicit anonymous Next revalidation policy", async () => {
+    vi.mocked(fetch).mockResolvedValueOnce(jsonResponse({ lType: [] }));
+
+    await apiFetch("/meta/enums", {
+      cache: "force-cache",
+      credentials: "omit",
+      headers: { cookie: "must-not-cross-the-public-cache" },
+      next: { revalidate: 86_400 },
+    });
+
+    expect(vi.mocked(fetch).mock.calls[0]?.[1]).toMatchObject({
+      cache: "force-cache",
+      credentials: "omit",
+      next: { revalidate: 86_400 },
+    });
+    expect(new Headers(vi.mocked(fetch).mock.calls[0]?.[1]?.headers).has("cookie")).toBe(false);
+  });
+
   it("returns undefined for 204 responses", async () => {
     vi.mocked(fetch).mockResolvedValueOnce(new Response(null, { status: 204 }));
 

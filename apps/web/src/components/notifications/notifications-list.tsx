@@ -10,29 +10,32 @@ import { Button } from "@/components/ui/button";
 import { Skeleton } from "@/components/ui/skeleton";
 import { timeAgo } from "@/lib/format";
 import { cn } from "@/lib/utils";
+import { queryKeys } from "@/lib/query-keys";
+import { usePrincipal } from "@/components/session-provider";
 
 export function NotificationsList() {
   const queryClient = useQueryClient();
+  const principal = usePrincipal();
 
+  // Infinite page — a DISTINCT key from the header's finite preview query (FRONTEND-01).
   const query = useInfiniteQuery({
-    queryKey: ["notifications", "list"],
+    queryKey: queryKeys.notifications.infinite(principal),
     queryFn: ({ pageParam }) => getNotifications(pageParam),
     initialPageParam: undefined as string | undefined,
     getNextPageParam: (last) => last.nextCursor ?? undefined,
   });
 
+  const invalidateAll = () =>
+    queryClient.invalidateQueries({ queryKey: queryKeys.notifications.all(principal) });
+
   const markAll = useMutation({
     mutationFn: markAllNotificationsRead,
-    onSuccess: () => {
-      void queryClient.invalidateQueries({ queryKey: ["notifications"] });
-    },
+    onSuccess: () => void invalidateAll(),
   });
 
   const markOne = useMutation({
     mutationFn: markNotificationRead,
-    onSuccess: () => {
-      void queryClient.invalidateQueries({ queryKey: ["notifications"] });
-    },
+    onSuccess: () => void invalidateAll(),
   });
 
   const items = query.data?.pages.flatMap((p) => p.data) ?? [];

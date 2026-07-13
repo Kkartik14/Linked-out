@@ -8,7 +8,15 @@ import { toast } from "sonner";
 import type { Comment } from "@linkedout/contracts";
 
 import { addReply, deleteComment, errorMessage, getReplies } from "@/lib/api";
-import { useSession } from "@/components/session-provider";
+import {
+  appendComment,
+  flattenComments,
+  removeComment,
+  updateComment,
+  type CommentPages,
+} from "@/lib/comment-cache";
+import { queryKeys } from "@/lib/query-keys";
+import { usePrincipal, useSession } from "@/components/session-provider";
 import { statusOption, useMeta } from "@/components/meta-provider";
 import { UserAvatar } from "@/components/user-avatar";
 import { ConfirmDialog } from "@/components/confirm-dialog";
@@ -20,25 +28,27 @@ function CommentBody({
   comment,
   lId,
   depth,
-  onDeleted,
 }: {
   comment: Comment;
   lId: string;
   depth: number;
-  onDeleted?: () => void;
 }) {
   const { user } = useSession();
+  const principal = usePrincipal();
   const meta = useMeta();
   const queryClient = useQueryClient();
   const [replying, setReplying] = React.useState(false);
   const [showReplies, setShowReplies] = React.useState(false);
   const [confirmDelete, setConfirmDelete] = React.useState(false);
   const replyCount = comment.replyCount;
+  const commentsKey = queryKeys.comments.list(principal, lId);
+  const repliesKey = queryKeys.comments.replies(principal, comment.id);
+  const commentCountKey = queryKeys.ls.commentCount(principal, lId);
 
   const status = comment.author ? statusOption(meta, comment.author.status) : undefined;
 
   const replies = useInfiniteQuery({
-    queryKey: ["replies", comment.id],
+    queryKey: repliesKey,
     queryFn: ({ pageParam }) => getReplies(comment.id, pageParam),
     initialPageParam: undefined as string | undefined,
     getNextPageParam: (last) => last.nextCursor ?? undefined,
@@ -47,27 +57,72 @@ function CommentBody({
 
   const reply = useMutation({
     mutationFn: (body: string) => addReply(comment.id, { body }),
-    onSuccess: () => {
+    onMutate: async () => {
+      await Promise.all([
+        queryClient.cancelQueries({ queryKey: repliesKey, exact: true }),
+        queryClient.cancelQueries({ queryKey: commentsKey, exact: true }),
+      ]);
+    },
+    onSuccess: (created) => {
       setReplying(false);
       setShowReplies(true);
-      void queryClient.invalidateQueries({ queryKey: ["replies", comment.id] });
-      void queryClient.invalidateQueries({ queryKey: ["comments", lId] });
+      queryClient.setQueryData<CommentPages>(repliesKey, (current) =>
+        appendComment(current, created),
+      );
+      queryClient.setQueryData<CommentPages>(commentsKey, (current) =>
+        updateComment(current, comment.id, (parent) => ({
+          ...parent,
+          replyCount: parent.replyCount + 1,
+        })),
+      );
+      queryClient.setQueryData<number>(commentCountKey, (current) => (current ?? 0) + 1);
+      void queryClient.invalidateQueries({ queryKey: repliesKey, exact: true });
     },
   });
 
   const del = useMutation({
     mutationFn: () => deleteComment(comment.id),
+    onMutate: async () => {
+      const affectedRepliesKey = comment.parentId
+        ? queryKeys.comments.replies(principal, comment.parentId)
+        : repliesKey;
+      await Promise.all([
+        queryClient.cancelQueries({ queryKey: commentsKey, exact: true }),
+        queryClient.cancelQueries({ queryKey: affectedRepliesKey, exact: true }),
+      ]);
+    },
     onSuccess: () => {
       setConfirmDelete(false);
       toast.success("Comment deleted.");
-      onDeleted?.();
-      void queryClient.invalidateQueries({ queryKey: ["comments", lId] });
-      void queryClient.invalidateQueries({ queryKey: ["replies"] });
+
+      if (comment.parentId) {
+        const parentRepliesKey = queryKeys.comments.replies(principal, comment.parentId);
+        queryClient.setQueryData<CommentPages>(parentRepliesKey, (current) =>
+          removeComment(current, comment.id),
+        );
+        queryClient.setQueryData<CommentPages>(commentsKey, (current) =>
+          updateComment(current, comment.parentId!, (parent) => ({
+            ...parent,
+            replyCount: Math.max(0, parent.replyCount - 1),
+          })),
+        );
+        queryClient.setQueryData<number>(commentCountKey, (current) =>
+          Math.max(0, (current ?? 0) - 1),
+        );
+      } else {
+        queryClient.setQueryData<CommentPages>(commentsKey, (current) =>
+          removeComment(current, comment.id),
+        );
+        queryClient.removeQueries({ queryKey: repliesKey, exact: true });
+        queryClient.setQueryData<number>(commentCountKey, (current) =>
+          Math.max(0, (current ?? 0) - 1 - comment.replyCount),
+        );
+      }
     },
     onError: (err) => toast.error(errorMessage(err)),
   });
 
-  const replyItems = replies.data?.pages.flatMap((p) => p.data) ?? [];
+  const replyItems = flattenComments(replies.data);
 
   return (
     <div className="flex gap-3">
@@ -184,14 +239,6 @@ function CommentBody({
   );
 }
 
-export function CommentItem({
-  comment,
-  lId,
-  onDeleted,
-}: {
-  comment: Comment;
-  lId: string;
-  onDeleted?: () => void;
-}) {
-  return <CommentBody comment={comment} lId={lId} depth={0} onDeleted={onDeleted} />;
+export function CommentItem({ comment, lId }: { comment: Comment; lId: string }) {
+  return <CommentBody comment={comment} lId={lId} depth={0} />;
 }

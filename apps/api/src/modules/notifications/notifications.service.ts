@@ -6,9 +6,31 @@ import type {
   UnreadCount,
 } from '@linkedout/contracts';
 
+import { AppErrors } from '../../common/errors/app-exception';
+import { decodeCursor } from '../../common/pagination/cursor';
 import { mapPage } from '../../common/pagination/paginate';
-import { NotificationsRepository } from './notifications.repository';
+import {
+  NotificationsRepository,
+  type NotificationPageCursor,
+} from './notifications.repository';
 import { toNotification } from './notifications.mapper';
+
+function notificationCursor(cursor: string | undefined): NotificationPageCursor | undefined {
+  if (cursor === undefined) return undefined;
+  const payload = decodeCursor(cursor);
+  const createdAt =
+    typeof payload.createdAt === 'string' ? new Date(payload.createdAt) : new Date(Number.NaN);
+  if (
+    Number.isNaN(createdAt.getTime()) ||
+    typeof payload.createdAt !== 'string' ||
+    createdAt.toISOString() !== payload.createdAt ||
+    typeof payload.id !== 'string' ||
+    payload.id.length === 0
+  ) {
+    throw AppErrors.badCursor();
+  }
+  return { createdAt, id: payload.id };
+}
 
 @Injectable()
 export class NotificationsService {
@@ -18,7 +40,7 @@ export class NotificationsService {
     const page = await this.repo.listByRecipient(
       recipientId,
       query.limit,
-      query.cursor,
+      notificationCursor(query.cursor),
     );
     return mapPage(page, toNotification);
   }

@@ -16,6 +16,9 @@ const {
 
 const h = require('../_harness.cjs');
 
+const STATIC_METADATA_CACHE_CONTROL =
+  'public, max-age=86400, stale-while-revalidate=604800';
+
 describe('01 · meta & discovery (contract §4.12)', () => {
   beforeEach(async () => {
     await h.resetDb();
@@ -24,6 +27,7 @@ describe('01 · meta & discovery (contract §4.12)', () => {
   test('GET /meta/enums is public and matches the contract schema', async () => {
     const res = await h.get('/meta/enums');
     h.expectShape(res, metaEnumsResponseSchema);
+    assert.equal(res.headers.get('cache-control'), STATIC_METADATA_CACHE_CONTROL);
   });
 
   test('GET /meta/enums serves every enum value the contracts package declares', async () => {
@@ -62,11 +66,13 @@ describe('01 · meta & discovery (contract §4.12)', () => {
     assert.equal(typeof res.body.openapi, 'string');
     assert.ok(res.body.openapi.startsWith('3.'), 'must be OpenAPI 3.x');
     assert.ok(res.body.paths && typeof res.body.paths === 'object');
+    assert.equal(res.headers.get('cache-control'), STATIC_METADATA_CACHE_CONTROL);
   });
 
   test('GET /tags/popular returns the contract shape and is public', async () => {
     const res = await h.get('/tags/popular');
     h.expectShape(res, popularTagsResponseSchema);
+    assert.equal(res.headers.get('cache-control'), null);
   });
 
   test('GET /tags/popular counts tags across PUBLIC Ls only, most-used first', async () => {

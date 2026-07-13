@@ -4,7 +4,7 @@ import { paginationQuerySchema } from './common';
 import type { LCategory } from './enums';
 import { lTypeSchema } from './enums';
 
-export const feedSortSchema = z.enum(['latest', 'trending', 'helpful']);
+export const feedSortSchema = z.enum(['latest', 'popular', 'helpful']);
 export type FeedSort = z.infer<typeof feedSortSchema>;
 
 /** Feed/search category filter is lowercase on the wire (contract.md §4.4). */

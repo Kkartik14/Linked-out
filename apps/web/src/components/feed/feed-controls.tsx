@@ -76,7 +76,7 @@ export function FeedControls({
         <Tabs value={sort} onValueChange={(v) => update({ sort: v === "latest" ? null : v })}>
           <TabsList>
             <TabsTrigger value="latest">Latest</TabsTrigger>
-            <TabsTrigger value="trending">Trending</TabsTrigger>
+            <TabsTrigger value="popular">Most Popular</TabsTrigger>
             <TabsTrigger value="helpful">Most Helpful</TabsTrigger>
           </TabsList>
         </Tabs>

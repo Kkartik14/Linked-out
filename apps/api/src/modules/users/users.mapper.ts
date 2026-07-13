@@ -1,6 +1,6 @@
 import type { UserProfile } from '@linkedout/contracts';
 
-import type { FollowCounts, UserProfileRow } from './users.repository';
+import type { UserProfileRow } from './users.repository';
 
 export interface ProfileViewer {
   isSelf: boolean;
@@ -9,7 +9,6 @@ export interface ProfileViewer {
 
 export function toUserProfile(
   user: UserProfileRow,
-  counts: FollowCounts,
   viewer: ProfileViewer,
 ): UserProfile {
   return {
@@ -26,7 +25,10 @@ export function toUserProfile(
       lsShared: user.lsShared,
       collectionsCreated: user.collectionsCreated,
     },
-    counts,
+    counts: {
+      followers: user.followerCount,
+      following: user.followingCount,
+    },
     viewer: { isFollowing: viewer.isFollowing, isSelf: viewer.isSelf },
     createdAt: user.createdAt.toISOString(),
   };

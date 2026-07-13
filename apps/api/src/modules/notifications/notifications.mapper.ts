@@ -6,17 +6,23 @@ import type { NotificationWithRelations } from './notifications.repository';
 function composeMessage(n: NotificationWithRelations): string {
   switch (n.type) {
     case 'RELATED': {
-      const count =
-        n.l?.reactions.filter(
-          (reaction) => reaction.type === 'BEEN_THERE' && reaction.userId !== n.recipientId,
-        ).length ?? 0;
+      const count = n.l
+        ? Math.max(
+            0,
+            n.l.beenThereCount -
+              Number(n.l.reactions.some((reaction) => reaction.type === 'BEEN_THERE')),
+          )
+        : 0;
       return `${count} ${count === 1 ? 'builder' : 'builders'} related to your story.`;
     }
     case 'HELPED': {
-      const count =
-        n.l?.reactions.filter(
-          (reaction) => reaction.type === 'HELPFUL' && reaction.userId !== n.recipientId,
-        ).length ?? 0;
+      const count = n.l
+        ? Math.max(
+            0,
+            n.l.helpfulCount -
+              Number(n.l.reactions.some((reaction) => reaction.type === 'HELPFUL')),
+          )
+        : 0;
       return `Your story helped ${count} ${count === 1 ? 'person' : 'people'}.`;
     }
     case 'NEW_FOLLOWER': {

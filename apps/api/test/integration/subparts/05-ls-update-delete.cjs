@@ -136,6 +136,18 @@ describe('05 · PATCH & DELETE /ls/:id (contract §4.3)', () => {
     assert.equal(res.body.resolvedAt, null);
   });
 
+  test('changing another type into a BATTLE accepts its initial resolvedAt', async () => {
+    const l = await h.createL(owner.id, { type: 'STORY' });
+    const res = await h.patch(`/ls/${l.id}`, {
+      cookie: owner.cookie,
+      body: { type: 'BATTLE', resolvedAt: '2026-06-01T00:00:00.000Z' },
+    });
+
+    assert.equal(res.status, 200);
+    assert.equal(res.body.type, 'BATTLE');
+    assert.equal(res.body.resolvedAt, '2026-06-01T00:00:00.000Z');
+  });
+
   test('an unrelated patch on a resolved BATTLE preserves resolvedAt', async () => {
     const l = await h.createL(owner.id, {
       type: 'BATTLE',
@@ -217,5 +229,26 @@ describe('05 · PATCH & DELETE /ls/:id (contract §4.3)', () => {
 
     assert.equal(await h.ctx.prisma.reaction.count({ where: { lId: l.id } }), 0);
     assert.equal(await h.ctx.prisma.comment.count({ where: { lId: l.id } }), 0);
+  });
+
+  test('an empty PATCH /ls/:id is rejected (CONTRACT-01 non-empty PATCH)', async () => {
+    const owner = await h.createUser();
+    const target = await h.createL(owner.id);
+    h.expectError(
+      await h.patch(`/ls/${target.id}`, { cookie: owner.cookie, body: {} }),
+      400,
+      'VALIDATION_ERROR',
+    );
+  });
+
+  test('an unknown field on PATCH /ls/:id is rejected and names the bad key', async () => {
+    const owner = await h.createUser();
+    const target = await h.createL(owner.id);
+    const res = await h.patch(`/ls/${target.id}`, { cookie: owner.cookie, body: { titel: 'typo' } });
+    h.expectError(res, 400, 'VALIDATION_ERROR');
+    assert.ok(
+      res.body.error.details?.some((d) => d.field.includes('titel')),
+      'the error detail must name the unknown field, not use an empty path',
+    );
   });
 });

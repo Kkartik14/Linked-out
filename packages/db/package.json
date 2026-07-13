@@ -16,6 +16,7 @@
     "migrate:deploy": "prisma migrate deploy",
     "studio": "prisma studio",
     "build": "prisma generate && tsc -p tsconfig.json",
+    "lint": "pnpm --workspace-root exec eslint packages/db/src --max-warnings=0",
     "typecheck": "tsc -p tsconfig.json --noEmit",
     "seed": "prisma db seed"
   },

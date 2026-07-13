@@ -35,9 +35,25 @@ function issueToCode(issue: ZodIssueLike): FieldErrorCode {
   }
 }
 
+/**
+ * For a strict-object rejection Zod reports the offending names in `issue.keys` with an empty
+ * `path`; name them so the client sees the bad field instead of `field: ""`.
+ */
+function fieldForIssue(issue: ZodIssueLike): string {
+  if (
+    issue.code === 'unrecognized_keys' &&
+    'keys' in issue &&
+    Array.isArray(issue.keys) &&
+    issue.keys.length > 0
+  ) {
+    return issue.keys.map((key) => String(key)).join(', ');
+  }
+  return pathToField(issue.path);
+}
+
 export function zodErrorToFieldErrors(error: ZodError): FieldError[] {
   return error.issues.map((issue) => ({
-    field: pathToField(issue.path),
+    field: fieldForIssue(issue),
     code: issueToCode(issue),
     message: issue.message,
   }));
@@ -56,6 +72,11 @@ export class ZodValidationPipe<TSchema extends ZodType> implements PipeTransform
     private readonly schema: TSchema,
     private readonly options: ZodValidationPipeOptions = {},
   ) {}
+
+  /** Exposes schema identity for the controller/OpenAPI contract parity gate. */
+  get contractSchema(): TSchema {
+    return this.schema;
+  }
 
   transform(value: unknown): zInfer<TSchema> {
     const result = this.schema.safeParse(value);

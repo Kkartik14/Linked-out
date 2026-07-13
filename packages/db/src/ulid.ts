@@ -14,7 +14,11 @@ const ulid = monotonicFactory();
 /**
  * Models that have no scalar `id` column (composite PK or none) — never inject a ULID.
  */
-const MODELS_WITHOUT_ULID: ReadonlySet<string> = new Set(['CollectionL', 'VerificationToken']);
+const MODELS_WITHOUT_ULID: ReadonlySet<string> = new Set([
+  'AvatarDeletionClaim',
+  'CollectionL',
+  'VerificationToken',
+]);
 
 /**
  * ORM boundary: Prisma types write-`data` as a broad union, so we narrow at runtime and

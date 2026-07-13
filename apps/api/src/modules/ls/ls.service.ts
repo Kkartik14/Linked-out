@@ -1,51 +1,45 @@
 import { Injectable } from '@nestjs/common';
 import {
   FEED_FILTER_TO_CATEGORY,
+  lTypeSchema,
   type CreateLInput,
   type FeedQuery,
   type JourneyNode,
   type JourneyQuery,
   type LCard,
   type LDetail,
+  type LType,
   type Paginated,
   type PaginationQuery,
   type ReactionType,
   type UpdateLInput,
   type UserLsQuery,
+  type Visibility,
 } from '@linkedout/contracts';
-import { Prisma, type LType, type Visibility } from '@linkedout/db';
 
 import { AppErrors } from '../../common/errors/app-exception';
+import { decodeCursor } from '../../common/pagination/cursor';
 import { mapPage } from '../../common/pagination/paginate';
 import type { AuthUser } from '../../common/types/auth';
 import {
   LsRepository,
   type LWithAuthor,
-  type ReputationDelta,
-  type WriteLData,
 } from './ls.repository';
+import type {
+  FeedPageCursor,
+  JourneyPageCursor,
+  LUpdatePlans,
+  UpdateLData,
+  WriteLData,
+} from './ls.types';
+import {
+  planLDelete,
+  reputationDeltaForTypeChange,
+  reputationForType,
+} from './ls.write-plan';
 import { toJourneyNode, toLCard, toLDetail } from './ls.mapper';
 
 const ALL_VISIBILITIES: Visibility[] = ['PUBLIC', 'FOLLOWERS', 'PRIVATE'];
-
-function reputationForType(type: LType): ReputationDelta {
-  const delta: ReputationDelta = { lsShared: 1 };
-  if (type === 'STORY') delta.storiesShared = 1;
-  if (type === 'LESSON') delta.lessonsShared = 1;
-  return delta;
-}
-
-function reputationDeltaForTypeChange(from: LType, to: LType | undefined): ReputationDelta {
-  if (to === undefined || to === from) return {};
-  const before = reputationForType(from);
-  const after = reputationForType(to);
-  const delta: ReputationDelta = {};
-  for (const field of ['storiesShared', 'lessonsShared'] as const) {
-    const value = (after[field] ?? 0) - (before[field] ?? 0);
-    if (value !== 0) delta[field] = value;
-  }
-  return delta;
-}
 
 function normalizeCreate(input: CreateLInput): WriteLData {
   return {
@@ -61,14 +55,14 @@ function normalizeCreate(input: CreateLInput): WriteLData {
   };
 }
 
-function buildUpdateData(input: UpdateLInput, effectiveType: LType): Prisma.LUpdateInput {
+function buildUpdateData(input: UpdateLInput, effectiveType: LType): UpdateLData {
   return {
     title: input.title,
     story: input.story,
     type: input.type,
     category: input.category,
     company: input.company,
-    tags: input.tags ? { set: input.tags } : undefined,
+    tags: input.tags,
     eventDate: input.eventDate,
     visibility: input.visibility,
     isAnonymous: input.isAnonymous,
@@ -79,6 +73,58 @@ function buildUpdateData(input: UpdateLInput, effectiveType: LType): Prisma.LUpd
           ? null
           : undefined,
   };
+}
+
+function cursorString(value: string | number | undefined): string {
+  if (typeof value !== 'string' || value.length === 0) throw AppErrors.badCursor();
+  return value;
+}
+
+function feedCursor(sort: FeedQuery['sort'], cursor: string | undefined): FeedPageCursor | undefined {
+  if (cursor === undefined) return undefined;
+  const payload = decodeCursor(cursor);
+  const id = cursorString(payload.id);
+  if (sort === 'popular') {
+    if (typeof payload.score !== 'number' || !Number.isFinite(payload.score)) {
+      throw AppErrors.badCursor();
+    }
+    return { sort, id, score: payload.score };
+  }
+  if (sort === 'helpful') {
+    if (!Number.isSafeInteger(payload.count) || (payload.count as number) < 0) {
+      throw AppErrors.badCursor();
+    }
+    return { sort, id, count: payload.count as number };
+  }
+  return { sort, id };
+}
+
+function cursorField(cursor: string | undefined, field: string): string | undefined {
+  if (cursor === undefined) return undefined;
+  return cursorString(decodeCursor(cursor)[field]);
+}
+
+function journeyCursor(cursor: string | undefined): JourneyPageCursor | undefined {
+  if (cursor === undefined) return undefined;
+  const payload = decodeCursor(cursor);
+  const date = cursorString(payload.date);
+  const parsed = new Date(date);
+  if (Number.isNaN(parsed.getTime()) || parsed.toISOString() !== date) {
+    throw AppErrors.badCursor();
+  }
+  return { date, id: cursorString(payload.id) };
+}
+
+function updatePlans(input: UpdateLInput): LUpdatePlans {
+  return Object.fromEntries(
+    lTypeSchema.options.map((currentType) => [
+      currentType,
+      {
+        data: buildUpdateData(input, input.type ?? currentType),
+        reputation: reputationDeltaForTypeChange(currentType, input.type),
+      },
+    ]),
+  ) as LUpdatePlans;
 }
 
 @Injectable()
@@ -116,7 +162,7 @@ export class LsService {
       category: query.filter ? FEED_FILTER_TO_CATEGORY[query.filter] : undefined,
       sort: query.sort,
       limit: query.limit,
-      cursor: query.cursor,
+      cursor: feedCursor(query.sort, query.cursor),
     });
     return { data: await this.toCards(page.rows, viewerId), nextCursor: page.nextCursor };
   }
@@ -128,7 +174,7 @@ export class LsService {
       category: query.filter ? FEED_FILTER_TO_CATEGORY[query.filter] : undefined,
       sort: query.sort,
       limit: query.limit,
-      cursor: query.cursor,
+      cursor: feedCursor(query.sort, query.cursor),
     });
     return { data: await this.toCards(page.rows, userId), nextCursor: page.nextCursor };
   }
@@ -144,7 +190,7 @@ export class LsService {
       visibilities,
       type: query.type,
       limit: query.limit,
-      cursor: query.cursor,
+      cursorId: cursorField(query.cursor, 'id'),
     });
     return { data: await this.toCards(page.rows, viewerId), nextCursor: page.nextCursor };
   }
@@ -159,13 +205,13 @@ export class LsService {
       authorId,
       visibilities,
       limit: query.limit,
-      cursor: query.cursor,
+      cursor: journeyCursor(query.cursor),
     });
     return mapPage(page, toJourneyNode);
   }
 
   async getSaved(userId: string, query: PaginationQuery): Promise<Paginated<LCard>> {
-    const page = await this.repo.savedByUser(userId, query.limit, query.cursor);
+    const page = await this.repo.savedByUser(userId, query.limit, cursorField(query.cursor, 'rid'));
     return { data: await this.toCards(page.rows, userId), nextCursor: page.nextCursor };
   }
 
@@ -213,9 +259,7 @@ export class LsService {
     const result = await this.repo.updateOwnedL(
       id,
       user.id,
-      input.type,
-      (effectiveType) => buildUpdateData(input, effectiveType),
-      reputationDeltaForTypeChange,
+      updatePlans(input),
     );
     if (result.status === 'not_found') throw AppErrors.lNotFound();
     if (result.status === 'not_owner') throw AppErrors.notLOwner();
@@ -228,7 +272,7 @@ export class LsService {
   }
 
   async remove(user: AuthUser, id: string): Promise<{ ok: true }> {
-    const result = await this.repo.deleteOwnedL(id, user.id, reputationForType);
+    const result = await this.repo.deleteOwnedL(id, user.id, planLDelete(user.id));
     if (result.status === 'not_found') throw AppErrors.lNotFound();
     if (result.status === 'not_owner') throw AppErrors.notLOwner();
     return { ok: true };

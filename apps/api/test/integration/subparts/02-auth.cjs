@@ -139,8 +139,57 @@ describe('02 · auth & sessions (contract §1.1, §4.1)', () => {
   });
 
   test('POST /auth/logout requires authentication', async () => {
+    // NOTE: this encodes CURRENT behavior. ADR 0001 changes it — see the AUTH-02 red test
+    // below, which must pass once logout becomes refresh-cookie-driven.
     h.expectError(await h.post('/auth/logout'), 401, 'UNAUTHENTICATED');
   });
+
+  // ── Pending acceptance criteria for ADR 0001 (auth session topology). ──────────
+  // These encode DESIRED post-epic behavior. They run as `todo`, so a current failure is
+  // reported but does not fail CI. Remove `todo` as each is delivered.
+
+  test(
+    'AUTH-02: logout succeeds with only a refresh cookie (the real state after 15-min expiry)',
+    { todo: 'ADR 0001 §6 — logout must be refresh-driven, idempotent, and revoke the session' },
+    async () => {
+      const user = await h.createUser();
+      const { cookie, token } = await h.issueRefreshSession(user.id);
+
+      // No lo_access cookie at all — mirrors a browser after the access cookie's Max-Age.
+      const res = await h.post('/auth/logout', { cookie });
+      assert.equal(res.status, 200, 'logout must not require a live access cookie');
+
+      const cookies = setCookies(res.headers);
+      assert.equal(cookies.lo_access.value, '', 'access cookie cleared');
+      assert.equal(cookies.lo_refresh.value, '', 'refresh cookie cleared');
+
+      const remaining = await h.ctx.prisma.session.findFirst({
+        where: { sessionToken: h.hashRefresh(token) },
+      });
+      assert.equal(remaining, null, 'the refresh session must be revoked');
+    },
+  );
+
+  test(
+    'AUTH-02: logout is idempotent — a second logout AFTER revocation is still 200',
+    { todo: 'ADR 0001 §6 — logout is idempotent' },
+    async () => {
+      const user = await h.createUser();
+      const { cookie, token } = await h.issueRefreshSession(user.id);
+
+      const first = await h.post('/auth/logout', { cookie });
+      assert.equal(first.status, 200, 'the first logout revokes the session');
+
+      // The session is now revoked; logging out again with the same cookie must not 401.
+      const second = await h.post('/auth/logout', { cookie });
+      assert.equal(second.status, 200, 'repeat logout after revocation must be an idempotent 200');
+
+      const remaining = await h.ctx.prisma.session.findFirst({
+        where: { sessionToken: h.hashRefresh(token) },
+      });
+      assert.equal(remaining, null, 'the session stays revoked');
+    },
+  );
 
   test('GET /auth/github is 503 PROVIDER_NOT_CONFIGURED when creds are absent', async () => {
     const res = await h.get('/auth/github');

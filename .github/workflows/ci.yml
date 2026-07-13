@@ -16,8 +16,6 @@ permissions:
   contents: read
 
 env:
-  # pnpm's version is taken from the root package.json `packageManager` field.
-  NODE_VERSION: "22"
   # The e2e/integration harnesses default to these secrets; pin them so the API the
   # tests boot and the cookies the harness mints agree.
   E2E_JWT_ACCESS_SECRET: e2e-access-secret-0123456789abcdef
@@ -40,7 +38,7 @@ jobs:
 
       - uses: actions/setup-node@v4
         with:
-          node-version: ${{ env.NODE_VERSION }}
+          node-version-file: .node-version
           cache: pnpm
           cache-dependency-path: |
             pnpm-lock.yaml
@@ -56,12 +54,29 @@ jobs:
       - name: Build packages + API
         run: pnpm build
 
+      # Build the backend workspace once per workflow. Database/e2e jobs download these exact
+      # outputs instead of compiling the same commit two more times (no Turbo required).
+      - name: Upload backend build
+        uses: actions/upload-artifact@v4
+        with:
+          name: backend-build
+          path: |
+            packages/contracts/dist
+            packages/db/dist
+            packages/db/generated
+            apps/api/dist
+          if-no-files-found: error
+          retention-days: 1
+
       - name: Install web workspace
         run: pnpm install --frozen-lockfile
         working-directory: apps/web
 
       - name: Typecheck (contracts, db, api)
         run: pnpm typecheck
+
+      - name: Lint (contracts, db, api)
+        run: pnpm lint
 
       - name: Typecheck (web)
         run: pnpm --dir apps/web typecheck
@@ -75,6 +90,7 @@ jobs:
   # ── API unit + integration against a real Postgres. ─────────────────────────
   api-tests:
     name: api-tests
+    needs: checks
     runs-on: ubuntu-latest
     timeout-minutes: 20
     services:
@@ -92,6 +108,8 @@ jobs:
           --health-timeout 5s
           --health-retries 10
     env:
+      # TEST-01: the destructive DB flags are scoped to the destructive steps below, NOT the
+      # whole job, so build/install never run with reset permission.
       TEST_DATABASE_URL: postgresql://linkedout:linkedout@localhost:5432/linkedout_test?schema=public
       DATABASE_URL: postgresql://linkedout:linkedout@localhost:5432/linkedout_test?schema=public
       DIRECT_URL: postgresql://linkedout:linkedout@localhost:5432/linkedout_test?schema=public
@@ -102,31 +120,47 @@ jobs:
 
       - uses: actions/setup-node@v4
         with:
-          node-version: ${{ env.NODE_VERSION }}
+          node-version-file: .node-version
           cache: pnpm
           cache-dependency-path: pnpm-lock.yaml
 
       - name: Install backend workspace
         run: pnpm install --frozen-lockfile
 
-      - name: Build packages + API
-        run: pnpm build
+      - name: Download backend build
+        uses: actions/download-artifact@v4
+        with:
+          name: backend-build
+          path: .
 
-      - name: Apply migrations to the test database
-        run: pnpm --filter @linkedout/db run migrate:deploy
+      # Guard (exact name + session role) and plant the fingerprinted marker BEFORE the destructive
+      # migrate DDL — the guard runs on this destructive step only.
+      - name: Bootstrap + migrate the test database
+        env:
+          ALLOW_TEST_DB_RESET: "1"
+          TEST_DB_EXPECTED_SESSION_USER: linkedout
+        run: |
+          node scripts/bootstrap-test-db.cjs
+          node scripts/migrate-test-db.cjs
 
       - name: Unit tests (API)
-        run: pnpm --filter @linkedout/api test:unit
+        # The artifact came from this workflow's single build; avoid rebuilding while still
+        # using the explicit "built" test entrypoint that imports compiled modules.
+        run: pnpm --filter @linkedout/api test:unit:built
 
       # Boots the real NestJS server (twice — one with uploads, one without) over HTTP
       # against the Postgres service, and validates every response with the shared Zod
       # contract. See apps/api/test/README.md.
       - name: Integration tests (API + real Postgres)
+        env:
+          ALLOW_TEST_DB_RESET: "1"
+          TEST_DB_EXPECTED_SESSION_USER: linkedout
         run: pnpm --filter @linkedout/api test:integration
 
   # ── Full-stack e2e: real browser → real Next app → real API → real Postgres. ─
   e2e-tests:
     name: e2e-tests
+    needs: checks
     runs-on: ubuntu-latest
     timeout-minutes: 25
     services:
@@ -144,6 +178,8 @@ jobs:
           --health-timeout 5s
           --health-retries 10
     env:
+      # TEST-01: destructive DB flags are scoped to the destructive steps below (provision +
+      # migrate, and the e2e run via apps/web `test:e2e`), not the whole job.
       TEST_DATABASE_URL: postgresql://linkedout:linkedout@localhost:5432/linkedout_test?schema=public
       DATABASE_URL: postgresql://linkedout:linkedout@localhost:5432/linkedout_test?schema=public
       DIRECT_URL: postgresql://linkedout:linkedout@localhost:5432/linkedout_test?schema=public
@@ -154,7 +190,7 @@ jobs:
 
       - uses: actions/setup-node@v4
         with:
-          node-version: ${{ env.NODE_VERSION }}
+          node-version-file: .node-version
           cache: pnpm
           cache-dependency-path: |
             pnpm-lock.yaml
@@ -163,19 +199,27 @@ jobs:
       - name: Install backend workspace
         run: pnpm install --frozen-lockfile
 
-      # Build BEFORE installing web: it produces apps/api/dist/main.js (booted by
-      # Playwright's webServer) and, crucially, contracts/dist — which pnpm copies into
-      # the web workspace at install time. Installing web first would copy an empty
-      # dist and break `next build`.
-      - name: Build packages + API
-        run: pnpm build
+      # Download BEFORE installing web: apps/web consumes contracts as a file dependency, so
+      # contracts/dist must exist when pnpm materialises that package. The artifact also carries
+      # the API executable and generated Prisma client used by Playwright's backend process.
+      - name: Download backend build
+        uses: actions/download-artifact@v4
+        with:
+          name: backend-build
+          path: .
 
       - name: Install web workspace
         run: pnpm install --frozen-lockfile
         working-directory: apps/web
 
-      - name: Apply migrations to the test database
-        run: pnpm --filter @linkedout/db run migrate:deploy
+      # Guard + plant the fingerprinted marker BEFORE the destructive migrate DDL.
+      - name: Bootstrap + migrate the test database
+        env:
+          ALLOW_TEST_DB_RESET: "1"
+          TEST_DB_EXPECTED_SESSION_USER: linkedout
+        run: |
+          node scripts/bootstrap-test-db.cjs
+          node scripts/migrate-test-db.cjs
 
       - name: Install Playwright browser
         run: pnpm --dir apps/web exec playwright install --with-deps chromium

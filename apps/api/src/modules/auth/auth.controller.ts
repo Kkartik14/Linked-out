@@ -3,6 +3,7 @@ import type { AuthMeResponse } from '@linkedout/contracts';
 import type { Request, Response } from 'express';
 
 import { OptionalUser } from '../../common/decorators/current-user.decorator';
+import { ApiContract, API_ROUTE_CONTRACTS } from '../../common/contracts/api-route-contracts';
 import { JwtAuthGuard } from '../../common/guards/jwt-auth.guard';
 import { OptionalAuthGuard } from '../../common/guards/optional-auth.guard';
 import { AppErrors } from '../../common/errors/app-exception';
@@ -27,12 +28,14 @@ export class AuthController {
 
   @Get('google')
   @UseGuards(GoogleAuthGuard)
+  @ApiContract(API_ROUTE_CONTRACTS.authGoogleStart)
   googleStart(): void {
     // The guard redirects to Google; this body never runs.
   }
 
   @Get('google/callback')
   @UseGuards(GoogleAuthGuard)
+  @ApiContract(API_ROUTE_CONTRACTS.authGoogleCallback)
   googleCallback(
     @OptionalUser() user: AuthUser | undefined,
     @Req() req: Request,
@@ -43,12 +46,14 @@ export class AuthController {
 
   @Get('github')
   @UseGuards(GithubAuthGuard)
+  @ApiContract(API_ROUTE_CONTRACTS.authGithubStart)
   githubStart(): void {
     // The guard redirects to GitHub; this body never runs.
   }
 
   @Get('github/callback')
   @UseGuards(GithubAuthGuard)
+  @ApiContract(API_ROUTE_CONTRACTS.authGithubCallback)
   githubCallback(
     @OptionalUser() user: AuthUser | undefined,
     @Req() req: Request,
@@ -59,6 +64,7 @@ export class AuthController {
 
   @Get('me')
   @UseGuards(OptionalAuthGuard)
+  @ApiContract(API_ROUTE_CONTRACTS.authMe)
   async me(@OptionalUser() user: AuthUser | undefined): Promise<AuthMeResponse> {
     if (!user) {
       return { user: null, needsOnboarding: false };
@@ -69,6 +75,7 @@ export class AuthController {
 
   @Post('refresh')
   @HttpCode(200)
+  @ApiContract(API_ROUTE_CONTRACTS.authRefresh)
   async refresh(
     @Req() req: Request,
     @Res({ passthrough: true }) res: Response,
@@ -84,6 +91,7 @@ export class AuthController {
   @Post('logout')
   @HttpCode(200)
   @UseGuards(JwtAuthGuard)
+  @ApiContract(API_ROUTE_CONTRACTS.authLogout)
   async logout(
     @Req() req: Request,
     @Res({ passthrough: true }) res: Response,

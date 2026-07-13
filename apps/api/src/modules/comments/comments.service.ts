@@ -12,6 +12,7 @@ import { mapPage } from '../../common/pagination/paginate';
 import type { AuthUser } from '../../common/types/auth';
 import { LsService } from '../ls/ls.service';
 import { CommentsRepository } from './comments.repository';
+import { planCommentCreate, planCommentDelete } from './comments.plan';
 import { toComment } from './comments.mapper';
 
 @Injectable()
@@ -24,22 +25,16 @@ export class CommentsService {
   async createOnL(user: AuthUser, lId: string, input: CreateCommentInput): Promise<Comment> {
     if (!user.username) throw AppErrors.onboardingRequired();
     const l = await this.ls.getViewableL(lId, user.id);
-    const comment = await this.repo.create({
-      authorId: user.id,
-      lId,
-      body: input.body,
-      parentId: null,
-      notification:
-        l.authorId === user.id
-          ? null
-          : {
-              type: 'COMMENT',
-              recipientId: l.authorId,
-              actorId: user.id,
-              lId,
-              dedupeKey: null,
-            },
-    });
+    const comment = await this.repo.create(
+      planCommentCreate({
+        authorId: user.id,
+        lId,
+        lAuthorId: l.authorId,
+        body: input.body,
+        parentId: null,
+      }),
+    );
+    if (!comment) throw AppErrors.lNotFound();
     return toComment(comment, user.id);
   }
 
@@ -55,22 +50,16 @@ export class CommentsService {
       throw AppErrors.validationMessage('Replies can only be added to top-level comments.');
     }
     const l = await this.ls.getViewableL(parent.lId, user.id);
-    const comment = await this.repo.create({
-      authorId: user.id,
-      lId: parent.lId,
-      body: input.body,
-      parentId: parent.id,
-      notification:
-        l.authorId === user.id
-          ? null
-          : {
-              type: 'COMMENT',
-              recipientId: l.authorId,
-              actorId: user.id,
-              lId: parent.lId,
-              dedupeKey: null,
-            },
-    });
+    const comment = await this.repo.create(
+      planCommentCreate({
+        authorId: user.id,
+        lId: parent.lId,
+        lAuthorId: l.authorId,
+        body: input.body,
+        parentId: parent.id,
+      }),
+    );
+    if (!comment) throw AppErrors.commentNotFound();
     return toComment(comment, user.id);
   }
 
@@ -102,7 +91,7 @@ export class CommentsService {
     if (comment.authorId !== user.id) {
       throw AppErrors.forbidden('You can only delete your own comment.');
     }
-    await this.repo.delete(commentId);
+    await this.repo.delete(planCommentDelete(commentId));
     return { ok: true };
   }
 }

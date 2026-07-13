@@ -1,6 +1,12 @@
 import { z } from 'zod';
 
-import { ulidSchema, isoTimestampSchema, dateInputSchema } from './common';
+import {
+  ulidSchema,
+  isoTimestampSchema,
+  dateInputSchema,
+  AT_LEAST_ONE_FIELD,
+  hasAtLeastOneField,
+} from './common';
 import { lTypeSchema, lCategorySchema, visibilitySchema, reactionTypeSchema } from './enums';
 import { reactionsSummarySchema } from './reaction';
 import { userSummarySchema } from './user';
@@ -79,7 +85,7 @@ export const createLInputSchema = z.object({
   eventDate: dateInputSchema.nullable().optional(),
   visibility: visibilitySchema.default('PUBLIC'),
   isAnonymous: z.boolean().default(false),
-});
+}).strict();
 export type CreateLInput = z.infer<typeof createLInputSchema>;
 
 /** PATCH /ls/:id — every field optional; `resolvedAt` toggles a Battle's resolved state. */
@@ -96,5 +102,7 @@ export const updateLInputSchema = z
     isAnonymous: z.boolean(),
     resolvedAt: dateInputSchema.nullable(),
   })
-  .partial();
+  .partial()
+  .strict()
+  .refine(hasAtLeastOneField, { message: AT_LEAST_ONE_FIELD });
 export type UpdateLInput = z.infer<typeof updateLInputSchema>;

@@ -22,17 +22,24 @@ export const collectionDetailSchema = collectionSchema.extend({
 });
 export type CollectionDetail = z.infer<typeof collectionDetailSchema>;
 
-export const createCollectionInputSchema = z.object({
-  title: z.string().min(1).max(80),
-});
+export const createCollectionInputSchema = z
+  .object({
+    title: z.string().min(1).max(80),
+  })
+  .strict();
 export type CreateCollectionInput = z.infer<typeof createCollectionInputSchema>;
 
-export const updateCollectionInputSchema = z.object({
-  title: z.string().min(1).max(80),
-});
+export const updateCollectionInputSchema = z
+  .object({
+    title: z.string().min(1).max(80),
+  })
+  .strict();
 export type UpdateCollectionInput = z.infer<typeof updateCollectionInputSchema>;
 
-export const addLToCollectionInputSchema = z.object({
-  position: z.number().int().min(0).optional(),
-}).default({});
+export const addLToCollectionInputSchema = z
+  .object({
+    position: z.number().int().min(0).optional(),
+  })
+  .strict()
+  .default({});
 export type AddLToCollectionInput = z.infer<typeof addLToCollectionInputSchema>;

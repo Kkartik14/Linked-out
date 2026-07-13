@@ -7,6 +7,6 @@ import { LsService } from './ls.service';
 @Module({
   controllers: [LsController],
   providers: [LsRepository, LsService],
-  exports: [LsService, LsRepository],
+  exports: [LsService],
 })
 export class LsModule {}

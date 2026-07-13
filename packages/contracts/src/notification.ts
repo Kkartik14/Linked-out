@@ -22,6 +22,7 @@ export const notificationSchema = z.object({
 export type Notification = z.infer<typeof notificationSchema>;
 
 export const unreadCountSchema = z.object({
-  count: z.number().int(),
+  /** Capped at 10 because consumers render 9+; this is an indicator, not exact cardinality. */
+  count: z.number().int().min(0).max(10),
 });
 export type UnreadCount = z.infer<typeof unreadCountSchema>;

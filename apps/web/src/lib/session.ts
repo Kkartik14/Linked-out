@@ -15,7 +15,10 @@ export const getSession = cache(async (): Promise<AuthMeResponse> => {
   }
 });
 
-/** Enum display metadata, cached per request with a static fallback. */
+/**
+ * Enum display metadata. React dedupes calls inside a render; `getMeta` also opts the public,
+ * principal-independent fetch into Next's cross-request daily revalidation cache.
+ */
 export const getMetaCached = cache(async (): Promise<MetaEnumsResponse> => {
   try {
     return await getMeta();

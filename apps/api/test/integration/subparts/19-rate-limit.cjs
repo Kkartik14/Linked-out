@@ -4,6 +4,10 @@ const assert = require('node:assert/strict');
 const { describe, test, beforeEach } = require('node:test');
 
 const h = require('../_harness.cjs');
+const {
+  RateLimitRepository,
+} = require('../../../dist/common/rate-limit/rate-limit.repository');
+const { RateLimiter } = require('../../../dist/common/rate-limit/rate-limiter');
 
 /** Mirrors rate-limit.interceptor.ts — reads 120/min, writes 30/min, per identity. */
 const WRITE_LIMIT = 30;
@@ -96,19 +100,74 @@ describe('19 · rate limiting (contract §1.8)', () => {
   });
 
   test('the bucket resets once its window expires', async () => {
-    const l = await h.createL(user.id);
-    for (let i = 0; i < WRITE_LIMIT + 1; i += 1) {
-      await h.put(`/ls/${l.id}/reactions/HELPFUL`, { cookie: user.cookie });
-    }
-    assert.equal((await h.put(`/ls/${l.id}/reactions/PAIN`, { cookie: user.cookie })).status, 429);
+    const limiter = new RateLimiter(new RateLimitRepository({ db: h.ctx.prisma }));
+    const nowMs = Date.now();
+    const input = {
+      key: `write:rollover-contract:${nowMs}`,
+      limit: 3,
+      windowMs: 1000,
+      nowMs,
+    };
 
-    // Expire the window in place rather than sleeping 60s.
-    await h.ctx.prisma.rateLimitBucket.updateMany({
-      where: { key: `write:user:${user.id}` },
-      data: { resetAt: new Date(Date.now() - 1000) },
-    });
+    assert.equal((await limiter.take(input)).allowed, true);
+    assert.equal((await limiter.take(input)).allowed, true);
+    assert.equal((await limiter.take(input)).allowed, true);
+    assert.equal((await limiter.take(input)).allowed, false, 'the first window is exhausted');
+    assert.equal(
+      (await limiter.take({ ...input, nowMs: nowMs + input.windowMs })).allowed,
+      true,
+      'the exact reset boundary starts a fresh persisted window',
+    );
+  });
 
-    const after = await h.put(`/ls/${l.id}/reactions/PAIN`, { cookie: user.cookie });
-    assert.equal(after.status, 200, 'a fresh window restores the budget');
+  test('concurrent lease reservations never exceed the shared database budget', async () => {
+    const firstInstance = new RateLimitRepository({ db: h.ctx.prisma });
+    const secondInstance = new RateLimitRepository({ db: h.ctx.prisma });
+    const nowMs = Date.now();
+    const key = `write:lease-contract:${nowMs}`;
+
+    const reservations = await Promise.all(
+      Array.from({ length: 12 }, (_, index) =>
+        (index % 2 === 0 ? firstInstance : secondInstance).reservePermits({
+          key,
+          limit: 17,
+          permits: 3,
+          windowMs: 60_000,
+          nowMs,
+        }),
+      ),
+    );
+
+    assert.equal(
+      reservations.reduce((total, reservation) => total + reservation.granted, 0),
+      17,
+    );
+    assert.ok(reservations.some((reservation) => reservation.granted === 0));
+    assert.equal(
+      (await h.ctx.prisma.rateLimitBucket.findUniqueOrThrow({ where: { key } })).count,
+      17,
+      'denied claims never grow the persisted counter beyond the configured limit',
+    );
+  });
+
+  test('a lower rolling-version limit cannot reduce a live bucket and reopen permits', async () => {
+    const repository = new RateLimitRepository({ db: h.ctx.prisma });
+    const nowMs = Date.now();
+    const key = `write:mixed-limit-contract:${nowMs}`;
+    const reserve = (limit, permits) =>
+      repository.reservePermits({ key, limit, permits, windowMs: 60_000, nowMs });
+
+    const high = await reserve(10, 10);
+    const low = await reserve(5, 3);
+    const highAgain = await reserve(10, 10);
+
+    assert.equal(high.granted, 10);
+    assert.equal(low.granted, 0, 'the lower limit sees the existing bucket as exhausted');
+    assert.equal(highAgain.granted, 0, 'raising the caller limit cannot re-grant spent permits');
+    assert.equal(
+      (await h.ctx.prisma.rateLimitBucket.findUniqueOrThrow({ where: { key } })).count,
+      10,
+      'a live bucket count is monotonic even while versions disagree about the limit',
+    );
   });
 });

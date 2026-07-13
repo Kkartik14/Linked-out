@@ -11,10 +11,7 @@ import {
   UseGuards,
 } from '@nestjs/common';
 import {
-  addLToCollectionInputSchema,
-  createCollectionInputSchema,
   paginationQuerySchema,
-  updateCollectionInputSchema,
   type AddLToCollectionInput,
   type Collection,
   type CollectionDetail,
@@ -24,6 +21,7 @@ import {
   type UpdateCollectionInput,
 } from '@linkedout/contracts';
 
+import { ApiContract, API_ROUTE_CONTRACTS } from '../../common/contracts/api-route-contracts';
 import { CurrentUser, OptionalUser } from '../../common/decorators/current-user.decorator';
 import { JwtAuthGuard } from '../../common/guards/jwt-auth.guard';
 import { OptionalAuthGuard } from '../../common/guards/optional-auth.guard';
@@ -31,9 +29,9 @@ import { ZodValidationPipe } from '../../common/pipes/zod-validation.pipe';
 import type { AuthUser } from '../../common/types/auth';
 import { CollectionsService } from './collections.service';
 
-const createPipe = new ZodValidationPipe(createCollectionInputSchema);
-const updatePipe = new ZodValidationPipe(updateCollectionInputSchema);
-const addPipe = new ZodValidationPipe(addLToCollectionInputSchema);
+const createPipe = new ZodValidationPipe(API_ROUTE_CONTRACTS.collectionCreate.body.schema);
+const updatePipe = new ZodValidationPipe(API_ROUTE_CONTRACTS.collectionUpdate.body.schema);
+const addPipe = new ZodValidationPipe(API_ROUTE_CONTRACTS.collectionAddL.body.schema);
 const listPipe = new ZodValidationPipe(paginationQuerySchema());
 
 @Controller()
@@ -42,6 +40,7 @@ export class CollectionsController {
 
   @Post('collections')
   @UseGuards(JwtAuthGuard)
+  @ApiContract(API_ROUTE_CONTRACTS.collectionCreate)
   create(
     @CurrentUser() user: AuthUser,
     @Body(createPipe) body: CreateCollectionInput,
@@ -51,6 +50,7 @@ export class CollectionsController {
 
   @Get('collections/:id')
   @UseGuards(OptionalAuthGuard)
+  @ApiContract(API_ROUTE_CONTRACTS.collectionDetail)
   detail(
     @OptionalUser() user: AuthUser | undefined,
     @Param('id') id: string,
@@ -60,6 +60,7 @@ export class CollectionsController {
 
   @Patch('collections/:id')
   @UseGuards(JwtAuthGuard)
+  @ApiContract(API_ROUTE_CONTRACTS.collectionUpdate)
   rename(
     @CurrentUser() user: AuthUser,
     @Param('id') id: string,
@@ -70,12 +71,14 @@ export class CollectionsController {
 
   @Delete('collections/:id')
   @UseGuards(JwtAuthGuard)
+  @ApiContract(API_ROUTE_CONTRACTS.collectionDelete)
   remove(@CurrentUser() user: AuthUser, @Param('id') id: string): Promise<{ ok: true }> {
     return this.collections.remove(user, id);
   }
 
   @Put('collections/:id/ls/:lId')
   @UseGuards(JwtAuthGuard)
+  @ApiContract(API_ROUTE_CONTRACTS.collectionAddL)
   addL(
     @CurrentUser() user: AuthUser,
     @Param('id') id: string,
@@ -87,6 +90,7 @@ export class CollectionsController {
 
   @Delete('collections/:id/ls/:lId')
   @UseGuards(JwtAuthGuard)
+  @ApiContract(API_ROUTE_CONTRACTS.collectionRemoveL)
   removeL(
     @CurrentUser() user: AuthUser,
     @Param('id') id: string,
@@ -97,6 +101,7 @@ export class CollectionsController {
 
   @Get('users/:username/collections')
   @UseGuards(OptionalAuthGuard)
+  @ApiContract(API_ROUTE_CONTRACTS.userCollections)
   listByOwner(
     @OptionalUser() user: AuthUser | undefined,
     @Param('username') username: string,

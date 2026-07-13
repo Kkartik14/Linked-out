@@ -1,11 +1,12 @@
 "use client";
 
-import * as React from "react";
 import Link from "next/link";
-import { useInfiniteQuery, useMutation, useQueryClient } from "@tanstack/react-query";
+import { useInfiniteQuery, useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 
 import { addComment, getComments } from "@/lib/api";
-import { useSession } from "@/components/session-provider";
+import { appendComment, flattenComments, type CommentPages } from "@/lib/comment-cache";
+import { queryKeys } from "@/lib/query-keys";
+import { usePrincipal, useSession } from "@/components/session-provider";
 import { CommentForm } from "@/components/comments/comment-form";
 import { CommentItem } from "@/components/comments/comment-item";
 import { Button } from "@/components/ui/button";
@@ -26,26 +27,46 @@ function CommentSkeleton() {
 
 export function CommentsSection({ lId, commentCount }: { lId: string; commentCount: number }) {
   const { user } = useSession();
+  const principal = usePrincipal();
   const queryClient = useQueryClient();
-  const [countDelta, setCountDelta] = React.useState(0);
+  const commentsKey = queryKeys.comments.list(principal, lId);
+  const commentCountKey = queryKeys.ls.commentCount(principal, lId);
 
   const query = useInfiniteQuery({
-    queryKey: ["comments", lId],
+    queryKey: commentsKey,
     queryFn: ({ pageParam }) => getComments(lId, pageParam),
     initialPageParam: undefined as string | undefined,
     getNextPageParam: (last) => last.nextCursor ?? undefined,
   });
+  const countQuery = useQuery({
+    queryKey: commentCountKey,
+    queryFn: async () => commentCount,
+    initialData: commentCount,
+    enabled: false,
+    staleTime: Infinity,
+  });
 
   const add = useMutation({
     mutationFn: (body: string) => addComment(lId, { body }),
-    onSuccess: () => {
-      setCountDelta((count) => count + 1);
-      void queryClient.invalidateQueries({ queryKey: ["comments", lId] });
+    onMutate: async () => {
+      await queryClient.cancelQueries({ queryKey: commentsKey, exact: true });
+      return { hadData: queryClient.getQueryData<CommentPages>(commentsKey) !== undefined };
+    },
+    onSuccess: (created, _body, context) => {
+      queryClient.setQueryData<CommentPages>(commentsKey, (current) =>
+        appendComment(current, created),
+      );
+      queryClient.setQueryData<number>(commentCountKey, (current) =>
+        Math.max(0, (current ?? commentCount) + 1),
+      );
+      if (!context.hadData) {
+        void queryClient.invalidateQueries({ queryKey: commentsKey, exact: true });
+      }
     },
   });
 
-  const comments = query.data?.pages.flatMap((p) => p.data) ?? [];
-  const visibleTotal = Math.max(commentCount + countDelta, comments.length);
+  const comments = flattenComments(query.data);
+  const visibleTotal = Math.max(countQuery.data, comments.length);
 
   return (
     <section aria-label="Comments">
@@ -80,14 +101,7 @@ export function CommentsSection({ lId, commentCount }: { lId: string; commentCou
             No comments yet. Be the first who&apos;s been there.
           </p>
         ) : (
-          comments.map((c) => (
-            <CommentItem
-              key={c.id}
-              comment={c}
-              lId={lId}
-              onDeleted={() => setCountDelta((count) => count - 1)}
-            />
-          ))
+          comments.map((c) => <CommentItem key={c.id} comment={c} lId={lId} />)
         )}
       </div>
 

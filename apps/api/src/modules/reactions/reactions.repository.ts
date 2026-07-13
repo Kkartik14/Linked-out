@@ -1,34 +1,13 @@
 import { Injectable } from '@nestjs/common';
-import { Prisma, type NotificationType, type ReactionType } from '@linkedout/db';
-import type { ReactionResult } from '@linkedout/contracts';
+import { Prisma } from '@linkedout/db';
+import type { ReactionType } from '@linkedout/contracts';
 
 import { PrismaService } from '../../prisma/prisma.service';
-import { AppErrors } from '../../common/errors/app-exception';
-
-const TRENDING_WEIGHT: Readonly<Record<ReactionType, number>> = {
-  BEEN_THERE: 2,
-  HELPFUL: 3,
-  RESPECT: 2,
-  PAIN: 1,
-  SAVED: 0,
-};
-
-function counterData(type: ReactionType, sign: 1 | -1): Prisma.LUpdateInput {
-  const inc = { increment: sign };
-  const trendingScore = { increment: sign * TRENDING_WEIGHT[type] };
-  switch (type) {
-    case 'BEEN_THERE':
-      return { reactionCount: inc, beenThereCount: inc, trendingScore };
-    case 'HELPFUL':
-      return { reactionCount: inc, helpfulCount: inc, trendingScore };
-    case 'RESPECT':
-      return { reactionCount: inc, respectCount: inc, trendingScore };
-    case 'PAIN':
-      return { reactionCount: inc, painCount: inc, trendingScore };
-    case 'SAVED':
-      return { reactionCount: inc, savedCount: inc, trendingScore };
-  }
-}
+import type {
+  ReactionAddPlan,
+  ReactionCounterDelta,
+  ReactionRemovePlan,
+} from './reactions.plan';
 
 /** P2034 = deadlock/write conflict, P2002 = unique violation lost to a concurrent insert. */
 function isRetryable(error: unknown): boolean {
@@ -38,19 +17,16 @@ function isRetryable(error: unknown): boolean {
   );
 }
 
-export interface FoldedNotificationWrite {
-  type: NotificationType;
-  recipientId: string;
-  actorId: string;
-  lId: string;
-  dedupeKey: string;
-}
-
-export interface FoldedNotificationClear {
-  dedupeKey: string;
-  recipientId: string;
-  lId: string;
-  reactionType: ReactionType;
+export interface ReactionState {
+  counters: {
+    total: number;
+    beenThere: number;
+    helpful: number;
+    respect: number;
+    pain: number;
+    saved: number;
+  };
+  viewerReactions: ReactionType[];
 }
 
 @Injectable()
@@ -67,39 +43,34 @@ export class ReactionsRepository {
    * correctness here but would abort concurrent reactors contending on the same hot L row
    * and folded-notification row, surfacing as 500s on a popular L.
    */
-  async add(
-    userId: string,
-    lId: string,
-    type: ReactionType,
-    authorId: string,
-    notification: FoldedNotificationWrite | null,
-  ): Promise<boolean> {
+  async add(plan: ReactionAddPlan): Promise<boolean> {
     let attempt = 0;
     while (true) {
       try {
         return await this.prisma.db.$transaction(async (tx) => {
           const created = await tx.reaction.createMany({
-            data: [{ userId, lId, type }],
+            data: [plan.reaction],
             skipDuplicates: true,
           });
           if (created.count === 0) return false;
           await tx.l.update({
-            where: { id: lId },
-            data: counterData(type, 1),
+            where: { id: plan.reaction.lId },
+            data: incrementCounters(plan.lCounters),
             select: { id: true },
           });
-          if (type === 'HELPFUL' && authorId !== userId) {
+          if (plan.reputation) {
             await tx.user.update({
-              where: { id: authorId },
-              data: { buildersHelped: { increment: 1 } },
+              where: { id: plan.reputation.userId },
+              data: { buildersHelped: { increment: plan.reputation.buildersHelped } },
               select: { id: true },
             });
           }
-          if (notification) {
+          if (plan.notification) {
+            const record = plan.notification.record;
             await tx.notification.upsert({
-              where: { dedupeKey: notification.dedupeKey },
-              create: notification,
-              update: { actorId: notification.actorId, readAt: null, createdAt: new Date() },
+              where: { dedupeKey: record.dedupeKey },
+              create: record,
+              update: { actorId: record.actorId, readAt: null, createdAt: new Date() },
               select: { id: true },
             });
           }
@@ -119,43 +90,37 @@ export class ReactionsRepository {
    * removed, so exactly one concurrent caller decrements, and the notification cleanup
    * re-checks `Reaction` in the same statement.
    */
-  async remove(
-    userId: string,
-    lId: string,
-    type: ReactionType,
-    authorId: string,
-    clearNotification: FoldedNotificationClear | null,
-  ): Promise<boolean> {
+  async remove(plan: ReactionRemovePlan): Promise<boolean> {
     let attempt = 0;
     while (true) {
       try {
         return await this.prisma.db.$transaction(
           async (tx) => {
             const removed = await tx.reaction.deleteMany({
-              where: { userId, lId, type },
+              where: plan.reaction,
             });
             if (removed.count === 0) return false;
             await tx.l.update({
-              where: { id: lId },
-              data: counterData(type, -1),
+              where: { id: plan.reaction.lId },
+              data: incrementCounters(plan.lCounters),
               select: { id: true },
             });
-            if (type === 'HELPFUL' && authorId !== userId) {
+            if (plan.reputation) {
               await tx.user.update({
-                where: { id: authorId },
-                data: { buildersHelped: { decrement: 1 } },
+                where: { id: plan.reputation.userId },
+                data: { buildersHelped: { increment: plan.reputation.buildersHelped } },
                 select: { id: true },
               });
             }
-            if (clearNotification) {
+            if (plan.notification) {
               await tx.$executeRaw`
                 DELETE FROM "Notification"
-                WHERE "dedupeKey" = ${clearNotification.dedupeKey}
+                WHERE "dedupeKey" = ${plan.notification.dedupeKey}
                   AND NOT EXISTS (
                     SELECT 1 FROM "Reaction"
-                    WHERE "lId" = ${clearNotification.lId}
-                      AND "type" = ${clearNotification.reactionType}::"ReactionType"
-                      AND "userId" <> ${clearNotification.recipientId}
+                    WHERE "lId" = ${plan.notification.lId}
+                      AND "type" = ${plan.notification.reactionType}::"ReactionType"
+                      AND "userId" <> ${plan.notification.recipientId}
                   )
               `;
             }
@@ -169,7 +134,7 @@ export class ReactionsRepository {
     }
   }
 
-  async resultFor(lId: string, viewerId: string): Promise<ReactionResult> {
+  async findState(lId: string, viewerId: string): Promise<ReactionState | null> {
     const [l, reactions] = await Promise.all([
       this.prisma.db.l.findUnique({
         where: { id: lId },
@@ -187,9 +152,9 @@ export class ReactionsRepository {
         select: { type: true },
       }),
     ]);
-    if (!l) throw AppErrors.lNotFound();
+    if (!l) return null;
     return {
-      reactions: {
+      counters: {
         total: l.reactionCount,
         beenThere: l.beenThereCount,
         helpful: l.helpfulCount,
@@ -197,7 +162,26 @@ export class ReactionsRepository {
         pain: l.painCount,
         saved: l.savedCount,
       },
-      viewer: { reactions: reactions.map((r) => r.type) },
+      viewerReactions: reactions.map((r) => r.type),
     };
   }
+}
+
+/** Mechanical domain-delta to Prisma-operator translation; all values are plan-owned. */
+function incrementCounters(delta: ReactionCounterDelta): Prisma.LUpdateInput {
+  const data: Prisma.LUpdateInput = {};
+  if (delta.reactionCount !== undefined) {
+    data.reactionCount = { increment: delta.reactionCount };
+  }
+  if (delta.beenThereCount !== undefined) {
+    data.beenThereCount = { increment: delta.beenThereCount };
+  }
+  if (delta.helpfulCount !== undefined) data.helpfulCount = { increment: delta.helpfulCount };
+  if (delta.respectCount !== undefined) data.respectCount = { increment: delta.respectCount };
+  if (delta.painCount !== undefined) data.painCount = { increment: delta.painCount };
+  if (delta.savedCount !== undefined) data.savedCount = { increment: delta.savedCount };
+  if (delta.popularityScore !== undefined) {
+    data.popularityScore = { increment: delta.popularityScore };
+  }
+  return data;
 }
