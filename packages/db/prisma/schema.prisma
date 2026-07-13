@@ -76,6 +76,8 @@ model User {
   emailVerified DateTime?
   name          String?
   image         String?
+  // Stable R2 identity. Public CDN URLs may change; cleanup safety must not.
+  avatarObjectKey String? @unique
   bio           String?
   status        JourneyStatus?
 
@@ -85,6 +87,11 @@ model User {
   buildersHelped     Int @default(0)
   lsShared           Int @default(0)
   collectionsCreated Int @default(0)
+
+  // Denormalized social-graph degree. PostgreSQL Follow triggers maintain both
+  // sides in the same transaction as each inserted/deleted edge.
+  followerCount  Int @default(0)
+  followingCount Int @default(0)
 
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
@@ -132,6 +139,7 @@ model Session {
   user User @relation(fields: [userId], references: [id], onDelete: Cascade)
 
   @@index([userId])
+  @@index([expires, id])
 }
 
 model VerificationToken {
@@ -140,6 +148,18 @@ model VerificationToken {
   expires    DateTime
 
   @@unique([identifier, token])
+  @@index([expires, token])
+}
+
+// Durable two-phase tombstone for avatar deletion. A claimed key can be retried after
+// an object-store failure, but can never be attached to a profile again.
+model AvatarDeletionClaim {
+  key       String   @id
+  claimedAt DateTime @default(now())
+  deletedAt DateTime?
+  attempts  Int      @default(0)
+  lastError String?
+  updatedAt DateTime @updatedAt
 }
 
 // ─── L — the core object ──────────────────────────────────────────────────────
@@ -149,13 +169,13 @@ model L {
   author   User   @relation(fields: [authorId], references: [id], onDelete: Cascade)
   authorId String
 
-  title         String
-  story         String
-  type          LType      @default(L)
-  category      LCategory?
-  company       String?
-  tags          String[]
-  eventDate     DateTime?
+  title     String
+  story     String
+  type      LType      @default(L)
+  category  LCategory?
+  company   String?
+  tags      String[]
+  eventDate DateTime?
 
   visibility  Visibility @default(PUBLIC)
   isAnonymous Boolean    @default(false)
@@ -164,14 +184,15 @@ model L {
   resolvedAt DateTime?
 
   // Denormalized counters — keep feed sorts + card rendering index-only (no COUNT joins).
-  reactionCount  Int   @default(0)
-  beenThereCount Int   @default(0)
-  helpfulCount   Int   @default(0)
-  respectCount   Int   @default(0)
-  painCount      Int   @default(0)
-  savedCount     Int   @default(0)
-  commentCount   Int   @default(0)
-  trendingScore  Float @default(0)
+  reactionCount   Int   @default(0)
+  beenThereCount  Int   @default(0)
+  helpfulCount    Int   @default(0)
+  respectCount    Int   @default(0)
+  painCount       Int   @default(0)
+  savedCount      Int   @default(0)
+  commentCount    Int   @default(0)
+  // Lifetime weighted engagement. It has no decay/window, so it is popularity, not trending.
+  popularityScore Float @default(0)
 
   // FTS vector — the GENERATED-ALWAYS tsvector + GIN index are created in a raw migration.
   searchVector Unsupported("tsvector")?
@@ -186,13 +207,11 @@ model L {
 
   @@index([visibility, createdAt(sort: Desc)])
   @@index([visibility, id(sort: Desc)])
-  @@index([visibility, trendingScore(sort: Desc)])
-  @@index([visibility, trendingScore(sort: Desc), id(sort: Desc)])
-  @@index([visibility, helpfulCount(sort: Desc)])
+  @@index([visibility, popularityScore(sort: Desc), id(sort: Desc)])
   @@index([visibility, helpfulCount(sort: Desc), id(sort: Desc)])
   @@index([category, visibility, createdAt(sort: Desc)])
   @@index([category, visibility, id(sort: Desc)])
-  @@index([category, visibility, trendingScore(sort: Desc), id(sort: Desc)])
+  @@index([category, visibility, popularityScore(sort: Desc), id(sort: Desc)])
   @@index([category, visibility, helpfulCount(sort: Desc), id(sort: Desc)])
   @@index([authorId, createdAt(sort: Desc)])
   @@index([authorId, type])
@@ -219,11 +238,11 @@ model Reaction {
 // ─── Comments (threaded) ──────────────────────────────────────────────────────
 
 model Comment {
-  id       String  @id @default(cuid()) // ULID (overridden by the client extension; default is a type-level fallback)
+  id       String @id @default(cuid()) // ULID (overridden by the client extension; default is a type-level fallback)
   body     String
-  author   User    @relation(fields: [authorId], references: [id], onDelete: Cascade)
+  author   User   @relation(fields: [authorId], references: [id], onDelete: Cascade)
   authorId String
-  l        L       @relation(fields: [lId], references: [id], onDelete: Cascade)
+  l        L      @relation(fields: [lId], references: [id], onDelete: Cascade)
   lId      String
 
   parent   Comment?  @relation("thread", fields: [parentId], references: [id], onDelete: Cascade)
@@ -233,8 +252,10 @@ model Comment {
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 
+  // The partial (lId, id) WHERE parentId IS NULL pagination index is SQL-owned in
+  // 20260714100000_comment_pagination_indexes because Prisma cannot express its predicate.
   @@index([lId, createdAt])
-  @@index([parentId])
+  @@index([parentId, id])
 }
 
 // ─── Follow (social graph) ────────────────────────────────────────────────────
@@ -277,6 +298,7 @@ model CollectionL {
   position     Int        @default(0)
 
   @@id([collectionId, lId])
+  @@index([collectionId, position, lId])
   @@index([lId])
 }
 
