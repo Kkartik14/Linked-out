@@ -85,7 +85,11 @@ function setCookiesFrom(headers: Headers): string[] {
 export async function apiFetch<T>(path: string, init: ApiFetchInit = {}): Promise<T> {
   const { skipRefresh, cookieHeader, ...rest } = init;
   const headers = new Headers(rest.headers);
-  const cookie = cookieHeader ?? await serverCookieHeader();
+  const forwardsCredentials = rest.credentials !== "omit";
+  if (!forwardsCredentials) headers.delete("cookie");
+  const cookie = forwardsCredentials
+    ? cookieHeader ?? await serverCookieHeader()
+    : null;
   if (cookie) headers.set("cookie", cookie);
   if (rest.body && !headers.has("content-type")) {
     headers.set("content-type", "application/json");
@@ -94,7 +98,7 @@ export async function apiFetch<T>(path: string, init: ApiFetchInit = {}): Promis
   const res = await fetch(`${API_BASE_URL}${path}`, {
     ...rest,
     headers,
-    credentials: "include",
+    credentials: rest.credentials ?? "include",
     // Per-user/authenticated data must never be statically cached.
     cache: rest.cache ?? "no-store",
   });
@@ -102,7 +106,12 @@ export async function apiFetch<T>(path: string, init: ApiFetchInit = {}): Promis
   if (res.status === 401) {
     const body = await safeJson(res);
     const code = (body as ErrorEnvelope | null)?.error?.code;
-    if (code === "TOKEN_EXPIRED" && !skipRefresh && typeof window !== "undefined") {
+    if (
+      code === "TOKEN_EXPIRED" &&
+      !skipRefresh &&
+      forwardsCredentials &&
+      typeof window !== "undefined"
+    ) {
       const refreshedCookie = await refreshSession(headers.get("cookie"));
       return apiFetch<T>(path, {
         ...init,

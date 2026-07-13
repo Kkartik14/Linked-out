@@ -23,3 +23,8 @@ export function SessionProvider({
 export function useSession(): Session {
   return React.useContext(SessionContext);
 }
+
+/** The current principal id for cache scoping — the user id, or `"anon"` when logged out. */
+export function usePrincipal(): string {
+  return useSession().user?.id ?? "anon";
+}

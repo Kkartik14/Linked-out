@@ -8,6 +8,7 @@ import type {
   Comment,
   CreateCommentInput,
   CreateLInput,
+  FeedSort as ContractFeedSort,
   FollowResult,
   JourneyNode,
   LCard,
@@ -58,13 +59,20 @@ export function oauthLoginUrl(provider: "google" | "github", returnTo = "/"): st
 }
 
 // ── Meta & discovery ─────────────────────────────────────────────────────────
-export const getMeta = () => apiFetch<MetaEnumsResponse>("/meta/enums");
+export const getMeta = () =>
+  apiFetch<MetaEnumsResponse>("/meta/enums", {
+    // Public, deployment-versioned display metadata: share across principals and revalidate
+    // daily. Omitting credentials is what makes cross-request Next caching safe.
+    cache: "force-cache",
+    credentials: "omit",
+    next: { revalidate: 86_400 },
+  });
 export const getPopularTags = (q?: string, limit = 10) =>
   apiFetch<PopularTagsResponse>(`/tags/popular${qs({ q, limit })}`);
 
 // ── Feed ─────────────────────────────────────────────────────────────────────
 export type FeedScope = "global" | "following";
-export type FeedSort = "latest" | "trending" | "helpful";
+export type FeedSort = ContractFeedSort;
 
 export interface FeedQuery {
   scope?: FeedScope;

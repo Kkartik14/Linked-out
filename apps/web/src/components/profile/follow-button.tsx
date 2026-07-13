@@ -1,47 +1,81 @@
 "use client";
 
-import * as React from "react";
 import { useRouter } from "next/navigation";
+import { useMutation, useQueryClient } from "@tanstack/react-query";
 import { toast } from "sonner";
+import type { UserProfile } from "@linkedout/contracts";
 
 import { errorMessage, follow, unfollow } from "@/lib/api";
-import { useSession } from "@/components/session-provider";
+import { queryKeys } from "@/lib/query-keys";
+import { usePrincipal, useSession } from "@/components/session-provider";
 import { Button } from "@/components/ui/button";
 
 export function FollowButton({
   username,
-  initialFollowing,
+  following,
 }: {
   username: string;
-  initialFollowing: boolean;
+  following: boolean;
 }) {
   const { user } = useSession();
+  const principal = usePrincipal();
   const router = useRouter();
-  const [following, setFollowing] = React.useState(initialFollowing);
-  const [busy, setBusy] = React.useState(false);
+  const queryClient = useQueryClient();
+  const profileKey = queryKeys.profiles.detail(principal, username);
 
-  async function toggle() {
+  const mutation = useMutation({
+    mutationKey: [...profileKey, "follow"] as const,
+    mutationFn: (wasFollowing: boolean) =>
+      wasFollowing ? unfollow(username) : follow(username),
+    onMutate: async (wasFollowing) => {
+      await queryClient.cancelQueries({ queryKey: profileKey, exact: true });
+      const previous = queryClient.getQueryData<UserProfile>(profileKey);
+      queryClient.setQueryData<UserProfile>(profileKey, (current) =>
+        current
+          ? {
+              ...current,
+              counts: {
+                ...current.counts,
+                followers: Math.max(0, current.counts.followers + (wasFollowing ? -1 : 1)),
+              },
+              viewer: { ...current.viewer, isFollowing: !wasFollowing },
+            }
+          : current,
+      );
+      return { previous };
+    },
+    onError: (err, _wasFollowing, context) => {
+      if (context?.previous) queryClient.setQueryData(profileKey, context.previous);
+      toast.error(errorMessage(err));
+    },
+    onSuccess: (result) => {
+      queryClient.setQueryData<UserProfile>(profileKey, (current) =>
+        current
+          ? {
+              ...current,
+              counts: result.counts,
+              viewer: { ...current.viewer, isFollowing: result.isFollowing },
+            }
+          : current,
+      );
+    },
+  });
+
+  function toggle() {
     if (!user) {
       router.push(`/login?returnTo=${encodeURIComponent(`/u/${username}`)}`);
       return;
     }
-    if (busy) return;
-    const prev = following;
-    setFollowing(!prev);
-    setBusy(true);
-    try {
-      const result = prev ? await unfollow(username) : await follow(username);
-      setFollowing(result.isFollowing);
-    } catch (err) {
-      setFollowing(prev);
-      toast.error(errorMessage(err));
-    } finally {
-      setBusy(false);
-    }
+    if (mutation.isPending) return;
+    mutation.mutate(following);
   }
 
   return (
-    <Button variant={following ? "outline" : "default"} onClick={toggle} disabled={busy}>
+    <Button
+      variant={following ? "outline" : "default"}
+      onClick={toggle}
+      disabled={mutation.isPending}
+    >
       {following ? "Following" : "Follow"}
     </Button>
   );

@@ -1,6 +1,7 @@
 "use client";
 
 import Link from "next/link";
+import { useState } from "react";
 import { Bell, CheckCheck } from "lucide-react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 
@@ -12,6 +13,8 @@ import {
 } from "@/lib/api";
 import { timeAgo } from "@/lib/format";
 import { cn } from "@/lib/utils";
+import { queryKeys } from "@/lib/query-keys";
+import { usePrincipal } from "@/components/session-provider";
 import { Button } from "@/components/ui/button";
 import {
   DropdownMenu,
@@ -19,39 +22,48 @@ import {
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
 
+export function notificationPollIntervalMs(random = Math.random): number {
+  return 40_000 + Math.floor(random() * 10_001);
+}
+
 export function NotificationsBell() {
   const queryClient = useQueryClient();
+  const principal = usePrincipal();
+  const [open, setOpen] = useState(false);
 
   const unread = useQuery({
-    queryKey: ["notifications", "unread-count"],
+    queryKey: queryKeys.notifications.unreadCount(principal),
     queryFn: getUnreadCount,
-    refetchInterval: 45_000, // contract §1.8: 30–60s is within limits
+    // Spread clients across the allowed 30–60s window instead of creating a 45s herd.
+    refetchInterval: () => notificationPollIntervalMs(),
   });
 
+  // Finite page for the dropdown — a DISTINCT key from the infinite page list
+  // (FRONTEND-01: a shared key stored incompatible shapes and could crash the page).
   const list = useQuery({
-    queryKey: ["notifications", "list"],
-    queryFn: () => getNotifications(),
+    queryKey: queryKeys.notifications.preview(principal),
+    queryFn: () => getNotifications(undefined, 5),
+    enabled: open,
   });
+
+  const invalidateAll = () =>
+    queryClient.invalidateQueries({ queryKey: queryKeys.notifications.all(principal) });
 
   const markAll = useMutation({
     mutationFn: markAllNotificationsRead,
-    onSuccess: () => {
-      void queryClient.invalidateQueries({ queryKey: ["notifications"] });
-    },
+    onSuccess: () => void invalidateAll(),
   });
 
   const markOne = useMutation({
     mutationFn: markNotificationRead,
-    onSuccess: () => {
-      void queryClient.invalidateQueries({ queryKey: ["notifications"] });
-    },
+    onSuccess: () => void invalidateAll(),
   });
 
   const count = unread.data?.count ?? 0;
   const items = list.data?.data ?? [];
 
   return (
-    <DropdownMenu>
+    <DropdownMenu open={open} onOpenChange={setOpen}>
       <DropdownMenuTrigger asChild>
         <Button variant="ghost" size="icon" className="relative" aria-label={`Notifications${count ? `, ${count} unread` : ""}`}>
           <Bell />

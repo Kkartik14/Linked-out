@@ -70,5 +70,5 @@ export function renderWithProviders(
     );
   }
 
-  return render(ui, { wrapper: Wrapper, ...rest });
+  return { ...render(ui, { wrapper: Wrapper, ...rest }), queryClient };
 }

@@ -1,15 +1,16 @@
 "use client";
 
-import * as React from "react";
+import { useEffect, useMemo, useRef } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { Bookmark, MessageCircle } from "lucide-react";
-import { useQueryClient } from "@tanstack/react-query";
+import { useIsMutating, useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { toast } from "sonner";
-import type { ReactionsSummary, ReactionType } from "@linkedout/contracts";
+import type { ReactionResult, ReactionsSummary, ReactionType } from "@linkedout/contracts";
 
 import { addReaction, removeReaction, errorMessage } from "@/lib/api";
-import { useSession } from "@/components/session-provider";
+import { queryKeys } from "@/lib/query-keys";
+import { usePrincipal, useSession } from "@/components/session-provider";
 import { reactionOption, useMeta } from "@/components/meta-provider";
 import { cn } from "@/lib/utils";
 
@@ -22,16 +23,27 @@ const COUNT_KEY: Record<ReactionType, keyof ReactionsSummary> = {
   SAVED: "saved",
 };
 
-function reactionStateKey(reactions: ReactionsSummary, viewerReactions: ReactionType[]): string {
-  return [
-    reactions.total,
-    reactions.beenThere,
-    reactions.helpful,
-    reactions.respect,
-    reactions.pain,
-    reactions.saved,
-    [...viewerReactions].sort().join(","),
-  ].join("|");
+function optimisticReaction(
+  current: ReactionResult,
+  type: ReactionType,
+  willAdd: boolean,
+): ReactionResult {
+  const key = COUNT_KEY[type];
+  const delta = willAdd ? 1 : -1;
+  const viewerReactions = willAdd
+    ? [...new Set([...current.viewer.reactions, type])]
+    : current.viewer.reactions.filter((reaction) => reaction !== type);
+
+  return {
+    reactions: {
+      ...current.reactions,
+      [key]: Math.max(0, current.reactions[key] + delta),
+      // `reactionCount` includes every Reaction row, including the private SAVED type.
+      // SAVED has zero *popularity* weight; it still changes the reaction total.
+      total: Math.max(0, current.reactions.total + delta),
+    },
+    viewer: { reactions: viewerReactions },
+  };
 }
 
 export function ReactionBar({
@@ -48,73 +60,109 @@ export function ReactionBar({
   commentHref: string;
 }) {
   const { user } = useSession();
+  const principal = usePrincipal();
   const meta = useMeta();
   const router = useRouter();
   const queryClient = useQueryClient();
 
-  const sourceKey = reactionStateKey(reactions, viewerReactions);
-  const [state, setState] = React.useState(() => ({
-    sourceKey,
-    summary: reactions,
-    mine: new Set(viewerReactions),
-  }));
-  const [pending, setPending] = React.useState<Set<ReactionType>>(() => new Set());
+  const serverSnapshot = JSON.stringify([
+    reactions.total,
+    reactions.beenThere,
+    reactions.helpful,
+    reactions.respect,
+    reactions.pain,
+    reactions.saved,
+    viewerReactions,
+  ]);
+  const reactionKey = useMemo(
+    () => queryKeys.ls.reactions(principal, lId),
+    [principal, lId],
+  );
+  const mutationKey = useMemo(() => [...reactionKey, "toggle"] as const, [reactionKey]);
+  const initialReaction = useMemo<ReactionResult>(
+    () => ({ reactions, viewer: { reactions: viewerReactions } }),
+    [reactions, viewerReactions],
+  );
+  const reconciledServerSnapshot = useRef<string | null>(null);
+  const reactionQuery = useQuery({
+    queryKey: reactionKey,
+    queryFn: async () => initialReaction,
+    initialData: initialReaction,
+    enabled: false,
+    staleTime: Infinity,
+  });
+  const commentCountQuery = useQuery({
+    queryKey: queryKeys.ls.commentCount(principal, lId),
+    queryFn: async () => commentCount,
+    initialData: commentCount,
+    enabled: false,
+    staleTime: Infinity,
+  });
 
-  let current = state;
-  if (state.sourceKey !== sourceKey && pending.size === 0) {
-    current = { sourceKey, summary: reactions, mine: new Set(viewerReactions) };
-    setState(current);
-  }
+  const mutation = useMutation({
+    mutationKey,
+    // TanStack serializes every mutation sharing this scope, even when the same L is
+    // rendered by multiple component instances (for example, a card and a detail pane).
+    scope: { id: `reaction:${principal}:${lId}` },
+    mutationFn: ({ type, willAdd }: { type: ReactionType; willAdd: boolean }) =>
+      willAdd ? addReaction(lId, type) : removeReaction(lId, type),
+    onMutate: async ({ type, willAdd }) => {
+      await queryClient.cancelQueries({ queryKey: reactionKey, exact: true });
+      const previous = queryClient.getQueryData<ReactionResult>(reactionKey) ?? initialReaction;
+      queryClient.setQueryData(reactionKey, optimisticReaction(previous, type, willAdd));
+      return { previous };
+    },
+    onError: (err, _variables, context) => {
+      if (context?.previous) queryClient.setQueryData(reactionKey, context.previous);
+      toast.error(errorMessage(err, "Could not save your reaction."));
+    },
+    onSuccess: (result, { type }) => {
+      queryClient.setQueryData(reactionKey, result);
+      if (type === "SAVED") {
+        void queryClient.invalidateQueries({ queryKey: queryKeys.saved.all(principal) });
+      }
+    },
+  });
 
-  const { summary, mine } = current;
+  useEffect(() => {
+    const isInitialSnapshot = reconciledServerSnapshot.current === null;
+    if (reconciledServerSnapshot.current === serverSnapshot) return;
+    // Mark the snapshot even when skipped: a server render racing a mutation may predate
+    // that write, while the mutation's response is the authoritative successor.
+    reconciledServerSnapshot.current = serverSnapshot;
+    if (queryClient.isMutating({ mutationKey }) > 0) return;
+    if (isInitialSnapshot) {
+      const observers =
+        queryClient
+          .getQueryCache()
+          .find({ queryKey: reactionKey, exact: true })
+          ?.getObserversCount() ?? 0;
+      // `initialData` seeds an empty key. If another view already observes this key, its
+      // canonical cache may contain a navigation or mutation successor; a late sibling's
+      // older props have no revision with which to prove otherwise and must not replace it.
+      if (observers > 1) return;
+    }
+    // RSC/API reads are no-store. Reconcile a newer navigation snapshot into the shared
+    // cache when this mounted view receives changed props. A sole remount may also refresh
+    // a retained, unobserved cache entry.
+    queryClient.setQueryData(reactionKey, initialReaction);
+  }, [initialReaction, mutationKey, queryClient, reactionKey, serverSnapshot]);
 
-  async function toggle(type: ReactionType) {
+  const isPending = useIsMutating({ mutationKey }) > 0;
+  const summary = reactionQuery.data.reactions;
+  const mine = new Set(reactionQuery.data.viewer.reactions);
+  const canonicalCommentCount = commentCountQuery.data;
+
+  function toggle(type: ReactionType) {
     if (!user) {
       toast("Log in to react to this L.", {
         action: { label: "Log in", onClick: () => router.push("/login") },
       });
       return;
     }
-    if (pending.has(type)) return;
+    if (isPending) return;
 
-    const willAdd = !mine.has(type);
-    const key = COUNT_KEY[type];
-    const prevState = current;
-    const nextMine = new Set(mine);
-    if (willAdd) nextMine.add(type);
-    else nextMine.delete(type);
-
-    const delta = willAdd ? 1 : -1;
-    const nextSummary: ReactionsSummary = {
-      ...summary,
-      [key]: Math.max(0, summary[key] + delta),
-    };
-    if (type !== "SAVED") nextSummary.total = Math.max(0, summary.total + delta);
-
-    setState({ ...current, summary: nextSummary, mine: nextMine });
-    setPending((prev) => new Set(prev).add(type));
-
-    try {
-      const res = willAdd ? await addReaction(lId, type) : await removeReaction(lId, type);
-      // Reconcile with the authoritative server response (contract §5).
-      setState((prev) => ({
-        ...prev,
-        summary: res.reactions,
-        mine: new Set(res.viewer.reactions),
-      }));
-      if (type === "SAVED") {
-        void queryClient.invalidateQueries({ queryKey: ["saved"] });
-      }
-    } catch (err) {
-      setState(prevState);
-      toast.error(errorMessage(err, "Could not save your reaction."));
-    } finally {
-      setPending((prev) => {
-        const next = new Set(prev);
-        next.delete(type);
-        return next;
-      });
-    }
+    mutation.mutate({ type, willAdd: !mine.has(type) });
   }
 
   const savedActive = mine.has("SAVED");
@@ -130,6 +178,7 @@ export function ReactionBar({
             key={type}
             type="button"
             onClick={() => toggle(type)}
+            disabled={isPending}
             aria-pressed={active}
             aria-label={`${option?.label ?? type}${count ? `, ${count}` : ""}`}
             className={cn(
@@ -150,15 +199,18 @@ export function ReactionBar({
       <Link
         href={commentHref}
         className="text-muted-foreground hover:bg-accent hover:text-foreground ml-1 inline-flex items-center gap-1 rounded-full px-2 py-1 text-sm transition-colors"
-        aria-label={`${commentCount} comments`}
+        aria-label={`${canonicalCommentCount} comments`}
       >
         <MessageCircle className="size-4" />
-        {commentCount > 0 ? <span className="text-xs tabular-nums">{commentCount}</span> : null}
+        {canonicalCommentCount > 0 ? (
+          <span className="text-xs tabular-nums">{canonicalCommentCount}</span>
+        ) : null}
       </Link>
 
       <button
         type="button"
         onClick={() => toggle("SAVED")}
+        disabled={isPending}
         aria-pressed={savedActive}
         aria-label={savedActive ? "Remove from saved" : "Save"}
         className={cn(
