@@ -19,6 +19,8 @@ const { createHmac } = require('node:crypto');
 const DB_ENTRY = path.resolve(__dirname, '../../../packages/db/dist/index.js');
 const { createPrismaClient } = require(DB_ENTRY);
 
+const { guardedReset } = require('../../../scripts/db-safety-guard.cjs');
+
 const DATABASE_URL =
   process.env.TEST_DATABASE_URL ??
   'postgresql://linkedout:linkedout@localhost:5432/linkedout_test?schema=public';
@@ -111,8 +113,13 @@ async function waitForIdle(timeoutMs = 5_000) {
 
 async function resetDb() {
   await waitForIdle();
+  // TEST-01: verify (name allowlist + session role + fingerprinted marker) and TRUNCATE in ONE
+  // transaction. The marker is planted out-of-band (scripts/bootstrap-test-db.cjs).
   const list = TABLES.map((t) => `"${t}"`).join(', ');
-  await db().$executeRawUnsafe(`TRUNCATE TABLE ${list} RESTART IDENTITY CASCADE;`);
+  await guardedReset(db(), {
+    url: DATABASE_URL,
+    statements: [`TRUNCATE TABLE ${list} RESTART IDENTITY CASCADE;`],
+  });
 }
 
 /**
@@ -160,7 +167,7 @@ async function seedWorld() {
       tags: ['interview', 'faang'],
       eventDate: new Date('2026-05-10T00:00:00.000Z'),
       visibility: 'PUBLIC',
-      trendingScore: 10,
+      popularityScore: 10,
     },
   });
 
@@ -173,7 +180,7 @@ async function seedWorld() {
       category: 'STARTUPS',
       tags: ['startup'],
       visibility: 'PUBLIC',
-      trendingScore: 5,
+      popularityScore: 5,
     },
   });
 
@@ -185,7 +192,7 @@ async function seedWorld() {
       type: 'L',
       category: 'LAYOFFS',
       visibility: 'PUBLIC',
-      trendingScore: 1,
+      popularityScore: 1,
     },
   });
 
