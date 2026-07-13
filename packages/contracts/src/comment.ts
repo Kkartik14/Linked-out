@@ -17,7 +17,9 @@ export const commentSchema = z.object({
 });
 export type Comment = z.infer<typeof commentSchema>;
 
-export const createCommentInputSchema = z.object({
-  body: z.string().min(1).max(2000),
-});
+export const createCommentInputSchema = z
+  .object({
+    body: z.string().min(1).max(2000),
+  })
+  .strict();
 export type CreateCommentInput = z.infer<typeof createCommentInputSchema>;

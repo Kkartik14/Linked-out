@@ -1,6 +1,11 @@
 import { z } from 'zod';
 
-import { ulidSchema, isoTimestampSchema } from './common';
+import {
+  ulidSchema,
+  isoTimestampSchema,
+  AT_LEAST_ONE_FIELD,
+  hasAtLeastOneField,
+} from './common';
 import { journeyStatusSchema } from './enums';
 
 /** Compact author object embedded in cards. */
@@ -59,5 +64,7 @@ export const updateUserInputSchema = z
     image: z.url().nullable(),
     status: journeyStatusSchema.nullable(),
   })
-  .partial();
+  .partial()
+  .strict()
+  .refine(hasAtLeastOneField, { message: AT_LEAST_ONE_FIELD });
 export type UpdateUserInput = z.infer<typeof updateUserInputSchema>;

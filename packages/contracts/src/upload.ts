@@ -5,10 +5,12 @@ export const AVATAR_MAX_BYTES = 5_242_880; // 5 MB
 export const avatarContentTypeSchema = z.enum(['image/jpeg', 'image/png', 'image/webp']);
 export type AvatarContentType = z.infer<typeof avatarContentTypeSchema>;
 
-export const avatarUploadRequestSchema = z.object({
-  contentType: avatarContentTypeSchema,
-  contentLength: z.number().int().min(1).max(AVATAR_MAX_BYTES),
-});
+export const avatarUploadRequestSchema = z
+  .object({
+    contentType: avatarContentTypeSchema,
+    contentLength: z.number().int().min(1).max(AVATAR_MAX_BYTES),
+  })
+  .strict();
 export type AvatarUploadRequest = z.infer<typeof avatarUploadRequestSchema>;
 
 export const avatarUploadResponseSchema = z.object({

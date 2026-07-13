@@ -9,7 +9,6 @@ import {
   UseGuards,
 } from '@nestjs/common';
 import {
-  createCommentInputSchema,
   paginationQuerySchema,
   type Comment,
   type CreateCommentInput,
@@ -17,6 +16,7 @@ import {
   type PaginationQuery,
 } from '@linkedout/contracts';
 
+import { ApiContract, API_ROUTE_CONTRACTS } from '../../common/contracts/api-route-contracts';
 import { CurrentUser, OptionalUser } from '../../common/decorators/current-user.decorator';
 import { JwtAuthGuard } from '../../common/guards/jwt-auth.guard';
 import { OptionalAuthGuard } from '../../common/guards/optional-auth.guard';
@@ -24,7 +24,7 @@ import { ZodValidationPipe } from '../../common/pipes/zod-validation.pipe';
 import type { AuthUser } from '../../common/types/auth';
 import { CommentsService } from './comments.service';
 
-const bodyPipe = new ZodValidationPipe(createCommentInputSchema);
+const bodyPipe = new ZodValidationPipe(API_ROUTE_CONTRACTS.commentCreateOnL.body.schema);
 const listPipe = new ZodValidationPipe(paginationQuerySchema());
 
 @Controller()
@@ -33,6 +33,7 @@ export class CommentsController {
 
   @Get('ls/:id/comments')
   @UseGuards(OptionalAuthGuard)
+  @ApiContract(API_ROUTE_CONTRACTS.commentsForL)
   listForL(
     @OptionalUser() user: AuthUser | undefined,
     @Param('id') lId: string,
@@ -43,6 +44,7 @@ export class CommentsController {
 
   @Post('ls/:id/comments')
   @UseGuards(JwtAuthGuard)
+  @ApiContract(API_ROUTE_CONTRACTS.commentCreateOnL)
   createOnL(
     @CurrentUser() user: AuthUser,
     @Param('id') lId: string,
@@ -53,6 +55,7 @@ export class CommentsController {
 
   @Get('comments/:id/replies')
   @UseGuards(OptionalAuthGuard)
+  @ApiContract(API_ROUTE_CONTRACTS.commentReplies)
   listReplies(
     @OptionalUser() user: AuthUser | undefined,
     @Param('id') commentId: string,
@@ -63,6 +66,7 @@ export class CommentsController {
 
   @Post('comments/:id/replies')
   @UseGuards(JwtAuthGuard)
+  @ApiContract(API_ROUTE_CONTRACTS.commentCreateReply)
   createReply(
     @CurrentUser() user: AuthUser,
     @Param('id') commentId: string,
@@ -73,6 +77,7 @@ export class CommentsController {
 
   @Delete('comments/:id')
   @UseGuards(JwtAuthGuard)
+  @ApiContract(API_ROUTE_CONTRACTS.commentDelete)
   remove(@CurrentUser() user: AuthUser, @Param('id') commentId: string): Promise<{ ok: true }> {
     return this.comments.remove(user, commentId);
   }
