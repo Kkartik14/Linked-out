@@ -160,19 +160,40 @@ describe('12 · search (contract §4.10)', () => {
     assert.equal(new Set(seen).size, 7, 'no duplicates across ranked pages');
   });
 
-  test('user search paginates with an offset cursor', async () => {
-    for (let i = 0; i < 5; i += 1) await h.createUser({ username: `probe${i}` });
+  test('user search uses a stable keyset when rows are inserted before the cursor', async () => {
+    for (let i = 1; i <= 4; i += 1) await h.createUser({ username: `probe${i}` });
 
     const first = h.expectShape(await h.get('/search?q=probe&type=users&limit=2'), usersSchema);
-    assert.equal(first.data.length, 2);
+    assert.deepEqual(first.data.map((user) => user.username), ['probe1', 'probe2']);
     assert.ok(first.nextCursor);
+
+    // An offset cursor would now return probe2 again after this insertion shifts the rows.
+    await h.createUser({ username: 'probe0' });
 
     const second = h.expectShape(
       await h.get(`/search?q=probe&type=users&limit=2&cursor=${encodeURIComponent(first.nextCursor)}`),
       usersSchema,
     );
-    const overlap = first.data.filter((a) => second.data.some((b) => b.id === a.id));
-    assert.equal(overlap.length, 0);
+    assert.deepEqual(second.data.map((user) => user.username), ['probe3', 'probe4']);
+    assert.equal(second.nextCursor, null);
+  });
+
+  test('user search treats percent, underscore and backslash as literal text', async () => {
+    await h.createUser({ username: 'percenthit', name: '100% Builder' });
+    await h.createUser({ username: 'percentmiss', name: '1000 Builder' });
+    await h.createUser({ username: 'underhit', name: 'Under_score' });
+    await h.createUser({ username: 'undermiss', name: 'UnderXscore' });
+    await h.createUser({ username: 'slashhit', name: 'Path\\Builder' });
+    await h.createUser({ username: 'slashmiss', name: 'Path Builder' });
+
+    const usernamesFor = async (q) => {
+      const path = `/search?q=${encodeURIComponent(q)}&type=users`;
+      return h.expectShape(await h.get(path), usersSchema).data.map((user) => user.username);
+    };
+
+    assert.deepEqual(await usernamesFor('%'), ['percenthit']);
+    assert.deepEqual(await usernamesFor('_'), ['underhit']);
+    assert.deepEqual(await usernamesFor('\\'), ['slashhit']);
   });
 
   test('a malformed search cursor is 400 BAD_CURSOR', async () => {

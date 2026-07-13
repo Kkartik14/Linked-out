@@ -27,6 +27,8 @@ export class FollowsRepository {
     notification: FollowNotificationWrite,
   ): Promise<boolean> {
     const created = await this.prisma.db.$transaction(async (tx) => {
+      // PostgreSQL Follow triggers maintain both endpoint counters for each row
+      // that actually survives skipDuplicates, inside this same transaction.
       const result = await tx.follow.createMany({
         data: [{ followerId, followingId }],
         skipDuplicates: true,
@@ -39,6 +41,7 @@ export class FollowsRepository {
   }
 
   async unfollow(followerId: string, followingId: string): Promise<boolean> {
+    // The delete trigger decrements both counters only when a row was deleted.
     const result = await this.prisma.db.follow.deleteMany({
       where: { followerId, followingId },
     });

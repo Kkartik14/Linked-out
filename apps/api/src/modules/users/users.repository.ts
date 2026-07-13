@@ -2,6 +2,9 @@ import { Injectable } from '@nestjs/common';
 import { Prisma } from '@linkedout/db';
 
 import { PrismaService } from '../../prisma/prisma.service';
+import { lockAvatarObjectKey } from '../../common/avatar/avatar-object';
+import { AvatarObjectUnavailableError, UsernameConflictError } from './users.errors';
+import type { FollowCounts, UpdateUserData } from './users.types';
 
 const PROFILE_SELECT = {
   id: true,
@@ -15,15 +18,12 @@ const PROFILE_SELECT = {
   buildersHelped: true,
   lsShared: true,
   collectionsCreated: true,
+  followerCount: true,
+  followingCount: true,
   createdAt: true,
 } satisfies Prisma.UserSelect;
 
 export type UserProfileRow = Prisma.UserGetPayload<{ select: typeof PROFILE_SELECT }>;
-
-export interface FollowCounts {
-  followers: number;
-  following: number;
-}
 
 @Injectable()
 export class UsersRepository {
@@ -41,24 +41,45 @@ export class UsersRepository {
     return this.prisma.db.user.findUnique({ where: { username }, select: { id: true } });
   }
 
-  async usernameTaken(username: string, exceptUserId: string): Promise<boolean> {
-    const existing = await this.prisma.db.user.findUnique({
-      where: { username },
-      select: { id: true },
-    });
-    return existing !== null && existing.id !== exceptUserId;
-  }
+  async update(id: string, data: UpdateUserData): Promise<UserProfileRow> {
+    const { avatar, ...profile } = data;
+    const updateData: Prisma.UserUpdateInput = {
+      ...profile,
+      ...(avatar === undefined
+        ? {}
+        : avatar === null
+          ? { image: null, avatarObjectKey: null }
+          : { image: avatar.publicUrl, avatarObjectKey: avatar.objectKey }),
+    };
+    try {
+      if (avatar === undefined || avatar === null) {
+        return await this.prisma.db.user.update({ where: { id }, data: updateData, select: PROFILE_SELECT });
+      }
 
-  update(id: string, data: Prisma.UserUpdateInput): Promise<UserProfileRow> {
-    return this.prisma.db.user.update({ where: { id }, data, select: PROFILE_SELECT });
+      return await this.prisma.db.$transaction(async (tx) => {
+        await lockAvatarObjectKey(tx, avatar.objectKey);
+        const deletionClaim = await tx.avatarDeletionClaim.findUnique({
+          where: { key: avatar.objectKey },
+          select: { key: true },
+        });
+        if (deletionClaim) throw new AvatarObjectUnavailableError();
+        return tx.user.update({ where: { id }, data: updateData, select: PROFILE_SELECT });
+      });
+    } catch (error) {
+      if (error instanceof AvatarObjectUnavailableError) throw error;
+      if (error instanceof Prisma.PrismaClientKnownRequestError && error.code === 'P2002') {
+        throw new UsernameConflictError();
+      }
+      throw error;
+    }
   }
 
   async counts(userId: string): Promise<FollowCounts> {
-    const [followers, following] = await Promise.all([
-      this.prisma.db.follow.count({ where: { followingId: userId } }),
-      this.prisma.db.follow.count({ where: { followerId: userId } }),
-    ]);
-    return { followers, following };
+    const user = await this.prisma.db.user.findUniqueOrThrow({
+      where: { id: userId },
+      select: { followerCount: true, followingCount: true },
+    });
+    return { followers: user.followerCount, following: user.followingCount };
   }
 
   async isFollowing(followerId: string, followingId: string): Promise<boolean> {

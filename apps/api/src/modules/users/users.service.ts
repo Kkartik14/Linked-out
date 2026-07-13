@@ -1,20 +1,30 @@
 import { Injectable } from '@nestjs/common';
 import { usernameInputSchema, type UpdateUserInput, type UserProfile } from '@linkedout/contracts';
-import { Prisma } from '@linkedout/db';
 
 import { AppErrors } from '../../common/errors/app-exception';
+import { ownedAvatarObjectKey } from '../../common/avatar/avatar-object';
 import type { AuthUser } from '../../common/types/auth';
 import { AppConfigService } from '../../config/app-config.service';
-import { UsersRepository, type UserProfileRow } from './users.repository';
+import {
+  UsersRepository,
+  type UserProfileRow,
+} from './users.repository';
+import { AvatarObjectUnavailableError, UsernameConflictError } from './users.errors';
+import type { FollowCounts, UpdateUserData } from './users.types';
 import { toUserProfile } from './users.mapper';
 
-function buildUpdate(input: UpdateUserInput): Prisma.UserUpdateInput {
+function buildUpdate(input: UpdateUserInput, avatarObjectKey: string | null | undefined): UpdateUserData {
   return {
     username: input.username,
     name: input.name,
     bio: input.bio,
-    image: input.image,
     status: input.status,
+    avatar:
+      input.image === undefined
+        ? undefined
+        : input.image === null
+          ? null
+          : { publicUrl: input.image, objectKey: avatarObjectKey! },
   };
 }
 
@@ -37,33 +47,36 @@ export class UsersService {
   async getSelfProfile(userId: string): Promise<UserProfile> {
     const user = await this.repo.findById(userId);
     if (!user) throw AppErrors.userNotFound();
-    const counts = await this.repo.counts(user.id);
-    return toUserProfile(user, counts, { isSelf: true, isFollowing: false });
+    return toUserProfile(user, { isSelf: true, isFollowing: false });
   }
 
   async updateMe(user: AuthUser, input: UpdateUserInput): Promise<UserProfile> {
+    let avatarObjectKey: string | null | undefined;
     if (input.image !== undefined && input.image !== null) {
-      this.assertOwnedAvatarUrl(user.id, input.image);
+      avatarObjectKey = this.requireOwnedAvatarObjectKey(user.id, input.image);
+    } else {
+      avatarObjectKey = input.image;
     }
     if (input.username !== undefined) {
       if (!usernameInputSchema.safeParse(input.username).success) {
         throw AppErrors.usernameInvalid();
       }
-      if (await this.repo.usernameTaken(input.username, user.id)) {
-        throw AppErrors.usernameTaken();
-      }
     }
     let updated;
     try {
-      updated = await this.repo.update(user.id, buildUpdate(input));
+      updated = await this.repo.update(user.id, buildUpdate(input, avatarObjectKey));
     } catch (error) {
-      if (error instanceof Prisma.PrismaClientKnownRequestError && error.code === 'P2002') {
+      if (error instanceof UsernameConflictError) {
         throw AppErrors.usernameTaken();
+      }
+      if (error instanceof AvatarObjectUnavailableError) {
+        throw AppErrors.validationMessage(
+          'This avatar upload is no longer available. Upload the image again.',
+        );
       }
       throw error;
     }
-    const counts = await this.repo.counts(updated.id);
-    return toUserProfile(updated, counts, { isSelf: true, isFollowing: false });
+    return toUserProfile(updated, { isSelf: true, isFollowing: false });
   }
 
   /** Resolve a username to its id, or 404. Used by user-scoped list routes. */
@@ -73,22 +86,26 @@ export class UsersService {
     return found.id;
   }
 
+  /** Public service seam for follow mutations; keeps the users DAL private to its module. */
+  getFollowCounts(userId: string): Promise<FollowCounts> {
+    return this.repo.counts(userId);
+  }
+
   private async composeProfile(
     user: UserProfileRow,
     viewerId: string | undefined,
   ): Promise<UserProfile> {
-    const counts = await this.repo.counts(user.id);
     const isSelf = viewerId === user.id;
     const isFollowing =
       viewerId !== undefined && !isSelf ? await this.repo.isFollowing(viewerId, user.id) : false;
-    return toUserProfile(user, counts, { isSelf, isFollowing });
+    return toUserProfile(user, { isSelf, isFollowing });
   }
 
-  private assertOwnedAvatarUrl(userId: string, imageUrl: string): void {
-    const baseUrl = this.config.r2.publicBaseUrl.replace(/\/+$/, '');
-    const prefix = `${baseUrl}/avatars/${userId}/`;
-    if (!baseUrl || !imageUrl.startsWith(prefix)) {
+  private requireOwnedAvatarObjectKey(userId: string, imageUrl: string): string {
+    const key = ownedAvatarObjectKey(this.config.r2.publicBaseUrl, userId, imageUrl);
+    if (!key) {
       throw AppErrors.validationMessage('Avatar image must come from your uploaded avatar URL.');
     }
+    return key;
   }
 }

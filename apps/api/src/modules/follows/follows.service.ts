@@ -6,7 +6,6 @@ import { toUserSummary } from '../../common/mappers/user-summary.mapper';
 import { decodeCursorId } from '../../common/pagination/cursor';
 import { mapPage } from '../../common/pagination/paginate';
 import type { AuthUser } from '../../common/types/auth';
-import { UsersRepository } from '../users/users.repository';
 import { UsersService } from '../users/users.service';
 import { FollowsRepository } from './follows.repository';
 
@@ -15,7 +14,6 @@ export class FollowsService {
   constructor(
     private readonly repo: FollowsRepository,
     private readonly users: UsersService,
-    private readonly usersRepo: UsersRepository,
   ) {}
 
   async follow(user: AuthUser, username: string): Promise<FollowResult> {
@@ -30,13 +28,13 @@ export class FollowsService {
       lId: null,
       dedupeKey: null,
     });
-    return { isFollowing: true, counts: await this.usersRepo.counts(targetId) };
+    return { isFollowing: true, counts: await this.users.getFollowCounts(targetId) };
   }
 
   async unfollow(user: AuthUser, username: string): Promise<FollowResult> {
     const targetId = await this.users.requireUserId(username);
     await this.repo.unfollow(user.id, targetId);
-    return { isFollowing: false, counts: await this.usersRepo.counts(targetId) };
+    return { isFollowing: false, counts: await this.users.getFollowCounts(targetId) };
   }
 
   async listFollowers(username: string, query: PaginationQuery): Promise<Paginated<UserSummary>> {

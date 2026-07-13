@@ -24,6 +24,21 @@ describe('09 · follows (contract §4.7)', () => {
 
     assert.equal(result.isFollowing, true);
     assert.deepEqual(result.counts, { followers: 1, following: 0 });
+
+    const [meRow, targetRow, edgeCount] = await Promise.all([
+      h.ctx.prisma.user.findUniqueOrThrow({
+        where: { id: me.id },
+        select: { followerCount: true, followingCount: true },
+      }),
+      h.ctx.prisma.user.findUniqueOrThrow({
+        where: { id: target.id },
+        select: { followerCount: true, followingCount: true },
+      }),
+      h.ctx.prisma.follow.count({ where: { followerId: me.id, followingId: target.id } }),
+    ]);
+    assert.equal(edgeCount, 1);
+    assert.deepEqual(meRow, { followerCount: 0, followingCount: 1 });
+    assert.deepEqual(targetRow, { followerCount: 1, followingCount: 0 });
   });
 
   test('PUT is idempotent — following twice never errors or double-counts', async () => {
@@ -33,6 +48,13 @@ describe('09 · follows (contract §4.7)', () => {
     assert.equal(second.status, 200);
     assert.deepEqual(second.body, first.body);
     assert.equal(second.body.counts.followers, 1);
+
+    const [meRow, targetRow] = await Promise.all([
+      h.ctx.prisma.user.findUniqueOrThrow({ where: { id: me.id } }),
+      h.ctx.prisma.user.findUniqueOrThrow({ where: { id: target.id } }),
+    ]);
+    assert.equal(meRow.followingCount, 1, 'idempotent PUT increments the source once');
+    assert.equal(targetRow.followerCount, 1, 'idempotent PUT increments the target once');
   });
 
   test('DELETE unfollows and is idempotent when not following', async () => {
@@ -46,6 +68,15 @@ describe('09 · follows (contract §4.7)', () => {
     const second = await h.del('/users/target/follow', { cookie: me.cookie });
     assert.equal(second.status, 200, 'un-following twice must not error');
     assert.equal(second.body.isFollowing, false);
+
+    const [meRow, targetRow, edgeCount] = await Promise.all([
+      h.ctx.prisma.user.findUniqueOrThrow({ where: { id: me.id } }),
+      h.ctx.prisma.user.findUniqueOrThrow({ where: { id: target.id } }),
+      h.ctx.prisma.follow.count({ where: { followerId: me.id, followingId: target.id } }),
+    ]);
+    assert.equal(edgeCount, 0);
+    assert.equal(meRow.followingCount, 0, 'idempotent DELETE decrements the source once');
+    assert.equal(targetRow.followerCount, 0, 'idempotent DELETE decrements the target once');
   });
 
   test('self-follow is rejected with VALIDATION_ERROR', async () => {

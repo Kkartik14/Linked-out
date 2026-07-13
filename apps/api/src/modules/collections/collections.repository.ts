@@ -1,5 +1,5 @@
 import { Injectable } from '@nestjs/common';
-import { Prisma, type Visibility } from '@linkedout/db';
+import { Prisma, type ExtendedPrismaClient, type Visibility } from '@linkedout/db';
 
 import { PrismaService } from '../../prisma/prisma.service';
 import { USER_SUMMARY_SELECT } from '../../common/mappers/user-summary.mapper';
@@ -10,6 +10,20 @@ const COLLECTION_INCLUDE = {
   owner: { select: USER_SUMMARY_SELECT },
   _count: { select: { ls: true } },
 } satisfies Prisma.CollectionInclude;
+
+const POSITION_GAP = 1024;
+const POSTGRES_INT_MIN = -2_147_483_648;
+const POSTGRES_INT_MAX = 2_147_483_647;
+
+type CollectionTransaction = Omit<
+  ExtendedPrismaClient,
+  '$connect' | '$disconnect' | '$on' | '$transaction' | '$use' | '$extends'
+>;
+
+function shiftedRank(position: number, delta: number): number | null {
+  const rank = position + delta;
+  return rank >= POSTGRES_INT_MIN && rank <= POSTGRES_INT_MAX ? rank : null;
+}
 
 export class CollectionSlugConflictError extends Error {
   constructor() {
@@ -133,17 +147,15 @@ export class CollectionsRepository {
   }
 
   /**
-   * Adds or moves an L, then rewrites the collection's positions as a dense 0..n-1
-   * sequence. Storing the whole order (rather than only the touched row) is what makes
-   * `position` authoritative: without it, two rows can share a position and the final
-   * order silently falls back to the `lId` tiebreak in `orderedLIds`.
+   * Adds or moves one L using gapped integer ranks. The request's `position` remains an
+   * ordinal index, but the stored value is a private ordering key. A normal insert/move
+   * reads only the two neighbours and writes only the touched membership. If repeated
+   * midpoint inserts exhaust a gap, the collection is re-ranked once and the operation
+   * retries; that exceptional O(n) repair replaces the previous O(n) writes on every PUT.
    *
    * `position === undefined` appends, and is a no-op for an L that is already a member
    * (the idempotent `PUT` of contract §4.8). An out-of-range position clamps to the ends.
-   *
-   * This is a read-modify-write over the whole member set, so it takes a row lock on the
-   * owning Collection first. Concurrent adds then queue instead of aborting each other,
-   * which is what SERIALIZABLE would do to every writer but the first.
+   * The Collection row lock serializes rank allocation for concurrent writers.
    */
   async addL(collectionId: string, lId: string, position: number | undefined): Promise<void> {
     let attempt = 0;
@@ -152,36 +164,26 @@ export class CollectionsRepository {
         await this.prisma.db.$transaction(async (tx) => {
           await tx.$queryRaw`SELECT "id" FROM "Collection" WHERE "id" = ${collectionId} FOR UPDATE`;
 
-          const rows = await tx.collectionL.findMany({
-            where: { collectionId },
-            select: { lId: true },
-            orderBy: [{ position: 'asc' }, { lId: 'asc' }],
+          const existing = await tx.collectionL.findUnique({
+            where: { collectionId_lId: { collectionId, lId } },
+            select: { position: true },
           });
-          const order = rows.map((row) => row.lId);
-          const currentIndex = order.indexOf(lId);
+          if (position === undefined && existing) return;
 
-          if (position === undefined) {
-            if (currentIndex !== -1) return;
-            order.push(lId);
-          } else {
-            if (currentIndex !== -1) order.splice(currentIndex, 1);
-            order.splice(Math.min(Math.max(position, 0), order.length), 0, lId);
+          const requestedIndex = position;
+          let rank = await this.rankForOrdinal(tx, collectionId, lId, requestedIndex);
+          if (rank === null) {
+            await this.rebalanceRanks(tx, collectionId);
+            rank = await this.rankForOrdinal(tx, collectionId, lId, requestedIndex);
           }
+          if (rank === null) throw new Error('Collection rank rebalance did not create a gap.');
 
-          if (currentIndex === -1) {
-            await tx.collectionL.create({
-              data: { collectionId, lId, position: order.indexOf(lId) },
-              select: { lId: true },
-            });
-          }
-
-          for (const [index, id] of order.entries()) {
-            await tx.collectionL.update({
-              where: { collectionId_lId: { collectionId, lId: id } },
-              data: { position: index },
-              select: { lId: true },
-            });
-          }
+          await tx.collectionL.upsert({
+            where: { collectionId_lId: { collectionId, lId } },
+            create: { collectionId, lId, position: rank },
+            update: { position: rank },
+            select: { lId: true },
+          });
         });
         return;
       } catch (error) {
@@ -191,8 +193,64 @@ export class CollectionsRepository {
     }
   }
 
+  private async rankForOrdinal(
+    tx: CollectionTransaction,
+    collectionId: string,
+    movingLId: string,
+    requestedIndex: number | undefined,
+  ): Promise<number | null> {
+    const where = { collectionId, lId: { not: movingLId } };
+    if (requestedIndex === undefined) {
+      const last = await tx.collectionL.findFirst({
+        where,
+        select: { position: true },
+        orderBy: [{ position: 'desc' }, { lId: 'desc' }],
+      });
+      return last ? shiftedRank(last.position, POSITION_GAP) : 0;
+    }
+
+    const remaining = await tx.collectionL.count({ where });
+    const index = Math.min(Math.max(requestedIndex, 0), remaining);
+    const start = Math.max(0, index - 1);
+    const window = await tx.collectionL.findMany({
+      where,
+      select: { position: true },
+      orderBy: [{ position: 'asc' }, { lId: 'asc' }],
+      skip: start,
+      take: 2,
+    });
+    const previous = index > 0 ? window[0]?.position : undefined;
+    const next = index > 0 ? window[1]?.position : window[0]?.position;
+
+    if (previous === undefined && next === undefined) return 0;
+    if (previous === undefined) return shiftedRank(next!, -POSITION_GAP);
+    if (next === undefined) return shiftedRank(previous, POSITION_GAP);
+    if (next - previous <= 1) return null;
+    return previous + Math.floor((next - previous) / 2);
+  }
+
+  private async rebalanceRanks(tx: CollectionTransaction, collectionId: string): Promise<void> {
+    const members = await tx.collectionL.findMany({
+      where: { collectionId },
+      select: { lId: true },
+      orderBy: [{ position: 'asc' }, { lId: 'asc' }],
+    });
+    for (const [index, member] of members.entries()) {
+      await tx.collectionL.update({
+        where: { collectionId_lId: { collectionId, lId: member.lId } },
+        data: { position: index * POSITION_GAP },
+        select: { lId: true },
+      });
+    }
+  }
+
   async removeL(collectionId: string, lId: string): Promise<void> {
-    await this.prisma.db.collectionL.deleteMany({ where: { collectionId, lId } });
+    await this.prisma.db.$transaction(async (tx) => {
+      // Rank allocation and removal must observe one serialized membership order.
+      // Without the same row lock, a remove can race rankForOrdinal's count/window reads.
+      await tx.$queryRaw`SELECT "id" FROM "Collection" WHERE "id" = ${collectionId} FOR UPDATE`;
+      await tx.collectionL.deleteMany({ where: { collectionId, lId } });
+    });
   }
 
   async slugTaken(ownerId: string, slug: string, exceptCollectionId?: string): Promise<boolean> {

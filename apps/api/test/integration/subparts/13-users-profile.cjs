@@ -61,11 +61,32 @@ describe('13 · users & profiles (contract §4.2)', () => {
     assert.equal(profile.name, 'Renamed');
     assert.equal(profile.bio, 'hi', 'untouched fields survive');
     assert.equal(profile.viewer.isSelf, true);
+    const setCookies =
+      typeof res.headers.getSetCookie === 'function'
+        ? res.headers.getSetCookie()
+        : [res.headers.get('set-cookie')].filter(Boolean);
+    assert.ok(
+      setCookies.every((value) => !value.startsWith('lo_access=')),
+      'ordinary profile edits must not mint a fresh access lifetime',
+    );
   });
 
-  test('PATCH /users/me with an empty body is a valid no-op', async () => {
-    const res = await h.patch('/users/me', { cookie: me.cookie, body: {} });
-    h.expectShape(res, userProfileSchema);
+  test('PATCH /users/me with an empty body is rejected (must change at least one field)', async () => {
+    // CONTRACT-01: an empty PATCH is a caller bug, not a silent no-op.
+    h.expectError(
+      await h.patch('/users/me', { cookie: me.cookie, body: {} }),
+      400,
+      'VALIDATION_ERROR',
+    );
+  });
+
+  test('PATCH /users/me rejects an unknown field instead of silently stripping it', async () => {
+    // CONTRACT-01: a misspelled privacy/profile field must not be quietly dropped.
+    h.expectError(
+      await h.patch('/users/me', { cookie: me.cookie, body: { usernam: 'typo' } }),
+      400,
+      'VALIDATION_ERROR',
+    );
   });
 
   test('explicit nulls clear name, bio and status', async () => {
@@ -90,6 +111,37 @@ describe('13 · users & profiles (contract §4.2)', () => {
     });
     assert.equal(h.expectShape(res, userProfileSchema).username, 'brand_new1');
     assert.equal((await h.get('/auth/me', { cookie: fresh.cookie })).body.needsOnboarding, false);
+  });
+
+  test('onboarding refreshes the access principal so writes work immediately', async () => {
+    const fresh = await h.createOnboardingUser();
+    const updated = await h.patch('/users/me', {
+      cookie: fresh.cookie,
+      body: { username: 'ready_to_write' },
+    });
+    h.expectShape(updated, userProfileSchema);
+
+    const setCookies =
+      typeof updated.headers.getSetCookie === 'function'
+        ? updated.headers.getSetCookie()
+        : [updated.headers.get('set-cookie')].filter(Boolean);
+    const accessCookie = setCookies
+      .map((value) => value.split(';', 1)[0])
+      .find((value) => value.startsWith('lo_access='));
+    assert.ok(accessCookie, 'PATCH /users/me must refresh the username-bearing access cookie');
+
+    const created = await h.post('/ls', {
+      cookie: accessCookie,
+      body: {
+        title: 'First post after onboarding',
+        story: 'The updated access principal should be usable without waiting 15 minutes.',
+        type: 'L',
+        visibility: 'PUBLIC',
+        isAnonymous: false,
+        tags: [],
+      },
+    });
+    assert.equal(created.status, 201, JSON.stringify(created.body));
   });
 
   test('a taken username is 409 USERNAME_TAKEN', async () => {

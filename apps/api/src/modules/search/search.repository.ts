@@ -2,10 +2,7 @@ import { Injectable } from '@nestjs/common';
 import { Prisma, type LCategory } from '@linkedout/db';
 
 import { PrismaService } from '../../prisma/prisma.service';
-import {
-  USER_SUMMARY_SELECT,
-  type UserSummarySource,
-} from '../../common/mappers/user-summary.mapper';
+import type { UserSummarySource } from '../../common/mappers/user-summary.mapper';
 
 export interface SearchLRow {
   id: string;
@@ -17,11 +14,24 @@ export interface SearchLCursor {
   id: string;
 }
 
+export interface SearchUserCursor {
+  username: string;
+  id: string;
+}
+
+export interface SearchUserRow extends UserSummarySource {
+  username: string;
+}
+
+function escapeLikePattern(value: string): string {
+  return value.replace(/[\\%_]/g, (character) => `\\${character}`);
+}
+
 @Injectable()
 export class SearchRepository {
   constructor(private readonly prisma: PrismaService) {}
 
-  /** Full-text search over visible Ls, ranked (title > lesson > story via tsvector weights). */
+  /** Full-text search over visible Ls, ranked title > story via tsvector weights. */
   async searchLRows(
     q: string,
     category: LCategory | undefined,
@@ -68,28 +78,24 @@ export class SearchRepository {
     return rows.map((row) => ({ id: row.id, rank: row.rank_score }));
   }
 
-  /** Simple user search by username/name prefix, hydrated to summaries in rank order. */
-  async searchUsers(q: string, limit: number, offset: number): Promise<UserSummarySource[]> {
-    const pattern = `%${q}%`;
-    const idRows = await this.prisma.db.$queryRaw<Array<{ id: string }>>`
-      SELECT "id" FROM "User"
+  /**
+   * Case-insensitive substring search with a stable username/id keyset. The expression
+   * deliberately matches `User_search_trgm_idx` from the raw migration, so the leading
+   * wildcard uses PostgreSQL trigram lookup instead of scanning every user.
+   */
+  searchUsers(q: string, limit: number, cursor: SearchUserCursor | null): Promise<SearchUserRow[]> {
+    const pattern = `%${escapeLikePattern(q)}%`;
+    const cursorClause = cursor
+      ? Prisma.sql`AND ("username", "id") > (${cursor.username}, ${cursor.id})`
+      : Prisma.empty;
+    return this.prisma.db.$queryRaw<SearchUserRow[]>`
+      SELECT "id", "username", "name", "image", "status"
+      FROM "User"
       WHERE "username" IS NOT NULL
-        AND ("username" ILIKE ${pattern} OR "name" ILIKE ${pattern})
-      ORDER BY "username" ASC
-      LIMIT ${limit} OFFSET ${offset}
+        AND ("username" || ' ' || COALESCE("name", '')) ILIKE ${pattern} ESCAPE '\\'
+        ${cursorClause}
+      ORDER BY "username" ASC, "id" ASC
+      LIMIT ${limit}
     `;
-    const ids = idRows.map((row) => row.id);
-    if (ids.length === 0) return [];
-    const users = await this.prisma.db.user.findMany({
-      where: { id: { in: ids } },
-      select: USER_SUMMARY_SELECT,
-    });
-    const byId = new Map(users.map((user) => [user.id, user]));
-    const ordered: UserSummarySource[] = [];
-    for (const id of ids) {
-      const user = byId.get(id);
-      if (user) ordered.push(user);
-    }
-    return ordered;
   }
 }
