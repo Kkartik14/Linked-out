@@ -20,6 +20,8 @@ docker-compose.yml Local PostgreSQL
 
 ## Run Locally
 
+Use Node.js 22 (pinned in `.node-version`, matching CI) and pnpm 11.10.0.
+
 Backend workspace:
 
 ```bash
@@ -45,9 +47,18 @@ The web app runs on `http://localhost:3000` and expects `NEXT_PUBLIC_API_BASE_UR
 
 ```bash
 pnpm typecheck
+pnpm lint
 pnpm build
 pnpm --dir apps/web typecheck
 pnpm --dir apps/web test
 ```
 
+The backend workspace uses explicit pnpm scripts rather than Turborepo. CI builds
+`contracts → db → api` once and passes those outputs to the database and end-to-end jobs as a
+workflow artifact.
+
 For more frontend details, see `apps/web/README.md`.
+
+Production retention work is exposed as an external job; see
+[`docs/operations/maintenance-cleanup.md`](docs/operations/maintenance-cleanup.md) for its
+dry-run/apply safety model and scheduling runbook.

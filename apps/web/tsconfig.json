@@ -1,4 +1,5 @@
 {
+  "extends": "../../tsconfig.strict.json",
   "compilerOptions": {
     "target": "ES2022",
     "lib": [
@@ -8,8 +9,6 @@
     ],
     "allowJs": true,
     "skipLibCheck": true,
-    "strict": true,
-    "noUncheckedIndexedAccess": true,
     "noEmit": true,
     "esModuleInterop": true,
     "module": "esnext",
