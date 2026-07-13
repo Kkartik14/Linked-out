@@ -15,7 +15,8 @@ export function createPrismaClient(options?: PrismaClientOptions) {
 export type ExtendedPrismaClient = ReturnType<typeof createPrismaClient>;
 
 // Runtime + type re-exports so the API layer imports everything DB-related from here.
-export { Prisma, PrismaClient } from '../generated/client';
+// PrismaClient is deliberately type-only: runtime consumers must use the ULID-extended factory.
+export { Prisma } from '../generated/client';
 export {
   LType,
   LCategory,
@@ -25,10 +26,12 @@ export {
   NotificationType,
 } from '../generated/client';
 export type {
+  PrismaClient,
   User,
   Account,
   Session,
   VerificationToken,
+  AvatarDeletionClaim,
   L,
   Reaction,
   Comment,

@@ -7,11 +7,12 @@
  * Run:  pnpm --filter @linkedout/db seed
  */
 const { createPrismaClient } = require('../dist');
+const { helpfulReactionWhere, popularityScoreFor } = require('./seed-policy.cjs');
 
 const prisma = createPrismaClient();
 
 async function wipe() {
-  // Order respects FKs (children first). Follows/reactions/comments/collections → Ls → accounts → users.
+  // FK children first, then standalone auth/maintenance state, then users.
   await prisma.notification.deleteMany();
   await prisma.reaction.deleteMany();
   await prisma.comment.deleteMany();
@@ -21,6 +22,9 @@ async function wipe() {
   await prisma.l.deleteMany();
   await prisma.account.deleteMany();
   await prisma.session.deleteMany();
+  await prisma.verificationToken.deleteMany();
+  await prisma.rateLimitBucket.deleteMany();
+  await prisma.avatarDeletionClaim.deleteMany();
   await prisma.user.deleteMany();
 }
 
@@ -83,7 +87,6 @@ async function main() {
 }
 
 async function recomputeCounters() {
-  const REACTION_TYPES = ['BEEN_THERE', 'HELPFUL', 'RESPECT', 'PAIN', 'SAVED'];
   const FIELD = { BEEN_THERE: 'beenThereCount', HELPFUL: 'helpfulCount', RESPECT: 'respectCount', PAIN: 'painCount', SAVED: 'savedCount' };
 
   const ls = await prisma.l.findMany({ select: { id: true } });
@@ -95,25 +98,43 @@ async function recomputeCounters() {
     const counts = { beenThereCount: 0, helpfulCount: 0, respectCount: 0, painCount: 0, savedCount: 0 };
     let total = 0;
     for (const r of reactions) { counts[FIELD[r.type]] = r._count; total += r._count; }
-    void REACTION_TYPES;
+    const popularityScore = popularityScoreFor(reactions, commentCount);
     await prisma.l.update({
       where: { id },
-      data: { ...counts, reactionCount: total, commentCount, trendingScore: total + commentCount * 2 },
+      data: { ...counts, reactionCount: total, commentCount, popularityScore },
     });
   }
 
   const users = await prisma.user.findMany({ select: { id: true } });
   for (const { id } of users) {
-    const [lsShared, storiesShared, lessonsShared, collectionsCreated, helpful] = await Promise.all([
+    const [
+      lsShared,
+      storiesShared,
+      lessonsShared,
+      collectionsCreated,
+      helpful,
+      followerCount,
+      followingCount,
+    ] = await Promise.all([
       prisma.l.count({ where: { authorId: id } }),
       prisma.l.count({ where: { authorId: id, type: 'STORY' } }),
       prisma.l.count({ where: { authorId: id, type: 'LESSON' } }),
       prisma.collection.count({ where: { ownerId: id } }),
-      prisma.reaction.count({ where: { type: 'HELPFUL', l: { authorId: id } } }),
+      prisma.reaction.count({ where: helpfulReactionWhere(id) }),
+      prisma.follow.count({ where: { followingId: id } }),
+      prisma.follow.count({ where: { followerId: id } }),
     ]);
     await prisma.user.update({
       where: { id },
-      data: { lsShared, storiesShared, lessonsShared, collectionsCreated, buildersHelped: helpful },
+      data: {
+        lsShared,
+        storiesShared,
+        lessonsShared,
+        collectionsCreated,
+        buildersHelped: helpful,
+        followerCount,
+        followingCount,
+      },
     });
   }
 }
