@@ -3,8 +3,12 @@ import { Prisma } from '@linkedout/db';
 
 import { PrismaService } from '../../prisma/prisma.service';
 import { buildPage, type EntityPage } from '../../common/pagination/paginate';
-import { decodeCursor, encodeCursor } from '../../common/pagination/cursor';
-import { AppErrors } from '../../common/errors/app-exception';
+import { encodeCursor } from '../../common/pagination/cursor';
+
+export interface NotificationPageCursor {
+  createdAt: Date;
+  id: string;
+}
 
 export type NotificationWithRelations = Prisma.NotificationGetPayload<{
   include: {
@@ -13,8 +17,10 @@ export type NotificationWithRelations = Prisma.NotificationGetPayload<{
       select: {
         id: true;
         title: true;
+        beenThereCount: true;
+        helpfulCount: true;
         reactions: {
-          select: { type: true; userId: true };
+          select: { type: true };
           where: { type: { in: ['BEEN_THERE', 'HELPFUL'] } };
         };
       };
@@ -22,19 +28,26 @@ export type NotificationWithRelations = Prisma.NotificationGetPayload<{
   };
 }>;
 
-const NOTIFICATION_INCLUDE = {
-  actor: { select: { id: true, username: true, name: true, image: true, status: true } },
-  l: {
-    select: {
-      id: true,
-      title: true,
-      reactions: {
-        where: { type: { in: ['BEEN_THERE', 'HELPFUL'] } },
-        select: { type: true, userId: true },
+function notificationInclude(recipientId: string) {
+  return {
+    actor: { select: { id: true, username: true, name: true, image: true, status: true } },
+    l: {
+      select: {
+        id: true,
+        title: true,
+        beenThereCount: true,
+        helpfulCount: true,
+        // The denormalized counters include the L author's own reactions. Fetch at most
+        // their two relevant reaction rows so the mapper can preserve the external-builder
+        // wording without hydrating every reactor on the L.
+        reactions: {
+          where: { userId: recipientId, type: { in: ['BEEN_THERE', 'HELPFUL'] } },
+          select: { type: true },
+        },
       },
     },
-  },
-} satisfies Prisma.NotificationInclude;
+  } satisfies Prisma.NotificationInclude;
+}
 
 @Injectable()
 export class NotificationsRepository {
@@ -43,21 +56,19 @@ export class NotificationsRepository {
   async listByRecipient(
     recipientId: string,
     limit: number,
-    cursor: string | undefined,
+    cursor: NotificationPageCursor | undefined,
   ): Promise<EntityPage<NotificationWithRelations>> {
-    let cursorWhere: Prisma.NotificationWhereInput | null = null;
-    if (cursor) {
-      const payload = decodeCursor(cursor);
-      const createdAt = typeof payload.createdAt === 'string' ? new Date(payload.createdAt) : null;
-      const id = typeof payload.id === 'string' ? payload.id : null;
-      if (!createdAt || Number.isNaN(createdAt.getTime()) || !id) throw AppErrors.badCursor();
-      cursorWhere = {
-        OR: [{ createdAt: { lt: createdAt } }, { createdAt, id: { lt: id } }],
-      };
-    }
+    const cursorWhere: Prisma.NotificationWhereInput | null = cursor
+      ? {
+          OR: [
+            { createdAt: { lt: cursor.createdAt } },
+            { createdAt: cursor.createdAt, id: { lt: cursor.id } },
+          ],
+        }
+      : null;
     const rows = await this.prisma.db.notification.findMany({
       where: { recipientId, ...(cursorWhere ? { AND: [cursorWhere] } : {}) },
-      include: NOTIFICATION_INCLUDE,
+      include: notificationInclude(recipientId),
       orderBy: [{ createdAt: 'desc' }, { id: 'desc' }],
       take: limit + 1,
     });
@@ -66,8 +77,15 @@ export class NotificationsRepository {
     );
   }
 
-  unreadCount(recipientId: string): Promise<number> {
-    return this.prisma.db.notification.count({ where: { recipientId, readAt: null } });
+  async unreadCount(recipientId: string): Promise<number> {
+    // The header renders only 0–9 and "9+". Avoid an exact scan of an arbitrarily large
+    // inbox; the notifications page remains the source for the complete list.
+    const rows = await this.prisma.db.notification.findMany({
+      where: { recipientId, readAt: null },
+      select: { id: true },
+      take: 10,
+    });
+    return rows.length;
   }
 
   markRead(id: string, recipientId: string): Promise<number> {

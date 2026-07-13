@@ -6,7 +6,10 @@ import type { Request } from 'express';
 import { AppConfigService } from '../../../config/app-config.service';
 import { getCookie } from '../../../common/http/cookies';
 import type { AuthUser } from '../../../common/types/auth';
-import { AuthRepository } from '../auth.repository';
+import {
+  AccessPrincipalResolver,
+  type AccessTokenClaims,
+} from '../access-principal.resolver';
 import { ACCESS_COOKIE } from '../token.service';
 
 function accessTokenFromCookie(req: Request): string | null {
@@ -17,7 +20,7 @@ function accessTokenFromCookie(req: Request): string | null {
 export class JwtStrategy extends PassportStrategy(Strategy, 'jwt') {
   constructor(
     config: AppConfigService,
-    private readonly repo: AuthRepository,
+    private readonly principals: AccessPrincipalResolver,
   ) {
     const options: StrategyOptionsWithoutRequest = {
       jwtFromRequest: ExtractJwt.fromExtractors([accessTokenFromCookie]),
@@ -32,13 +35,33 @@ export class JwtStrategy extends PassportStrategy(Strategy, 'jwt') {
       payload !== null && typeof payload === 'object' && 'sub' in payload
         ? (payload as { sub: unknown }).sub
         : null;
-    if (typeof sub !== 'string') {
+    const username =
+      payload !== null && typeof payload === 'object' && 'username' in payload
+        ? (payload as { username: unknown }).username
+        : undefined;
+    const iat =
+      payload !== null && typeof payload === 'object' && 'iat' in payload
+        ? (payload as { iat: unknown }).iat
+        : null;
+    const exp =
+      payload !== null && typeof payload === 'object' && 'exp' in payload
+        ? (payload as { exp: unknown }).exp
+        : null;
+    if (
+      typeof sub !== 'string' ||
+      (username !== null && typeof username !== 'string') ||
+      !Number.isSafeInteger(iat) ||
+      !Number.isSafeInteger(exp)
+    ) {
       throw new UnauthorizedException();
     }
-    const user = await this.repo.findUserById(sub);
-    if (!user) {
-      throw new UnauthorizedException();
-    }
-    return { id: user.id, username: user.username };
+    const principal = await this.principals.resolve({
+      sub,
+      username,
+      iat: iat as number,
+      exp: exp as number,
+    } satisfies AccessTokenClaims);
+    if (!principal) throw new UnauthorizedException();
+    return principal;
   }
 }

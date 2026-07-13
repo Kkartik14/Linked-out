@@ -177,6 +177,21 @@ describe('11 · notifications (contract §4.11)', () => {
     assert.equal(two.body.count, 2);
   });
 
+  test('unread-count caps work at the 9+ indicator boundary', async () => {
+    await h.ctx.prisma.notification.createMany({
+      data: Array.from({ length: 12 }, (_, index) => ({
+        type: 'NEW_FOLLOWER',
+        recipientId: author.id,
+        actorId: actor.id,
+        dedupeKey: `unread-cap-${index}`,
+      })),
+    });
+
+    const capped = await h.get('/notifications/unread-count', { cookie: author.cookie });
+    h.expectShape(capped, unreadCountSchema);
+    assert.equal(capped.body.count, 10, 'the header only needs enough information to render 9+');
+  });
+
   test('POST /notifications/:id/read marks one as read', async () => {
     await h.put(`/ls/${l.id}/reactions/BEEN_THERE`, { cookie: actor.cookie });
     const [n] = (await inbox()).body.data;

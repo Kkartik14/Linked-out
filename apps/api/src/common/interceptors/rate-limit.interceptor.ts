@@ -9,7 +9,7 @@ import type { Request, Response } from 'express';
 
 import { AppErrors } from '../errors/app-exception';
 import type { AuthedRequest } from '../types/auth';
-import { RateLimitRepository } from '../rate-limit/rate-limit.repository';
+import { RateLimiter } from '../rate-limit/rate-limiter';
 
 type BucketKind = 'read' | 'write';
 
@@ -31,9 +31,7 @@ function identity(req: AuthedRequest): string {
 
 @Injectable()
 export class RateLimitInterceptor implements NestInterceptor {
-  private cleanupCounter = 0;
-
-  constructor(private readonly repo: RateLimitRepository) {}
+  constructor(private readonly limiter: RateLimiter) {}
 
   async intercept(context: ExecutionContext, next: CallHandler): Promise<Observable<unknown>> {
     if (context.getType() !== 'http') return next.handle();
@@ -44,16 +42,13 @@ export class RateLimitInterceptor implements NestInterceptor {
     const limit = kind === 'read' ? READ_LIMIT : WRITE_LIMIT;
     const now = Date.now();
     const key = `${kind}:${identity(req)}`;
-    const bucket = await this.repo.hitBucket(key, WINDOW_MS, now);
+    const decision = await this.limiter.take({ key, limit, windowMs: WINDOW_MS, nowMs: now });
 
-    if (bucket.count > limit) {
-      const retryAfter = Math.max(1, Math.ceil((bucket.resetAt - now) / 1000));
-      res.setHeader('Retry-After', String(retryAfter));
+    if (!decision.allowed) {
+      res.setHeader('Retry-After', String(decision.retryAfterSeconds));
       throw AppErrors.rateLimited();
     }
 
-    this.cleanupCounter += 1;
-    if (this.cleanupCounter % 1000 === 0) await this.repo.cleanupExpired(now - WINDOW_MS);
     return next.handle();
   }
 }

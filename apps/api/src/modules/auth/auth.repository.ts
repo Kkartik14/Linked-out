@@ -20,6 +20,13 @@ export class OAuthEmailConflictError extends Error {
 export class AuthRepository {
   constructor(private readonly prisma: PrismaService) {}
 
+  findAccessPrincipal(id: string): Promise<AuthUserRow | null> {
+    return this.prisma.db.user.findUnique({
+      where: { id },
+      select: { id: true, username: true },
+    });
+  }
+
   findLinkedUser(provider: OAuthProvider, providerAccountId: string): Promise<AuthUserRow | null> {
     return this.prisma.db.account
       .findUnique({
@@ -32,13 +39,6 @@ export class AuthRepository {
   findUserByEmail(email: string): Promise<AuthUserRow | null> {
     return this.prisma.db.user.findUnique({
       where: { email },
-      select: { id: true, username: true },
-    });
-  }
-
-  findUserById(id: string): Promise<AuthUserRow | null> {
-    return this.prisma.db.user.findUnique({
-      where: { id },
       select: { id: true, username: true },
     });
   }
