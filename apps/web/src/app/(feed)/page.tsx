@@ -1,11 +1,11 @@
-import { feedFilterSchema } from "@linkedout/contracts";
+import { feedFilterSchema, feedSortSchema } from "@linkedout/contracts";
 
 import { getFeed, type FeedScope, type FeedSort } from "@/lib/api";
 import { getSession } from "@/lib/session";
 import { FeedControls } from "@/components/feed/feed-controls";
 import { FeedList } from "@/components/feed/feed-list";
 
-const SORTS: FeedSort[] = ["latest", "trending", "helpful"];
+const SORTS = new Set<FeedSort>(feedSortSchema.options);
 const CATEGORY_SLUGS = new Set<string>(feedFilterSchema.options);
 
 export default async function HomePage({
@@ -18,7 +18,7 @@ export default async function HomePage({
   const loggedIn = session.user !== null;
 
   const scope: FeedScope = sp.scope === "following" && loggedIn ? "following" : "global";
-  const sort: FeedSort = SORTS.includes(sp.sort as FeedSort) ? (sp.sort as FeedSort) : "latest";
+  const sort: FeedSort = SORTS.has(sp.sort as FeedSort) ? (sp.sort as FeedSort) : "latest";
   const filter =
     sp.filter && CATEGORY_SLUGS.has(sp.filter.toLowerCase()) ? sp.filter.toLowerCase() : null;
 

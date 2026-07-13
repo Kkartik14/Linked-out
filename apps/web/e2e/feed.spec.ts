@@ -54,12 +54,18 @@ test.describe("feed & L detail", () => {
     await expect(page.getByText(world.google.title)).toHaveCount(0);
   });
 
-  test("sort=trending reorders the feed by the API's trendingScore", async ({ page }) => {
-    await page.goto("/?sort=trending");
+  test("sort=popular reorders the feed by the API's lifetime popularityScore", async ({ page }) => {
+    await page.goto("/?sort=popular");
 
-    const titles = await page.getByRole("heading", { level: 2 }).allInnerTexts();
-    const google = titles.findIndex((t) => t.includes("Rejected after the final round"));
-    const layoff = titles.findIndex((t) => t.includes("Laid off two weeks"));
+    const cardTitles = page.getByRole("heading", { level: 2 });
+    // The feed has a route-level streaming skeleton. Wait for both canonical rows before
+    // reading the collection; `allInnerTexts()` itself is intentionally non-waiting.
+    await expect(cardTitles.filter({ hasText: world.google.title })).toBeVisible();
+    await expect(cardTitles.filter({ hasText: world.startup.title })).toBeVisible();
+
+    const titles = await cardTitles.allInnerTexts();
+    const google = titles.findIndex((title) => title.includes(world.google.title));
+    const layoff = titles.findIndex((title) => title.includes(world.startup.title));
 
     expect(google).toBeGreaterThanOrEqual(0);
     expect(layoff).toBeGreaterThan(google);
