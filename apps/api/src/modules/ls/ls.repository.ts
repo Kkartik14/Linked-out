@@ -1,17 +1,20 @@
 import { Injectable } from '@nestjs/common';
-import {
-  Prisma,
-  type LType,
-  type LCategory,
-  type ReactionType,
-  type Visibility,
-} from '@linkedout/db';
-import type { FeedSort } from '@linkedout/contracts';
+import { Prisma } from '@linkedout/db';
+import type { FeedSort, LCategory, LType, ReactionType, Visibility } from '@linkedout/contracts';
 
 import { PrismaService } from '../../prisma/prisma.service';
-import { AppErrors } from '../../common/errors/app-exception';
-import { decodeCursor, encodeCursor } from '../../common/pagination/cursor';
+import { encodeCursor } from '../../common/pagination/cursor';
 import { buildPage, type EntityPage } from '../../common/pagination/paginate';
+import type {
+  FeedPageCursor,
+  JourneyPageCursor,
+  LDeletePlan,
+  LUpdatePlans,
+  OwnedLWriteResult,
+  ReputationDelta,
+  UpdateLData,
+  WriteLData,
+} from './ls.types';
 
 const AUTHOR_INCLUDE = {
   author: { select: { id: true, username: true, name: true, image: true, status: true } },
@@ -23,42 +26,23 @@ export type LWithAuthor = Prisma.LGetPayload<{
   };
 }>;
 
-/** Normalized write payload for an L (nullables resolved). */
-export interface WriteLData {
-  title: string;
-  story: string;
-  type: LType;
-  category: LCategory | null;
-  company: string | null;
-  tags: string[];
-  eventDate: Date | null;
-  visibility: Visibility;
-  isAnonymous: boolean;
-}
-
-export type ReputationField = 'lsShared' | 'storiesShared' | 'lessonsShared' | 'buildersHelped';
-export type ReputationDelta = Partial<Record<ReputationField, number>>;
-export type OwnedLWriteResult<T> =
-  | { status: 'ok'; row: T }
-  | { status: 'not_found' }
-  | { status: 'not_owner' };
-
-type BuildUpdateData = (effectiveType: LType) => Prisma.LUpdateInput;
-type TypeChangeDelta = (from: LType, to: LType | undefined) => ReputationDelta;
-type DeleteReputation = (type: LType) => ReputationDelta;
-
-function cursorString(value: string | number | undefined): string {
-  if (typeof value !== 'string') throw AppErrors.badCursor();
-  return value;
-}
-
-function cursorNumber(value: string | number | undefined): number {
-  if (typeof value !== 'number') throw AppErrors.badCursor();
-  return value;
+function toPrismaUpdateData(data: UpdateLData): Prisma.LUpdateInput {
+  return {
+    title: data.title,
+    story: data.story,
+    type: data.type,
+    category: data.category,
+    company: data.company,
+    tags: data.tags ? { set: data.tags } : undefined,
+    eventDate: data.eventDate,
+    visibility: data.visibility,
+    isAnonymous: data.isAnonymous,
+    resolvedAt: data.resolvedAt,
+  };
 }
 
 function feedOrderBy(sort: FeedSort): Prisma.LOrderByWithRelationInput[] {
-  if (sort === 'trending') return [{ trendingScore: 'desc' }, { id: 'desc' }];
+  if (sort === 'popular') return [{ popularityScore: 'desc' }, { id: 'desc' }];
   if (sort === 'helpful') return [{ helpfulCount: 'desc' }, { id: 'desc' }];
   return [{ id: 'desc' }];
 }
@@ -67,24 +51,29 @@ function isWriteConflict(error: unknown): boolean {
   return error instanceof Prisma.PrismaClientKnownRequestError && error.code === 'P2034';
 }
 
-function feedCursorWhere(sort: FeedSort, cursor: string | undefined): Prisma.LWhereInput | null {
+function feedCursorWhere(cursor: FeedPageCursor | undefined): Prisma.LWhereInput | null {
   if (cursor === undefined) return null;
-  const payload = decodeCursor(cursor);
-  if (sort === 'trending') {
-    const score = cursorNumber(payload.score);
-    const id = cursorString(payload.id);
-    return { OR: [{ trendingScore: { lt: score } }, { trendingScore: score, id: { lt: id } }] };
+  if (cursor.sort === 'popular') {
+    return {
+      OR: [
+        { popularityScore: { lt: cursor.score } },
+        { popularityScore: cursor.score, id: { lt: cursor.id } },
+      ],
+    };
   }
-  if (sort === 'helpful') {
-    const count = cursorNumber(payload.count);
-    const id = cursorString(payload.id);
-    return { OR: [{ helpfulCount: { lt: count } }, { helpfulCount: count, id: { lt: id } }] };
+  if (cursor.sort === 'helpful') {
+    return {
+      OR: [
+        { helpfulCount: { lt: cursor.count } },
+        { helpfulCount: cursor.count, id: { lt: cursor.id } },
+      ],
+    };
   }
-  return { id: { lt: cursorString(payload.id) } };
+  return { id: { lt: cursor.id } };
 }
 
 function feedMakeCursor(sort: FeedSort, row: LWithAuthor): string {
-  if (sort === 'trending') return encodeCursor({ score: row.trendingScore, id: row.id });
+  if (sort === 'popular') return encodeCursor({ score: row.popularityScore, id: row.id });
   if (sort === 'helpful') return encodeCursor({ count: row.helpfulCount, id: row.id });
   return encodeCursor({ id: row.id });
 }
@@ -147,9 +136,9 @@ export class LsRepository {
     category?: LCategory;
     sort: FeedSort;
     limit: number;
-    cursor?: string;
+    cursor?: FeedPageCursor;
   }): Promise<EntityPage<LWithAuthor>> {
-    const cursorWhere = feedCursorWhere(params.sort, params.cursor);
+    const cursorWhere = feedCursorWhere(params.cursor);
     const where: Prisma.LWhereInput = {
       visibility: { in: params.visibilities },
       ...(params.category ? { category: params.category } : {}),
@@ -173,15 +162,14 @@ export class LsRepository {
     visibilities: Visibility[];
     type?: LType;
     limit: number;
-    cursor?: string;
+    cursorId?: string;
   }): Promise<EntityPage<LWithAuthor>> {
-    const cursorId = params.cursor ? cursorString(decodeCursor(params.cursor).id) : undefined;
     const rows = await this.prisma.db.l.findMany({
       where: {
         authorId: params.authorId,
         visibility: { in: params.visibilities },
         ...(params.type ? { type: params.type } : {}),
-        ...(cursorId ? { id: { lt: cursorId } } : {}),
+        ...(params.cursorId ? { id: { lt: params.cursorId } } : {}),
       },
       include: AUTHOR_INCLUDE,
       orderBy: { id: 'desc' },
@@ -194,9 +182,8 @@ export class LsRepository {
   async savedByUser(
     viewerId: string,
     limit: number,
-    cursor: string | undefined,
+    cursorReactionId: string | undefined,
   ): Promise<EntityPage<LWithAuthor>> {
-    const cursorReactionId = cursor ? cursorString(decodeCursor(cursor).rid) : undefined;
     const reactions = await this.prisma.db.reaction.findMany({
       where: {
         userId: viewerId,
@@ -226,14 +213,11 @@ export class LsRepository {
     authorId: string;
     visibilities: Visibility[];
     limit: number;
-    cursor?: string;
+    cursor?: JourneyPageCursor;
   }): Promise<EntityPage<LWithAuthor>> {
     let cursorClause = Prisma.empty;
     if (params.cursor) {
-      const payload = decodeCursor(params.cursor);
-      const date = cursorString(payload.date);
-      const id = cursorString(payload.id);
-      cursorClause = Prisma.sql`AND (COALESCE("eventDate", "createdAt"), "id") > (${date}::timestamp, ${id})`;
+      cursorClause = Prisma.sql`AND (COALESCE("eventDate", "createdAt"), "id") > (${params.cursor.date}::timestamp, ${params.cursor.id})`;
     }
     const idRows = await this.prisma.db.$queryRaw<Array<{ id: string }>>`
       SELECT "id" FROM "L"
@@ -311,9 +295,7 @@ export class LsRepository {
   async updateOwnedL(
     id: string,
     authorId: string,
-    requestedType: LType | undefined,
-    buildData: BuildUpdateData,
-    typeChangeDelta: TypeChangeDelta,
+    plans: LUpdatePlans,
   ): Promise<OwnedLWriteResult<LWithAuthor>> {
     let attempt = 0;
     while (true) {
@@ -327,17 +309,16 @@ export class LsRepository {
             if (!existing) return { status: 'not_found' };
             if (existing.authorId !== authorId) return { status: 'not_owner' };
 
-            const effectiveType = requestedType ?? existing.type;
-            const reputation = typeChangeDelta(existing.type, requestedType);
+            const plan = plans[existing.type];
             const row = await tx.l.update({
               where: { id },
-              data: buildData(effectiveType),
+              data: toPrismaUpdateData(plan.data),
               include: AUTHOR_INCLUDE,
             });
-            if (Object.keys(reputation).length > 0) {
+            if (Object.keys(plan.reputation).length > 0) {
               await tx.user.update({
                 where: { id: authorId },
-                data: incrementReputation(reputation),
+                data: incrementReputation(plan.reputation),
                 select: { id: true },
               });
             }
@@ -355,7 +336,7 @@ export class LsRepository {
   async deleteOwnedL(
     id: string,
     authorId: string,
-    deleteReputation: DeleteReputation,
+    plan: LDeletePlan,
   ): Promise<OwnedLWriteResult<null>> {
     let attempt = 0;
     while (true) {
@@ -369,11 +350,20 @@ export class LsRepository {
             if (!existing) return { status: 'not_found' };
             if (existing.authorId !== authorId) return { status: 'not_owner' };
 
-            const helpfulFromOthers = await tx.reaction.count({
-              where: { lId: id, type: 'HELPFUL', userId: { not: authorId } },
+            const countedReactions = await tx.reaction.count({
+              where: {
+                lId: id,
+                type: plan.countedReactionReputation.reactionType,
+                userId: { not: plan.countedReactionReputation.excludeUserId },
+              },
             });
-            const reputation = deleteReputation(existing.type);
-            if (helpfulFromOthers > 0) reputation.buildersHelped = helpfulFromOthers;
+            const reputation = { ...plan.reputationByType[existing.type] };
+            if (countedReactions > 0) {
+              const effect = plan.countedReactionReputation;
+              reputation[effect.reputationField] =
+                (reputation[effect.reputationField] ?? 0) +
+                countedReactions * effect.pointsPerReaction;
+            }
 
             await tx.l.delete({ where: { id }, select: { id: true } });
             if (Object.keys(reputation).length > 0) {

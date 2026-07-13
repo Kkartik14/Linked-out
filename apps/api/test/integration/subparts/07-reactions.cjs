@@ -7,7 +7,7 @@ const { reactionResultSchema } = require('@linkedout/contracts');
 const h = require('../_harness.cjs');
 
 const ALL_TYPES = ['BEEN_THERE', 'HELPFUL', 'RESPECT', 'PAIN', 'SAVED'];
-/** trendingScore weights, mirrored from reactions.repository.ts */
+/** popularityScore weights, guarded against runtime/seed drift by seed-policy.test.cjs */
 const WEIGHTS = { BEEN_THERE: 2, HELPFUL: 3, RESPECT: 2, PAIN: 1, SAVED: 0 };
 
 describe('07 · reactions (contract §4.5)', () => {
@@ -87,27 +87,27 @@ describe('07 · reactions (contract §4.5)', () => {
     assert.deepEqual(res.body.viewer.reactions, ['BEEN_THERE'], 'viewer state is per-caller');
   });
 
-  test('trendingScore moves by the documented per-type weight', async () => {
+  test('popularityScore moves by the documented per-type weight', async () => {
     for (const type of ALL_TYPES) {
       const before = await h.ctx.prisma.l.findUnique({ where: { id: l.id } });
       await h.put(`/ls/${l.id}/reactions/${type}`, { cookie: reactor.cookie });
       const after = await h.ctx.prisma.l.findUnique({ where: { id: l.id } });
 
       assert.equal(
-        after.trendingScore - before.trendingScore,
+        after.popularityScore - before.popularityScore,
         WEIGHTS[type],
-        `${type} should move trendingScore by ${WEIGHTS[type]}`,
+        `${type} should move popularityScore by ${WEIGHTS[type]}`,
       );
     }
   });
 
-  test('un-reacting restores the trendingScore exactly', async () => {
+  test('un-reacting restores the popularityScore exactly', async () => {
     const before = await h.ctx.prisma.l.findUnique({ where: { id: l.id } });
     await h.put(`/ls/${l.id}/reactions/HELPFUL`, { cookie: reactor.cookie });
     await h.del(`/ls/${l.id}/reactions/HELPFUL`, { cookie: reactor.cookie });
     const after = await h.ctx.prisma.l.findUnique({ where: { id: l.id } });
 
-    assert.equal(after.trendingScore, before.trendingScore);
+    assert.equal(after.popularityScore, before.popularityScore);
   });
 
   test("a HELPFUL from another builder increments the author's buildersHelped", async () => {
@@ -180,12 +180,12 @@ describe('07 · reactions (contract §4.5)', () => {
     h.expectShape(res, reactionResultSchema);
   });
 
-  test('the SAVED reaction drives /me/saved and carries no trending weight', async () => {
+  test('the SAVED reaction drives /me/saved and carries no popularity weight', async () => {
     const before = await h.ctx.prisma.l.findUnique({ where: { id: l.id } });
     await h.put(`/ls/${l.id}/reactions/SAVED`, { cookie: reactor.cookie });
     const after = await h.ctx.prisma.l.findUnique({ where: { id: l.id } });
 
-    assert.equal(after.trendingScore, before.trendingScore, 'saving is private, not a signal');
+    assert.equal(after.popularityScore, before.popularityScore, 'saving is private, not a signal');
 
     const saved = await h.get('/me/saved', { cookie: reactor.cookie });
     assert.deepEqual(saved.body.data.map((c) => c.id), [l.id]);

@@ -10,7 +10,11 @@ const { FollowsService } = require('../../dist/modules/follows/follows.service')
 const { SearchService } = require('../../dist/modules/search/search.service');
 const { UploadsService } = require('../../dist/modules/uploads/uploads.service');
 const { UsersService } = require('../../dist/modules/users/users.service');
-const { encodeCursor } = require('../../dist/common/pagination/cursor');
+const {
+  AvatarObjectUnavailableError,
+  UsernameConflictError,
+} = require('../../dist/modules/users/users.errors');
+const { decodeCursor, encodeCursor } = require('../../dist/common/pagination/cursor');
 
 const NOW = new Date('2026-01-02T03:04:05.000Z');
 const USER_ID = '01ARZ3NDEKTSV4RRFFQ69G5FAV';
@@ -49,6 +53,8 @@ function userProfileRow(overrides = {}) {
     buildersHelped: 3,
     lsShared: 4,
     collectionsCreated: 1,
+    followerCount: 0,
+    followingCount: 0,
     createdAt: NOW,
     ...overrides,
   };
@@ -77,7 +83,7 @@ function lRow(overrides = {}) {
     painCount: 0,
     savedCount: 0,
     commentCount: 0,
-    trendingScore: 0,
+    popularityScore: 0,
     createdAt: NOW,
     ...overrides,
   };
@@ -264,7 +270,7 @@ test('UsersService rejects unsafe profile mutations', async () => {
 
   {
     const service = new UsersService(
-      { usernameTaken: async () => true },
+      { update: async () => { throw new UsernameConflictError(); } },
       config,
     );
     await assert.rejects(
@@ -274,11 +280,41 @@ test('UsersService rejects unsafe profile mutations', async () => {
   }
 });
 
+test('UsersService publishes stable avatar identity and translates a cleanup-claim race', async () => {
+  const publicBaseUrl = 'https://cdn.example.test/media/public';
+  const publicUrl = `${publicBaseUrl}/avatars/${USER_ID}/avatar.png`;
+  let updateData;
+  const service = new UsersService(
+    {
+      update: async (_id, data) => {
+        updateData = data;
+        return userProfileRow({ image: publicUrl });
+      },
+    },
+    { r2: { publicBaseUrl } },
+  );
+
+  await service.updateMe({ id: USER_ID, username: 'kartik' }, { image: publicUrl });
+  assert.deepEqual(updateData.avatar, {
+    publicUrl,
+    objectKey: `avatars/${USER_ID}/avatar.png`,
+  });
+
+  const claimed = new UsersService(
+    { update: async () => { throw new AvatarObjectUnavailableError(); } },
+    { r2: { publicBaseUrl } },
+  );
+  await assert.rejects(
+    () => claimed.updateMe({ id: USER_ID, username: 'kartik' }, { image: publicUrl }),
+    (error) => assertAppError(error, 400, 'VALIDATION_ERROR'),
+  );
+});
+
 test('UsersService returns self profiles with reputation and counts', async () => {
   const service = new UsersService(
     {
-      findById: async () => userProfileRow(),
-      counts: async () => ({ followers: 7, following: 2 }),
+      findById: async () => userProfileRow({ followerCount: 7, followingCount: 2 }),
+      counts: async () => assert.fail('profile counts must come from the profile query'),
     },
     { r2: { publicBaseUrl: 'https://cdn.example.test' } },
   );
@@ -294,8 +330,10 @@ test('FollowsService rejects self-follow and returns counts after follow', async
   {
     const service = new FollowsService(
       {},
-      { requireUserId: async () => USER_ID },
-      { counts: async () => ({ followers: 0, following: 0 }) },
+      {
+        requireUserId: async () => USER_ID,
+        getFollowCounts: async () => ({ followers: 0, following: 0 }),
+      },
     );
 
     await assert.rejects(
@@ -308,8 +346,10 @@ test('FollowsService rejects self-follow and returns counts after follow', async
     let followed = false;
     const service = new FollowsService(
       { follow: async () => { followed = true; } },
-      { requireUserId: async () => OTHER_ID },
-      { counts: async () => ({ followers: 3, following: 1 }) },
+      {
+        requireUserId: async () => OTHER_ID,
+        getFollowCounts: async () => ({ followers: 3, following: 1 }),
+      },
     );
 
     const result = await service.follow({ id: USER_ID, username: 'kartik' }, 'other');
@@ -410,14 +450,21 @@ test('SearchService rejects malformed cursors before hitting repositories', asyn
   );
 });
 
-test('SearchService paginates users with an offset cursor', async () => {
+test('SearchService paginates users with a username/id keyset cursor', async () => {
+  const cursors = [];
   const service = new SearchService(
     {
-      searchUsers: async (_q, limit, offset) => [
-        userSummary({ id: USER_ID, username: `user_${offset}` }),
-        userSummary({ id: OTHER_ID, username: `user_${offset + 1}` }),
-        userSummary({ id: '01FRZ3NDEKTSV4RRFFQ69G5FAV', username: `user_${offset + 2}` }),
-      ].slice(0, limit),
+      searchUsers: async (_q, limit, cursor) => {
+        cursors.push(cursor);
+        const rows = cursor
+          ? [userSummary({ id: '01FRZ3NDEKTSV4RRFFQ69G5FAV', username: 'user_2' })]
+          : [
+              userSummary({ id: USER_ID, username: 'user_0' }),
+              userSummary({ id: OTHER_ID, username: 'user_1' }),
+              userSummary({ id: '01FRZ3NDEKTSV4RRFFQ69G5FAV', username: 'user_2' }),
+            ];
+        return rows.slice(0, limit);
+      },
     },
     {},
   );
@@ -426,6 +473,13 @@ test('SearchService paginates users with an offset cursor', async () => {
 
   assert.equal(page.data.length, 2);
   assert.ok(page.nextCursor);
+  assert.deepEqual(decodeCursor(page.nextCursor), { username: 'user_1', id: OTHER_ID });
+
+  await service.search(
+    { q: 'user', type: 'users', limit: 2, cursor: page.nextCursor },
+    USER_ID,
+  );
+  assert.deepEqual(cursors, [null, { username: 'user_1', id: OTHER_ID }]);
 });
 
 test('UploadsService reports a stable error when avatar uploads are disabled', async () => {

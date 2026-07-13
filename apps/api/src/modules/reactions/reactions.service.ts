@@ -1,10 +1,11 @@
 import { Injectable } from '@nestjs/common';
 import type { ReactionResult, ReactionType } from '@linkedout/contracts';
 
+import { AppErrors } from '../../common/errors/app-exception';
 import type { AuthUser } from '../../common/types/auth';
 import { LsService } from '../ls/ls.service';
-import { foldedReactionKey, reactionNotificationType } from '../notifications/notification-events';
 import { ReactionsRepository } from './reactions.repository';
+import { planReactionAdd, planReactionRemove } from './reactions.plan';
 
 @Injectable()
 export class ReactionsService {
@@ -15,33 +16,22 @@ export class ReactionsService {
 
   async react(user: AuthUser, lId: string, type: ReactionType): Promise<ReactionResult> {
     const l = await this.ls.getViewableL(lId, user.id);
-    const notificationType = reactionNotificationType(type);
-    const notification =
-      notificationType && l.authorId !== user.id
-        ? {
-            type: notificationType,
-            recipientId: l.authorId,
-            actorId: user.id,
-            lId,
-            dedupeKey: foldedReactionKey(l.authorId, lId, notificationType),
-          }
-        : null;
-    await this.repo.add(user.id, lId, type, l.authorId, notification);
-    return this.repo.resultFor(lId, user.id);
+    await this.repo.add(planReactionAdd(user.id, lId, type, l.authorId));
+    return this.resultFor(lId, user.id);
   }
 
   async unreact(user: AuthUser, lId: string, type: ReactionType): Promise<ReactionResult> {
     const l = await this.ls.getViewableL(lId, user.id);
-    const notificationType = reactionNotificationType(type);
-    const clearNotification = notificationType
-      ? {
-          dedupeKey: foldedReactionKey(l.authorId, lId, notificationType),
-          recipientId: l.authorId,
-          lId,
-          reactionType: type,
-        }
-      : null;
-    await this.repo.remove(user.id, lId, type, l.authorId, clearNotification);
-    return this.repo.resultFor(lId, user.id);
+    await this.repo.remove(planReactionRemove(user.id, lId, type, l.authorId));
+    return this.resultFor(lId, user.id);
+  }
+
+  private async resultFor(lId: string, viewerId: string): Promise<ReactionResult> {
+    const state = await this.repo.findState(lId, viewerId);
+    if (!state) throw AppErrors.lNotFound();
+    return {
+      reactions: state.counters,
+      viewer: { reactions: state.viewerReactions },
+    };
   }
 }

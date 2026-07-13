@@ -56,12 +56,12 @@ describe('06 · GET /feed — global feed (contract §4.4)', () => {
     assert.deepEqual(ids(await h.get('/feed?sort=latest')), [third.id, second.id, first.id]);
   });
 
-  test('sort=trending orders by trendingScore desc', async () => {
-    const low = await h.createL(author.id, { counters: { trendingScore: 1 } });
-    const high = await h.createL(author.id, { counters: { trendingScore: 99 } });
-    const mid = await h.createL(author.id, { counters: { trendingScore: 50 } });
+  test('sort=popular orders by lifetime popularityScore desc', async () => {
+    const low = await h.createL(author.id, { counters: { popularityScore: 1 } });
+    const high = await h.createL(author.id, { counters: { popularityScore: 99 } });
+    const mid = await h.createL(author.id, { counters: { popularityScore: 50 } });
 
-    assert.deepEqual(ids(await h.get('/feed?sort=trending')), [high.id, mid.id, low.id]);
+    assert.deepEqual(ids(await h.get('/feed?sort=popular')), [high.id, mid.id, low.id]);
   });
 
   test('sort=helpful orders by helpfulCount desc', async () => {
@@ -89,6 +89,7 @@ describe('06 · GET /feed — global feed (contract §4.4)', () => {
 
   test('rejects an unknown sort, filter, or uppercase category', async () => {
     h.expectError(await h.get('/feed?sort=hottest'), 400, 'VALIDATION_ERROR');
+    h.expectError(await h.get('/feed?sort=trending'), 400, 'VALIDATION_ERROR');
     h.expectError(await h.get('/feed?filter=INTERVIEWS'), 400, 'VALIDATION_ERROR');
     h.expectError(await h.get('/feed?filter=nonsense'), 400, 'VALIDATION_ERROR');
   });
@@ -108,12 +109,12 @@ describe('06 · GET /feed — global feed (contract §4.4)', () => {
       created.push(
         await h.createL(author.id, {
           title: `L${i}`,
-          counters: { trendingScore: i, helpfulCount: i },
+          counters: { popularityScore: i, helpfulCount: i },
         }),
       );
     }
 
-    for (const sort of ['latest', 'trending', 'helpful']) {
+    for (const sort of ['latest', 'popular', 'helpful']) {
       const seen = [];
       let cursor;
       let guard = 0;
@@ -133,11 +134,13 @@ describe('06 · GET /feed — global feed (contract §4.4)', () => {
   });
 
   test('a cursor from one sort is not silently reused by another', async () => {
-    for (let i = 0; i < 3; i += 1) await h.createL(author.id, { counters: { trendingScore: i } });
+    for (let i = 0; i < 3; i += 1) {
+      await h.createL(author.id, { counters: { popularityScore: i } });
+    }
 
-    const trending = await h.get('/feed?sort=trending&limit=1');
-    const cursor = encodeURIComponent(trending.body.nextCursor);
-    // A trending cursor carries {score,id}; the latest sort needs {id}. It must not 500.
+    const popular = await h.get('/feed?sort=popular&limit=1');
+    const cursor = encodeURIComponent(popular.body.nextCursor);
+    // A popularity cursor carries {score,id}; the latest sort needs {id}. It must not 500.
     const res = await h.get(`/feed?sort=latest&cursor=${cursor}`);
     assert.ok(res.status === 200 || res.status === 400, `got ${res.status}`);
     if (res.status === 400) h.expectError(res, 400, 'BAD_CURSOR');
@@ -230,10 +233,13 @@ describe('06b · GET /feed/following (contract §4.4)', () => {
   });
 
   test('supports the same sort/filter/pagination params as /feed', async () => {
-    await h.createL(followed.id, { category: 'LAYOFFS', counters: { trendingScore: 5 } });
-    const career = await h.createL(followed.id, { category: 'CAREER', counters: { trendingScore: 1 } });
+    await h.createL(followed.id, { category: 'LAYOFFS', counters: { popularityScore: 5 } });
+    const career = await h.createL(followed.id, {
+      category: 'CAREER',
+      counters: { popularityScore: 1 },
+    });
 
-    h.expectShape(await h.get('/feed/following?sort=trending', { cookie: me.cookie }), feedSchema);
+    h.expectShape(await h.get('/feed/following?sort=popular', { cookie: me.cookie }), feedSchema);
     h.expectShape(await h.get('/feed/following?sort=helpful', { cookie: me.cookie }), feedSchema);
 
     const filtered = await h.get('/feed/following?filter=career', { cookie: me.cookie });

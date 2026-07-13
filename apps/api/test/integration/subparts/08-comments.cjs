@@ -246,4 +246,18 @@ describe('08 · comments (contract §4.6)', () => {
     const overlap = page1.data.filter((a) => page2.data.some((b) => b.id === a.id));
     assert.equal(overlap.length, 0, 'pages must not overlap');
   });
+
+  test('an unknown field on a comment body is rejected (CONTRACT-01)', async () => {
+    const author = await h.createUser();
+    const target = await h.createL(author.id);
+    const commenter = await h.createUser();
+    h.expectError(
+      await h.post(`/ls/${target.id}/comments`, {
+        cookie: commenter.cookie,
+        body: { body: 'hi', isPinned: true },
+      }),
+      400,
+      'VALIDATION_ERROR',
+    );
+  });
 });
