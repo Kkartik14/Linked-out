@@ -14,6 +14,8 @@ import { EmptyState } from "@/components/empty-state";
 import { useMeta } from "@/components/meta-provider";
 import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { cn } from "@/lib/utils";
+import { usePrincipal } from "@/components/session-provider";
+import { queryKeys } from "@/lib/query-keys";
 
 export function SearchClient({
   q,
@@ -32,6 +34,7 @@ export function SearchClient({
   const pathname = usePathname();
   const searchParams = useSearchParams();
   const meta = useMeta();
+  const principal = usePrincipal();
 
   const [query, setQuery] = React.useState(q);
 
@@ -100,7 +103,7 @@ export function SearchClient({
         ) : type === "users" ? (
           <InfiniteList<UserSummary>
             key={`users:${q}`}
-            queryKey={["search", "users", q]}
+            queryKey={queryKeys.search.users(principal, q)}
             queryFn={(cursor) => searchUsers(q, cursor)}
             initial={initialUsers}
             getItemKey={(u) => u.id}
@@ -112,7 +115,7 @@ export function SearchClient({
         ) : (
           <InfiniteList<LCardType>
             key={`ls:${q}:${filter ?? "all"}`}
-            queryKey={["search", "ls", q, filter]}
+            queryKey={queryKeys.search.ls(principal, q, filter)}
             queryFn={(cursor) => searchLs(q, filter ?? undefined, cursor)}
             initial={initialLs}
             getItemKey={(l) => l.id}

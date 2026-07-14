@@ -10,6 +10,8 @@ import { categoryLabel, typeLabel, useMeta } from "@/components/meta-provider";
 import { Badge } from "@/components/ui/badge";
 import { Skeleton } from "@/components/ui/skeleton";
 import { formatDate } from "@/lib/format";
+import { usePrincipal } from "@/components/session-provider";
+import { queryKeys } from "@/lib/query-keys";
 
 function TimelineNode({ node }: { node: JourneyNode }) {
   const meta = useMeta();
@@ -58,9 +60,10 @@ export function JourneyTimeline({
   username: string;
   initial?: Paginated<JourneyNode>;
 }) {
+  const principal = usePrincipal();
   return (
     <InfiniteList<JourneyNode>
-      queryKey={["journey", username]}
+      queryKey={queryKeys.users.journey(principal, username)}
       queryFn={(cursor) => getJourney(username, cursor)}
       initial={initial}
       getItemKey={(n) => n.id}
