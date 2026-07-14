@@ -33,6 +33,17 @@ export interface ReactionState {
 export class ReactionsRepository {
   constructor(private readonly prisma: PrismaService) {}
 
+  findExistingOwner(
+    userId: string,
+    lId: string,
+    type: ReactionType,
+  ): Promise<{ authorId: string } | null> {
+    return this.prisma.db.reaction.findUnique({
+      where: { userId_lId_type: { userId, lId, type } },
+      select: { l: { select: { authorId: true } } },
+    }).then((row) => row?.l ?? null);
+  }
+
   /**
    * Idempotent add. Returns true only when a new reaction row was created.
    *

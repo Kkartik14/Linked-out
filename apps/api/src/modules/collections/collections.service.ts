@@ -16,6 +16,7 @@ import type { AuthUser } from '../../common/types/auth';
 import { LsService } from '../ls/ls.service';
 import { UsersService } from '../users/users.service';
 import {
+  CollectionNotFoundError,
   CollectionSlugConflictError,
   CollectionsRepository,
   type CollectionWithMeta,
@@ -72,6 +73,7 @@ export class CollectionsService {
       try {
         return toCollection(await this.repo.update(id, input.title, slug), undefined, user.id);
       } catch (error) {
+        if (error instanceof CollectionNotFoundError) throw AppErrors.collectionNotFound();
         if (!(error instanceof CollectionSlugConflictError) || attempt === 2) throw error;
         slug = `${slugify(input.title)}-${ulid().slice(-6).toLowerCase()}`;
       }
@@ -81,7 +83,12 @@ export class CollectionsService {
 
   async remove(user: AuthUser, id: string): Promise<{ ok: true }> {
     await this.assertOwner(id, user.id);
-    await this.repo.delete(id, user.id);
+    try {
+      await this.repo.delete(id, user.id);
+    } catch (error) {
+      if (error instanceof CollectionNotFoundError) throw AppErrors.collectionNotFound();
+      throw error;
+    }
     return { ok: true };
   }
 
@@ -118,6 +125,7 @@ export class CollectionsService {
     const counts = await this.repo.visibleLCounts(
       page.rows.map((collection) => collection.id),
       visibilities,
+      viewerId === ownerId,
     );
     const data = page.rows.map((collection) =>
       toCollection(collection, counts.get(collection.id) ?? 0, viewerId),
@@ -131,7 +139,12 @@ export class CollectionsService {
   ): Promise<CollectionDetail> {
     const ids = await this.repo.orderedLIds(collection.id);
     const visibilities = await this.ls.allowedVisibilitiesFor(viewerId, collection.ownerId);
-    const cards = await this.ls.getCardsByIdsFiltered(ids, viewerId, visibilities);
+    const cards = await this.ls.getCardsByIdsFiltered(
+      ids,
+      viewerId,
+      visibilities,
+      viewerId === collection.ownerId,
+    );
     return toCollectionDetail(collection, cards, viewerId);
   }
 

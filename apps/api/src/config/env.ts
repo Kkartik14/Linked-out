@@ -56,8 +56,16 @@ function addProductionNetworkUrlIssues(
   ctx: z.RefinementCtx,
   field: string,
   value: string,
-): URL {
-  const parsed = new URL(value);
+): URL | null {
+  // Base-field validation owns missing/malformed URL messages. Production hardening must
+  // never throw while Zod is still accumulating those issues.
+  if (value.length === 0) return null;
+  let parsed: URL;
+  try {
+    parsed = new URL(value);
+  } catch {
+    return null;
+  }
   if (parsed.protocol !== 'https:') {
     ctx.addIssue({ code: 'custom', path: [field], message: `${field} must use HTTPS in production.` });
   }
@@ -77,6 +85,7 @@ function addProductionUrlIssues(
   value: string,
 ): void {
   const parsed = addProductionNetworkUrlIssues(ctx, field, value);
+  if (!parsed) return;
   if (parsed.pathname !== '/' || parsed.search.length > 0 || parsed.hash.length > 0) {
     ctx.addIssue({
       code: 'custom',

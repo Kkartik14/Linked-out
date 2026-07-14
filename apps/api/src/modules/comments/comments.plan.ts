@@ -35,7 +35,7 @@ export interface CommentDeletePlan {
 export function planCommentCreate(input: {
   authorId: string;
   lId: string;
-  lAuthorId: string;
+  notificationRecipientId: string;
   body: string;
   parentId: string | null;
 }): CommentCreatePlan {
@@ -48,13 +48,13 @@ export function planCommentCreate(input: {
     },
     lCounters: { commentCount: 1, popularityScore: commentPopularityPoints(1) },
     notification:
-      input.authorId === input.lAuthorId
+      input.authorId === input.notificationRecipientId
         ? null
         : {
             action: 'insert',
             record: {
               type: 'COMMENT',
-              recipientId: input.lAuthorId,
+              recipientId: input.notificationRecipientId,
               actorId: input.authorId,
               lId: input.lId,
               dedupeKey: null,

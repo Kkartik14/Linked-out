@@ -64,7 +64,7 @@ test('comment plans declare popularity and notification effects outside persiste
     planCommentCreate({
       authorId: ACTOR_ID,
       lId: L_ID,
-      lAuthorId: AUTHOR_ID,
+      notificationRecipientId: AUTHOR_ID,
       parentId: null,
       body: 'This helped.',
     }),
@@ -94,7 +94,7 @@ test('commenting on your own L produces no notification plan', () => {
   const plan = planCommentCreate({
     authorId: ACTOR_ID,
     lId: L_ID,
-    lAuthorId: ACTOR_ID,
+    notificationRecipientId: ACTOR_ID,
     parentId: null,
     body: 'A note to self.',
   });

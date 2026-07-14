@@ -26,7 +26,7 @@ export class FollowsService {
       recipientId: targetId,
       actorId: user.id,
       lId: null,
-      dedupeKey: null,
+      dedupeKey: `follow:${targetId}:${user.id}`,
     });
     return { isFollowing: true, counts: await this.users.getFollowCounts(targetId) };
   }

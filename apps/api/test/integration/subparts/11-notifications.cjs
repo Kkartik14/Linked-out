@@ -134,7 +134,7 @@ describe('11 · notifications (contract §4.11)', () => {
     assert.deepEqual((await inbox()).body.data, []);
   });
 
-  test('a reply notifies the L author, not the parent commenter', async () => {
+  test('a reply notifies the parent commenter instead of duplicating the L-author notification', async () => {
     const parent = await h.post(`/ls/${l.id}/comments`, {
       cookie: actor.cookie,
       body: { body: 'parent' },
@@ -146,10 +146,11 @@ describe('11 · notifications (contract §4.11)', () => {
     });
 
     const authorInbox = await inbox();
-    assert.equal(authorInbox.body.data.length, 2, 'the L author hears about both');
+    assert.equal(authorInbox.body.data.length, 1, 'the L author hears about the top-level comment');
 
     const actorInbox = await inbox(actor);
-    assert.deepEqual(actorInbox.body.data, [], 'MVP does not notify parent commenters');
+    assert.equal(actorInbox.body.data.length, 1, 'the parent commenter hears about the reply');
+    assert.equal(actorInbox.body.data[0].actor.username, 'third');
   });
 
   test('NEW_FOLLOWER uses the actor’s display name, falling back to username', async () => {

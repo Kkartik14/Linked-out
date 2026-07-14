@@ -78,6 +78,19 @@ describe('07 · reactions (contract §4.5)', () => {
     assert.deepEqual(res.body.viewer.reactions, []);
   });
 
+  test('DELETE removes an existing reaction after visibility narrows', async () => {
+    await h.put(`/ls/${l.id}/reactions/HELPFUL`, { cookie: reactor.cookie });
+    await h.patch(`/ls/${l.id}`, {
+      cookie: author.cookie,
+      body: { visibility: 'PRIVATE' },
+    });
+
+    const res = await h.del(`/ls/${l.id}/reactions/HELPFUL`, { cookie: reactor.cookie });
+    h.expectShape(res, reactionResultSchema, 200);
+    assert.equal(res.body.reactions.helpful, 0);
+    assert.deepEqual(res.body.viewer.reactions, []);
+  });
+
   test('reactions from different users accumulate independently', async () => {
     const other = await h.createUser({ username: 'other' });
     await h.put(`/ls/${l.id}/reactions/BEEN_THERE`, { cookie: reactor.cookie });

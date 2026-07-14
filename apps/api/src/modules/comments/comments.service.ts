@@ -29,7 +29,7 @@ export class CommentsService {
       planCommentCreate({
         authorId: user.id,
         lId,
-        lAuthorId: l.authorId,
+        notificationRecipientId: l.authorId,
         body: input.body,
         parentId: null,
       }),
@@ -49,12 +49,12 @@ export class CommentsService {
     if (parent.parentId !== null) {
       throw AppErrors.validationMessage('Replies can only be added to top-level comments.');
     }
-    const l = await this.ls.getViewableL(parent.lId, user.id);
+    await this.ls.getViewableL(parent.lId, user.id);
     const comment = await this.repo.create(
       planCommentCreate({
         authorId: user.id,
         lId: parent.lId,
-        lAuthorId: l.authorId,
+        notificationRecipientId: parent.authorId,
         body: input.body,
         parentId: parent.id,
       }),

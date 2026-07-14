@@ -158,12 +158,12 @@ describe('09 · follows (contract §4.7)', () => {
     assert.equal(notifications.body.data[0].type, 'NEW_FOLLOWER');
   });
 
-  test('unfollow then re-follow produces a second notification', async () => {
+  test('unfollow then re-follow does not spam a duplicate notification', async () => {
     await h.put('/users/target/follow', { cookie: me.cookie });
     await h.del('/users/target/follow', { cookie: me.cookie });
     await h.put('/users/target/follow', { cookie: me.cookie });
 
     const notifications = await h.get('/notifications', { cookie: target.cookie });
-    assert.equal(notifications.body.data.length, 2);
+    assert.equal(notifications.body.data.length, 1);
   });
 });

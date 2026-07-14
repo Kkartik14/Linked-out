@@ -146,7 +146,7 @@ export class LsService {
     if (!l) throw AppErrors.lNotFound();
     await this.assertCanView(l, viewerId);
     const [collections, reactionMap] = await Promise.all([
-      this.repo.collectionsForL(id),
+      l.isAnonymous && viewerId !== l.authorId ? Promise.resolve([]) : this.repo.collectionsForL(id),
       this.reactionMap(viewerId, [id]),
     ]);
     return toLDetail(
@@ -188,6 +188,7 @@ export class LsService {
     const page = await this.repo.byAuthor({
       authorId,
       visibilities,
+      includeAnonymous: viewerId === authorId,
       type: query.type,
       limit: query.limit,
       cursorId: cursorField(query.cursor, 'id'),
@@ -204,6 +205,7 @@ export class LsService {
     const page = await this.repo.journey({
       authorId,
       visibilities,
+      includeAnonymous: viewerId === authorId,
       limit: query.limit,
       cursor: journeyCursor(query.cursor),
     });
@@ -232,11 +234,12 @@ export class LsService {
     ids: string[],
     viewerId: string | undefined,
     visibilities: Visibility[],
+    includeAnonymous = true,
   ): Promise<LCard[]> {
     const rows = await this.repo.hydrateOrdered(ids);
     const allowed = new Set<Visibility>(visibilities);
     return this.toCards(
-      rows.filter((row) => allowed.has(row.visibility)),
+      rows.filter((row) => allowed.has(row.visibility) && (includeAnonymous || !row.isAnonymous)),
       viewerId,
     );
   }

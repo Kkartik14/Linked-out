@@ -21,7 +21,11 @@ export class ReactionsService {
   }
 
   async unreact(user: AuthUser, lId: string, type: ReactionType): Promise<ReactionResult> {
-    const l = await this.ls.getViewableL(lId, user.id);
+    // Removing an existing reaction remains permitted after the L becomes hidden. If no
+    // reaction exists, retain the normal visibility check so this endpoint cannot probe ids.
+    const l =
+      (await this.repo.findExistingOwner(user.id, lId, type)) ??
+      (await this.ls.getViewableL(lId, user.id));
     await this.repo.remove(planReactionRemove(user.id, lId, type, l.authorId));
     return this.resultFor(lId, user.id);
   }
