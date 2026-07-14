@@ -5,15 +5,12 @@ export interface CommentCounterDelta {
   popularityScore: number;
 }
 
-export interface InsertCommentNotificationPlan {
-  action: 'insert';
-  record: {
-    type: 'COMMENT';
-    recipientId: string;
-    actorId: string;
-    lId: string;
-    dedupeKey: null;
-  };
+export interface CommentNotificationWrite {
+  type: 'COMMENT';
+  recipientId: string;
+  actorId: string;
+  lId: string;
+  dedupeKey: null;
 }
 
 export interface CommentCreatePlan {
@@ -24,7 +21,7 @@ export interface CommentCreatePlan {
     parentId: string | null;
   };
   lCounters: CommentCounterDelta;
-  notification: InsertCommentNotificationPlan | null;
+  notifications: CommentNotificationWrite[];
 }
 
 export interface CommentDeletePlan {
@@ -35,7 +32,7 @@ export interface CommentDeletePlan {
 export function planCommentCreate(input: {
   authorId: string;
   lId: string;
-  notificationRecipientId: string;
+  notificationRecipientIds: string[];
   body: string;
   parentId: string | null;
 }): CommentCreatePlan {
@@ -47,19 +44,15 @@ export function planCommentCreate(input: {
       parentId: input.parentId,
     },
     lCounters: { commentCount: 1, popularityScore: commentPopularityPoints(1) },
-    notification:
-      input.authorId === input.notificationRecipientId
-        ? null
-        : {
-            action: 'insert',
-            record: {
-              type: 'COMMENT',
-              recipientId: input.notificationRecipientId,
-              actorId: input.authorId,
-              lId: input.lId,
-              dedupeKey: null,
-            },
-          },
+    notifications: [...new Set(input.notificationRecipientIds)]
+      .filter((recipientId) => recipientId !== input.authorId)
+      .map((recipientId) => ({
+        type: 'COMMENT',
+        recipientId,
+        actorId: input.authorId,
+        lId: input.lId,
+        dedupeKey: null,
+      })),
   };
 }
 

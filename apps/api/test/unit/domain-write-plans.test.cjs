@@ -64,23 +64,22 @@ test('comment plans declare popularity and notification effects outside persiste
     planCommentCreate({
       authorId: ACTOR_ID,
       lId: L_ID,
-      notificationRecipientId: AUTHOR_ID,
+      notificationRecipientIds: [AUTHOR_ID],
       parentId: null,
       body: 'This helped.',
     }),
     {
       comment: { authorId: ACTOR_ID, lId: L_ID, parentId: null, body: 'This helped.' },
       lCounters: { commentCount: 1, popularityScore: 2 },
-      notification: {
-        action: 'insert',
-        record: {
+      notifications: [
+        {
           type: 'COMMENT',
           recipientId: AUTHOR_ID,
           actorId: ACTOR_ID,
           lId: L_ID,
           dedupeKey: null,
         },
-      },
+      ],
     },
   );
 
@@ -94,11 +93,26 @@ test('commenting on your own L produces no notification plan', () => {
   const plan = planCommentCreate({
     authorId: ACTOR_ID,
     lId: L_ID,
-    notificationRecipientId: ACTOR_ID,
+    notificationRecipientIds: [ACTOR_ID],
     parentId: null,
     body: 'A note to self.',
   });
-  assert.equal(plan.notification, null);
+  assert.deepEqual(plan.notifications, []);
+});
+
+test('reply notifications preserve the L author and add the parent commenter without duplicates', () => {
+  const parentAuthor = '01ERZ3NDEKTSV4RRFFQ69G5FAV';
+  const plan = planCommentCreate({
+    authorId: ACTOR_ID,
+    lId: L_ID,
+    notificationRecipientIds: [AUTHOR_ID, parentAuthor, AUTHOR_ID, ACTOR_ID],
+    parentId: '01FRZ3NDEKTSV4RRFFQ69G5FAV',
+    body: 'Replying.',
+  });
+  assert.deepEqual(
+    plan.notifications.map((notification) => notification.recipientId),
+    [AUTHOR_ID, parentAuthor],
+  );
 });
 
 test('L deletion declares type and reaction-derived reputation effects before persistence', () => {

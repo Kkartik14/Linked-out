@@ -134,7 +134,7 @@ describe('11 · notifications (contract §4.11)', () => {
     assert.deepEqual((await inbox()).body.data, []);
   });
 
-  test('a reply notifies the parent commenter instead of duplicating the L-author notification', async () => {
+  test('a reply notifies both the L author and the parent commenter', async () => {
     const parent = await h.post(`/ls/${l.id}/comments`, {
       cookie: actor.cookie,
       body: { body: 'parent' },
@@ -146,7 +146,7 @@ describe('11 · notifications (contract §4.11)', () => {
     });
 
     const authorInbox = await inbox();
-    assert.equal(authorInbox.body.data.length, 1, 'the L author hears about the top-level comment');
+    assert.equal(authorInbox.body.data.length, 2, 'the L author hears about the comment and reply');
 
     const actorInbox = await inbox(actor);
     assert.equal(actorInbox.body.data.length, 1, 'the parent commenter hears about the reply');
