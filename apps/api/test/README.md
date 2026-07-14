@@ -95,7 +95,7 @@ between tests.
 | `13-users-profile` | Profile, `PATCH /users/me`, username rules, avatar-URL ownership |
 | `14-journey-saved` | Journey ordering by `eventDate ?? createdAt`; `/me/saved` |
 | `16-uploads` | Presign shape, size/type limits, `UPLOADS_DISABLED` |
-| `17-anonymity` | `author: null` on every surface that can carry an author |
+| `17-anonymity` | Strong anonymity: no author, profile/journey, or collection attribution path |
 | `18-contract-invariants` | Envelopes, cursors, ULIDs, ISO timestamps, CORS, error codes |
 | `19-rate-limit` | 120 reads/min, 30 writes/min, `Retry-After`, per-identity buckets |
 | `20-concurrency-edges` | Counter integrity under concurrent writes; coercion edges |

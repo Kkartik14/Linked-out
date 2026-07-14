@@ -53,6 +53,17 @@ pnpm --dir apps/web typecheck
 pnpm --dir apps/web test
 ```
 
+The development seed deletes all application data. It therefore refuses to connect unless
+the target is a loopback database with an allowlisted name and the expected login role is
+explicitly pinned:
+
+```bash
+ALLOW_DB_SEED=1 SEED_DB_EXPECTED_SESSION_USER=linkedout pnpm --filter @linkedout/db seed
+```
+
+`SEED_DB_ALLOWED_NAMES` defaults to `linkedout,linkedout_dev`; remote seeding is deliberately
+unsupported.
+
 The backend workspace uses explicit pnpm scripts rather than Turborepo. CI builds
 `contracts → db → api` once and passes those outputs to the database and end-to-end jobs as a
 workflow artifact.

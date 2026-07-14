@@ -14,6 +14,8 @@ test('the DB runtime API cannot bypass the ULID-extended client factory', () => 
     false,
     'raw PrismaClient must remain type-only at the package boundary',
   );
+  assert.equal(dbPublicApi.modelUsesUlid('RateLimitBucket'), false);
+  assert.equal(dbPublicApi.modelUsesUlid('User'), true);
 });
 
 test('the deterministic seed wipe includes every standalone lifecycle table', () => {
@@ -23,6 +25,6 @@ test('the deterministic seed wipe includes every standalone lifecycle table', ()
   );
 
   for (const delegate of ['verificationToken', 'rateLimitBucket', 'avatarDeletionClaim']) {
-    assert.match(seed, new RegExp(`prisma\\.${delegate}\\.deleteMany\\(\\)`));
+    assert.match(seed, new RegExp(`tx\\.${delegate}\\.deleteMany\\(\\)`));
   }
 });
