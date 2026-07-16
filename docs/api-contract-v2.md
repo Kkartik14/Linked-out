@@ -1,6 +1,6 @@
 # LinkedOut — API Contract v2 (frontend target)
 
-Status: **accepted contract; backend implementation in progress**
+Status: **accepted contract; backend implementation complete**
 Decision date: 2026-07-17
 
 This is the contract new frontend work builds against. The live v1 API continues unchanged during
@@ -193,7 +193,8 @@ response types, and the four removed L fields are not exported from `@linkedout/
 
 ## 4. Frontend implementation boundary
 
-Frontend may immediately import schemas/types from the v2 subpath and mock the single response:
+Frontend may import schemas/types from the v2 subpath and use a schema-validated fixture when it
+needs to run without a backend:
 
 ```ts
 import {
@@ -205,13 +206,14 @@ import {
 
 The frontend renders the supplied ordering, copy, counts, permissions, empty states, and anonymous
 author state. It does not rank, calculate interaction totals, infer mutual follows, or fall back to
-v1 fields. Until the endpoint is deployed, a fixture must pass `feedSidebarResponseSchema.parse()`.
+v1 fields. Any local fixture must pass `feedSidebarResponseSchema.parse()`.
 
 ## 5. Parallel delivery and retirement
 
-1. Shared v2 package export and this contract land first.
-2. Frontend builds against a schema-validated fixture; backend implements `/v2` and `/v2/openapi.json`.
-3. Deploy v1 and v2 together. Existing database columns may remain internal during coexistence but
+1. Shared v2 package export and this contract are available.
+2. The frontend can build against a schema-validated fixture; the backend implements `/v2` and
+   `/v2/openapi.json` independently.
+3. Deploy v1 and v2 together. Existing database columns remain internal during coexistence but
    mappers/repositories must not emit them on v2.
 4. Switch frontend traffic to v2 and observe errors/usage.
 5. Retire v1 consumers and routes.

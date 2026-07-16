@@ -1,8 +1,48 @@
 import { Injectable } from '@nestjs/common';
-import { Prisma } from '@linkedout/db';
-import type { JourneyStatus } from '@linkedout/contracts/v2';
+import { Prisma, type JourneyStatus, type ReactionType } from '@linkedout/db';
 
 import { PrismaService } from '../../prisma/prisma.service';
+
+const AUTHOR_INCLUDE = {
+  author: { select: { id: true, username: true, name: true, image: true, status: true } },
+} satisfies Prisma.LInclude;
+
+const PROFILE_SELECT = {
+  id: true,
+  username: true,
+  name: true,
+  image: true,
+  bio: true,
+  status: true,
+  storiesShared: true,
+  lessonsShared: true,
+  buildersHelped: true,
+  lsShared: true,
+  collectionsCreated: true,
+  followerCount: true,
+  followingCount: true,
+  createdAt: true,
+} satisfies Prisma.UserSelect;
+
+type SidebarL = Prisma.LGetPayload<{ include: typeof AUTHOR_INCLUDE }>;
+type SidebarViewerProfile = Prisma.UserGetPayload<{ select: typeof PROFILE_SELECT }>;
+
+const DAILY_SELECTION_SELECT = {
+  lId: true,
+  interactionCount: true,
+  selectedAt: true,
+  l: {
+    select: {
+      visibility: true,
+      isAnonymous: true,
+      author: { select: { username: true } },
+    },
+  },
+} satisfies Prisma.DailyLSelectionSelect;
+
+type DailySelectionRow = Prisma.DailyLSelectionGetPayload<{
+  select: typeof DAILY_SELECTION_SELECT;
+}>;
 
 export interface SuggestedUserCandidate {
   id: string;
@@ -34,6 +74,22 @@ interface RankedLCandidateRow {
   interaction_count: bigint;
 }
 
+export interface DailySelectionSnapshot {
+  lId: string | null;
+  interactionCount: number;
+  selectedAt: Date;
+  l: {
+    visibility: 'PUBLIC' | 'FOLLOWERS' | 'PRIVATE';
+    isAnonymous: boolean;
+    author: { username: string | null };
+  } | null;
+}
+
+export interface SidebarLRow {
+  l: SidebarL;
+  viewerReactions: ReactionType[];
+}
+
 interface RankedLParams {
   startsAt: Date;
   endsAt: Date;
@@ -44,82 +100,117 @@ interface RankedLParams {
 
 function rankedLsQuery(params: RankedLParams): Prisma.Sql {
   const attribution = params.attributedOnly
-    ? Prisma.sql`AND l."isAnonymous" = false AND author."username" IS NOT NULL`
+    ? Prisma.sql`AND l."isAnonymous" = false AND NULLIF(BTRIM(author."username"), '') IS NOT NULL`
     : Prisma.empty;
   const exclusion = params.excludeLId
     ? Prisma.sql`AND l."id" <> ${params.excludeLId}`
     : Prisma.empty;
   return Prisma.sql`
-    WITH reaction_actors AS (
-      SELECT DISTINCT reaction."lId" AS l_id, reaction."userId" AS actor_id
+    WITH interaction_events AS (
+      SELECT reaction."lId" AS l_id,
+             reaction."userId" AS actor_id,
+             reaction."type" = 'HELPFUL' AS was_helpful,
+             false AS was_comment
       FROM "Reaction" reaction
       JOIN "L" l ON l."id" = reaction."lId"
       WHERE reaction."createdAt" >= ${params.startsAt}
         AND reaction."createdAt" < ${params.endsAt}
         AND reaction."type" <> 'SAVED'
         AND reaction."userId" <> l."authorId"
-    ),
-    comment_actors AS (
-      SELECT DISTINCT comment."lId" AS l_id, comment."authorId" AS actor_id
+      UNION ALL
+      SELECT comment."lId" AS l_id,
+             comment."authorId" AS actor_id,
+             false AS was_helpful,
+             true AS was_comment
       FROM "Comment" comment
       JOIN "L" l ON l."id" = comment."lId"
       WHERE comment."createdAt" >= ${params.startsAt}
         AND comment."createdAt" < ${params.endsAt}
         AND comment."authorId" <> l."authorId"
     ),
-    interaction_actors AS (
-      SELECT l_id, actor_id FROM reaction_actors
-      UNION
-      SELECT l_id, actor_id FROM comment_actors
+    actor_rollups AS (
+      SELECT l_id,
+             actor_id,
+             BOOL_OR(was_helpful) AS was_helpful,
+             BOOL_OR(was_comment) AS was_comment
+      FROM interaction_events
+      GROUP BY l_id, actor_id
     ),
     interaction_counts AS (
-      SELECT l_id, COUNT(*) AS interaction_count
-      FROM interaction_actors
+      SELECT l_id,
+             COUNT(*) AS interaction_count,
+             COUNT(*) FILTER (WHERE was_helpful) AS helpful_count,
+             COUNT(*) FILTER (WHERE was_comment) AS commenter_count
+      FROM actor_rollups
       GROUP BY l_id
-    ),
-    helpful_counts AS (
-      SELECT reaction."lId" AS l_id, COUNT(DISTINCT reaction."userId") AS helpful_count
-      FROM "Reaction" reaction
-      JOIN "L" l ON l."id" = reaction."lId"
-      WHERE reaction."createdAt" >= ${params.startsAt}
-        AND reaction."createdAt" < ${params.endsAt}
-        AND reaction."type" = 'HELPFUL'
-        AND reaction."userId" <> l."authorId"
-      GROUP BY reaction."lId"
-    ),
-    commenter_counts AS (
-      SELECT comment."lId" AS l_id, COUNT(DISTINCT comment."authorId") AS commenter_count
-      FROM "Comment" comment
-      JOIN "L" l ON l."id" = comment."lId"
-      WHERE comment."createdAt" >= ${params.startsAt}
-        AND comment."createdAt" < ${params.endsAt}
-        AND comment."authorId" <> l."authorId"
-      GROUP BY comment."lId"
     )
     SELECT l."id", interaction_counts.interaction_count
     FROM interaction_counts
     JOIN "L" l ON l."id" = interaction_counts.l_id
     JOIN "User" author ON author."id" = l."authorId"
-    LEFT JOIN helpful_counts ON helpful_counts.l_id = l."id"
-    LEFT JOIN commenter_counts ON commenter_counts.l_id = l."id"
     WHERE l."visibility" = 'PUBLIC'
       ${attribution}
       ${exclusion}
     ORDER BY interaction_counts.interaction_count DESC,
-             COALESCE(helpful_counts.helpful_count, 0) DESC,
-             COALESCE(commenter_counts.commenter_count, 0) DESC,
+             interaction_counts.helpful_count DESC,
+             interaction_counts.commenter_count DESC,
              l."id" ASC
     LIMIT ${params.limit}
   `;
+}
+
+function toDailySnapshot(row: DailySelectionRow): DailySelectionSnapshot {
+  return {
+    lId: row.lId,
+    interactionCount: row.interactionCount,
+    selectedAt: row.selectedAt,
+    l: row.l,
+  };
+}
+
+function sameRevision(actual: Date | undefined, expected: Date | null): boolean {
+  return expected === null ? actual === undefined : actual?.getTime() === expected.getTime();
 }
 
 @Injectable()
 export class FeedSidebarRepository {
   constructor(private readonly prisma: PrismaService) {}
 
+  viewerProfile(userId: string): Promise<SidebarViewerProfile | null> {
+    return this.prisma.db.user.findUnique({ where: { id: userId }, select: PROFILE_SELECT });
+  }
+
+  async publicLs(ids: string[], viewerId: string | undefined): Promise<SidebarLRow[]> {
+    if (ids.length === 0) return [];
+    const [ls, reactions] = await Promise.all([
+      this.prisma.db.l.findMany({
+        where: { id: { in: ids }, visibility: 'PUBLIC' },
+        include: AUTHOR_INCLUDE,
+      }),
+      viewerId
+        ? this.prisma.db.reaction.findMany({
+            where: { userId: viewerId, lId: { in: ids } },
+            select: { lId: true, type: true },
+          })
+        : Promise.resolve([]),
+    ]);
+    const lById = new Map(ls.map((l) => [l.id, l]));
+    const reactionsByLId = new Map<string, ReactionType[]>();
+    for (const reaction of reactions) {
+      const current = reactionsByLId.get(reaction.lId);
+      if (current) current.push(reaction.type);
+      else reactionsByLId.set(reaction.lId, [reaction.type]);
+    }
+    return ids.flatMap((id) => {
+      const l = lById.get(id);
+      return l ? [{ l, viewerReactions: reactionsByLId.get(id) ?? [] }] : [];
+    });
+  }
+
   async suggestedUsers(params: {
     viewerId: string | undefined;
-    activitySince: Date;
+    activityStartsAt: Date;
+    activityEndsAt: Date;
     limit: number;
   }): Promise<SuggestedUserCandidate[]> {
     const viewerId = params.viewerId ?? null;
@@ -138,7 +229,8 @@ export class FeedSidebarRepository {
         SELECT l."authorId" AS candidate_id, reaction."userId" AS actor_id
         FROM "Reaction" reaction
         JOIN "L" l ON l."id" = reaction."lId"
-        WHERE reaction."createdAt" >= ${params.activitySince}
+        WHERE reaction."createdAt" >= ${params.activityStartsAt}
+          AND reaction."createdAt" < ${params.activityEndsAt}
           AND reaction."type" <> 'SAVED'
           AND reaction."userId" <> l."authorId"
           AND l."visibility" = 'PUBLIC'
@@ -147,7 +239,8 @@ export class FeedSidebarRepository {
         SELECT l."authorId" AS candidate_id, comment."authorId" AS actor_id
         FROM "Comment" comment
         JOIN "L" l ON l."id" = comment."lId"
-        WHERE comment."createdAt" >= ${params.activitySince}
+        WHERE comment."createdAt" >= ${params.activityStartsAt}
+          AND comment."createdAt" < ${params.activityEndsAt}
           AND comment."authorId" <> l."authorId"
           AND l."visibility" = 'PUBLIC'
           AND l."isAnonymous" = false
@@ -167,7 +260,7 @@ export class FeedSidebarRepository {
       FROM "User" candidate
       LEFT JOIN mutual_counts ON mutual_counts.candidate_id = candidate."id"
       LEFT JOIN activity_counts ON activity_counts.candidate_id = candidate."id"
-      WHERE candidate."username" IS NOT NULL
+      WHERE NULLIF(BTRIM(candidate."username"), '') IS NOT NULL
         AND (${viewerId}::text IS NULL OR candidate."id" <> ${viewerId})
         AND (
           ${viewerId}::text IS NULL
@@ -208,65 +301,46 @@ export class FeedSidebarRepository {
     }));
   }
 
-  dailySelection(params: {
-    selectedFor: Date;
-    startsAt: Date;
-    endsAt: Date;
-  }): Promise<RankedLCandidate | null> {
-    return this.prisma.db.$transaction(async (tx) => {
-      await tx.$queryRaw<Array<{ locked: boolean }>>`
-        SELECT pg_advisory_xact_lock(hashtext(${params.selectedFor.toISOString()})) IS NULL AS locked
-      `;
+  async dailySelection(selectedFor: Date): Promise<DailySelectionSnapshot | null> {
+    const row = await this.prisma.db.dailyLSelection.findUnique({
+      where: { selectedFor },
+      select: DAILY_SELECTION_SELECT,
+    });
+    return row ? toDailySnapshot(row) : null;
+  }
 
-      const existing = await tx.dailyLSelection.findUnique({
+  storeDailySelection(params: {
+    selectedFor: Date;
+    expectedSelectedAt: Date | null;
+    candidate: RankedLCandidate | null;
+  }): Promise<{ stored: boolean; snapshot: DailySelectionSnapshot | null }> {
+    return this.prisma.db.$transaction(async (tx) => {
+      await tx.$executeRaw`SELECT pg_advisory_xact_lock(hashtext(${params.selectedFor.toISOString()}))`;
+      const current = await tx.dailyLSelection.findUnique({
         where: { selectedFor: params.selectedFor },
-        select: {
-          lId: true,
-          interactionCount: true,
-          l: {
-            select: {
-              visibility: true,
-              isAnonymous: true,
-              author: { select: { username: true } },
-            },
-          },
-        },
+        select: DAILY_SELECTION_SELECT,
       });
-      if (existing?.lId === null && existing.interactionCount === 0) return null;
-      if (
-        existing?.lId &&
-        existing.l?.visibility === 'PUBLIC' &&
-        !existing.l.isAnonymous &&
-        existing.l.author.username !== null
-      ) {
-        return { id: existing.lId, interactionCount: existing.interactionCount };
+      if (!sameRevision(current?.selectedAt, params.expectedSelectedAt)) {
+        return { stored: false, snapshot: current ? toDailySnapshot(current) : null };
       }
 
-      const [row] = await tx.$queryRaw<RankedLCandidateRow[]>(
-        rankedLsQuery({
-          startsAt: params.startsAt,
-          endsAt: params.endsAt,
-          attributedOnly: true,
-          limit: 1,
-        }),
-      );
-      const candidate = row
-        ? { id: row.id, interactionCount: Number(row.interaction_count) }
-        : null;
-      await tx.dailyLSelection.upsert({
+      const selectedAt = new Date();
+      const stored = await tx.dailyLSelection.upsert({
         where: { selectedFor: params.selectedFor },
         create: {
           selectedFor: params.selectedFor,
-          lId: candidate?.id ?? null,
-          interactionCount: candidate?.interactionCount ?? 0,
+          lId: params.candidate?.id ?? null,
+          interactionCount: params.candidate?.interactionCount ?? 0,
+          selectedAt,
         },
         update: {
-          lId: candidate?.id ?? null,
-          interactionCount: candidate?.interactionCount ?? 0,
-          selectedAt: new Date(),
+          lId: params.candidate?.id ?? null,
+          interactionCount: params.candidate?.interactionCount ?? 0,
+          selectedAt,
         },
+        select: DAILY_SELECTION_SELECT,
       });
-      return candidate;
+      return { stored: true, snapshot: toDailySnapshot(stored) };
     });
   }
 }

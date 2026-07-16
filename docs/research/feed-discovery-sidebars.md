@@ -3,7 +3,7 @@
 Status: research input, superseded where it differs by
 [`docs/api-contract-v2.md`](../api-contract-v2.md). The accepted contract uses
 `GET /v2/feed/sidebar`, an explicit viewer-state union, and permits anonymous content in Top Ls
-while requiring an attributed author for L of the day. No backend route is implemented yet.
+while requiring an attributed author for L of the day. The accepted route is now implemented.
 
 Research date: 2026-07-17
 

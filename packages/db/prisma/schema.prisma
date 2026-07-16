@@ -70,7 +70,7 @@ enum NotificationType {
 
 model User {
   id              String         @id @default(cuid()) // ULID (overridden by the client extension; default is a type-level fallback)
-  // Nullable until onboarding completes → `needsOnboarding = username == null`.
+  // Nullable until onboarding completes. A database CHECK rejects empty/whitespace usernames.
   username        String?        @unique
   email           String?        @unique
   emailVerified   DateTime?
