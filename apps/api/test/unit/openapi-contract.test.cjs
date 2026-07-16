@@ -14,6 +14,7 @@ const {
   MODULE_METADATA,
   PATH_METADATA,
   ROUTE_ARGS_METADATA,
+  VERSION_METADATA,
 } = require('@nestjs/common/constants');
 const { RouteParamtypes } = require('@nestjs/common/enums/route-paramtypes.enum');
 const {
@@ -31,6 +32,9 @@ const {
   API_ROUTE_CONTRACTS,
   API_ROUTE_CONTRACT_BY_KEY,
 } = require('../../dist/common/contracts/api-route-contracts');
+const {
+  API_ROUTE_CONTRACT_BY_KEY_V2,
+} = require('../../dist/common/contracts/api-route-contracts-v2');
 const { MetaController } = require('../../dist/modules/meta/meta.controller');
 const { MetaService } = require('../../dist/modules/meta/meta.service');
 
@@ -124,7 +128,15 @@ function expectedSuccessStatus(method, handler, guards) {
   return method === RequestMethod.POST ? 201 : 200;
 }
 
-async function controllerOperations() {
+function versionsFor(Controller, handler) {
+  const declared =
+    Reflect.getMetadata(VERSION_METADATA, handler) ??
+    Reflect.getMetadata(VERSION_METADATA, Controller) ??
+    '1';
+  return new Set([declared].flat());
+}
+
+async function controllerOperations(version = '1') {
   const operations = new Map();
   for (const Controller of await registeredControllers(AppModule)) {
     const controllerPaths = [Reflect.getMetadata(PATH_METADATA, Controller) ?? ''].flat();
@@ -133,6 +145,7 @@ async function controllerOperations() {
       const method = Reflect.getMetadata(METHOD_METADATA, handler);
       const handlerMetadata = Reflect.getMetadata(PATH_METADATA, handler);
       if (method === undefined || handlerMetadata === undefined) continue;
+      if (!versionsFor(Controller, handler).has(version)) continue;
 
       const guards = guardNames(Controller, handler);
       for (const controllerPath of controllerPaths) {
@@ -270,6 +283,38 @@ test('one route contract drives each handler body pipe and OpenAPI success respo
     Object.keys(API_ROUTE_CONTRACTS).length,
     'named route contracts do not alias different operations accidentally',
   );
+});
+
+test('v2 OpenAPI and route contracts cover exactly the registered v2 operations', async () => {
+  const document = new MetaService({}).getV2OpenApi();
+  const documented = documentedOperations(document);
+  const registered = await controllerOperations('2');
+
+  assert.deepEqual([...documented.keys()].sort(), [...registered.keys()].sort());
+  assert.deepEqual(
+    [...API_ROUTE_CONTRACT_BY_KEY_V2.keys()].sort(),
+    [...registered.keys()].sort(),
+  );
+
+  for (const operation of registered.values()) {
+    const contract = API_ROUTE_CONTRACT_BY_KEY_V2.get(operation.key);
+    assert.strictEqual(
+      Reflect.getMetadata(API_CONTRACT_METADATA, operation.handler),
+      contract,
+      `${operation.key} handler binds the canonical v2 route contract`,
+    );
+    const documentedOperation = documented.get(operation.key);
+    assert.deepEqual(
+      documentedOperation.security ?? document.security ?? [],
+      operation.security,
+      `${operation.key} security`,
+    );
+    assert.ok(documentedOperation.responses[String(contract.status)]);
+  }
+
+  assert.equal(document.info.version, '2.0.0');
+  assert.deepEqual(document.servers, [{ url: '/v2' }]);
+  assert.ok(document.components.schemas.FeedSidebarResponse);
 });
 
 test('OpenAPI is built once and reused across requests', () => {

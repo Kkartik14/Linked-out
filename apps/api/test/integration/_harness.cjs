@@ -49,6 +49,8 @@ const R2_ENV = {
 const ctx = {
   /** Base URL of the main server, e.g. http://127.0.0.1:4010/v1 */
   baseUrl: '',
+  /** V2 base URL on the same server. */
+  v2BaseUrl: '',
   /** Base URL of the second server booted without R2 (uploads disabled). */
   noUploadsBaseUrl: '',
   prisma: null,
@@ -347,6 +349,7 @@ async function start() {
 
   const main = spawnApi(PORT, R2_ENV);
   ctx.baseUrl = `http://127.0.0.1:${PORT}/v1`;
+  ctx.v2BaseUrl = `http://127.0.0.1:${PORT}/v2`;
 
   const noUploads = spawnApi(NO_UPLOADS_PORT, {
     R2_ACCOUNT_ID: '',

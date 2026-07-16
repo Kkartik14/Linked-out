@@ -1,6 +1,6 @@
 import 'reflect-metadata';
 
-import { Logger } from '@nestjs/common';
+import { Logger, VersioningType } from '@nestjs/common';
 import { NestFactory } from '@nestjs/core';
 import cookieParser from 'cookie-parser';
 
@@ -15,7 +15,7 @@ async function bootstrap(): Promise<void> {
   if (config.trustProxyHops > 0) {
     app.getHttpAdapter().getInstance().set('trust proxy', config.trustProxyHops);
   }
-  app.setGlobalPrefix('v1');
+  app.enableVersioning({ type: VersioningType.URI, defaultVersion: '1' });
   app.use(cookieParser());
   app.useGlobalFilters(new AllExceptionsFilter());
   app.enableCors({

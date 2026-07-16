@@ -40,3 +40,4 @@ require('./subparts/17-anonymity.cjs');
 require('./subparts/18-contract-invariants.cjs');
 require('./subparts/19-rate-limit.cjs');
 require('./subparts/20-concurrency-edges.cjs');
+require('./subparts/21-feed-sidebar-v2.cjs');

@@ -14,6 +14,7 @@ import {
 
 import { MetaRepository } from './meta.repository';
 import { OPEN_API_DOCUMENT, type OpenApiDocument } from './openapi';
+import { OPEN_API_V2_DOCUMENT } from './openapi-v2';
 
 function deepFreeze<T>(value: T): T {
   if (value !== null && typeof value === 'object' && !Object.isFrozen(value)) {
@@ -61,6 +62,10 @@ export class MetaService {
 
   getOpenApi(): OpenApiDocument {
     return OPEN_API_DOCUMENT;
+  }
+
+  getV2OpenApi(): OpenApiDocument {
+    return OPEN_API_V2_DOCUMENT;
   }
 
   async popularTags(query: PopularTagsQuery): Promise<PopularTagsResponse> {
