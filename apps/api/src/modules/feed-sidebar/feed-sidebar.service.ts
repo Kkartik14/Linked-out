@@ -37,7 +37,9 @@ function snapshotCandidate(
   if (!snapshot) return { reusable: false, candidate: null };
   if (snapshot.lId === null) {
     return {
-      reusable: now.getTime() - snapshot.selectedAt.getTime() < NEGATIVE_SELECTION_RETRY_MS,
+      reusable:
+        snapshot.interactionCount === 0 &&
+        now.getTime() - snapshot.selectedAt.getTime() < NEGATIVE_SELECTION_RETRY_MS,
       candidate: null,
     };
   }

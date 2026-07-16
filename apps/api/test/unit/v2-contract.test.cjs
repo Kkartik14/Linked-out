@@ -133,4 +133,19 @@ test('feed sidebar schema gives both rails one stable, attributed daily item', (
   anonymousDaily.lOfTheDay.item.l.isAnonymous = true;
   anonymousDaily.lOfTheDay.item.l.author = null;
   assert.equal(v2.feedSidebarResponseSchema.safeParse(anonymousDaily).success, false);
+
+  for (const mutate of [
+    (value) => { value.peopleToFollow.items[0].user.email = 'private@example.com'; },
+    (value) => { value.peopleToFollow.items[0].viewer.internal = true; },
+    (value) => { value.lOfTheDay.item.l.author.email = 'private@example.com'; },
+    (value) => { value.topLs.internal = true; },
+  ]) {
+    const leaked = structuredClone(payload);
+    mutate(leaked);
+    assert.equal(
+      v2.feedSidebarResponseSchema.safeParse(leaked).success,
+      false,
+      'sidebar response rejects unknown nested fields instead of stripping them',
+    );
+  }
 });

@@ -1,6 +1,7 @@
 import { Controller, Get, Param, Query, UseGuards } from '@nestjs/common';
 import {
   journeyQuerySchema,
+  usernameInputSchema,
   userLsQuerySchema,
   type JourneyNode,
   type JourneyQuery,
@@ -16,28 +17,24 @@ import { StrictOptionalAuthGuard } from '../../common/guards/strict-optional-aut
 import { ZodValidationPipe } from '../../common/pipes/zod-validation.pipe';
 import type { AuthUser } from '../../common/types/auth';
 import { LsService } from '../ls/ls.service';
-import { UsersService } from './users.service';
 
 const userLsPipe = new ZodValidationPipe(userLsQuerySchema);
 const journeyPipe = new ZodValidationPipe(journeyQuerySchema);
+const usernamePipe = new ZodValidationPipe(usernameInputSchema);
 
 @Controller({ path: 'users', version: '2' })
 export class UsersV2Controller {
-  constructor(
-    private readonly users: UsersService,
-    private readonly ls: LsService,
-  ) {}
+  constructor(private readonly ls: LsService) {}
 
   @Get(':username/ls')
   @UseGuards(StrictOptionalAuthGuard)
   @ApiContract(API_ROUTE_CONTRACTS_V2.userLs)
   async userLs(
     @OptionalUser() user: AuthUser | undefined,
-    @Param('username') username: string,
+    @Param('username', usernamePipe) username: string,
     @Query(userLsPipe) query: UserLsQuery,
   ): Promise<Paginated<LCard>> {
-    const authorId = await this.users.requireUserId(username);
-    return this.ls.getUserLsV2(authorId, query, user?.id);
+    return this.ls.getUserLsByUsernameV2(username, query, user?.id);
   }
 
   @Get(':username/journey')
@@ -45,10 +42,9 @@ export class UsersV2Controller {
   @ApiContract(API_ROUTE_CONTRACTS_V2.userJourney)
   async journey(
     @OptionalUser() user: AuthUser | undefined,
-    @Param('username') username: string,
+    @Param('username', usernamePipe) username: string,
     @Query(journeyPipe) query: JourneyQuery,
   ): Promise<Paginated<JourneyNode>> {
-    const authorId = await this.users.requireUserId(username);
-    return this.ls.getJourneyV2(authorId, query, user?.id);
+    return this.ls.getJourneyByUsernameV2(username, query, user?.id);
   }
 }

@@ -172,6 +172,16 @@ describe('22 · clean category-free v2 L surfaces', () => {
     h.expectError(await v2('GET', '/tags/popular'), 404, 'NOT_FOUND');
   });
 
+  test('malformed v2 route parameters are rejected by contract validation', async () => {
+    for (const response of [
+      await v2('GET', '/ls/not-a-ulid'),
+      await v2('GET', '/collections/not-a-ulid'),
+      await v2('GET', '/users/INVALID!/ls'),
+    ]) {
+      h.expectError(response, 400, 'VALIDATION_ERROR');
+    }
+  });
+
   test('v2 carries every unchanged v1 operation in its live OpenAPI surface', async () => {
     const [v1Document, v2Document, authMe, profile] = await Promise.all([
       h.get('/openapi.json'),

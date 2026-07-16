@@ -1,5 +1,9 @@
 import { Body, Controller, Delete, Get, Param, Put, UseGuards } from '@nestjs/common';
-import type { AddLToCollectionInput, CollectionDetail } from '@linkedout/contracts/v2';
+import {
+  ulidSchema,
+  type AddLToCollectionInput,
+  type CollectionDetail,
+} from '@linkedout/contracts/v2';
 
 import { ApiContract } from '../../common/contracts/api-route-contracts';
 import { API_ROUTE_CONTRACTS_V2 } from '../../common/contracts/api-route-contracts-v2';
@@ -11,6 +15,7 @@ import type { AuthUser } from '../../common/types/auth';
 import { CollectionsService } from './collections.service';
 
 const addPipe = new ZodValidationPipe(API_ROUTE_CONTRACTS_V2.collectionAddL.body.schema);
+const idPipe = new ZodValidationPipe(ulidSchema);
 
 @Controller({ version: '2' })
 export class CollectionsV2Controller {
@@ -21,7 +26,7 @@ export class CollectionsV2Controller {
   @ApiContract(API_ROUTE_CONTRACTS_V2.collectionDetail)
   detail(
     @OptionalUser() user: AuthUser | undefined,
-    @Param('id') id: string,
+    @Param('id', idPipe) id: string,
   ): Promise<CollectionDetail> {
     return this.collections.getDetailV2(id, user?.id);
   }
@@ -31,8 +36,8 @@ export class CollectionsV2Controller {
   @ApiContract(API_ROUTE_CONTRACTS_V2.collectionAddL)
   addL(
     @CurrentUser() user: AuthUser,
-    @Param('id') id: string,
-    @Param('lId') lId: string,
+    @Param('id', idPipe) id: string,
+    @Param('lId', idPipe) lId: string,
     @Body(addPipe) body: AddLToCollectionInput,
   ): Promise<CollectionDetail> {
     return this.collections.addLV2(user, id, lId, body);
@@ -43,8 +48,8 @@ export class CollectionsV2Controller {
   @ApiContract(API_ROUTE_CONTRACTS_V2.collectionRemoveL)
   removeL(
     @CurrentUser() user: AuthUser,
-    @Param('id') id: string,
-    @Param('lId') lId: string,
+    @Param('id', idPipe) id: string,
+    @Param('lId', idPipe) lId: string,
   ): Promise<CollectionDetail> {
     return this.collections.removeLV2(user, id, lId);
   }

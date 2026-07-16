@@ -264,4 +264,47 @@ describe('21 · GET /v2/feed/sidebar', () => {
       'an ineligible snapshot is deterministically replaced from the same closed window',
     );
   });
+
+  test('deleting a fresh daily winner immediately selects the eligible runner-up', async () => {
+    const author = await h.createUser({ username: 'author' });
+    const firstActor = await h.createUser({ username: 'first_actor' });
+    const secondActor = await h.createUser({ username: 'second_actor' });
+    const winner = await h.createL(author.id);
+    const runnerUp = await h.createL(author.id);
+    const now = new Date();
+    const todayStart = new Date(
+      Date.UTC(now.getUTCFullYear(), now.getUTCMonth(), now.getUTCDate()),
+    );
+    const previousDayInteraction = new Date(todayStart.getTime() - 1);
+
+    await h.ctx.prisma.reaction.createMany({
+      data: [
+        {
+          userId: firstActor.id,
+          lId: winner.id,
+          type: 'HELPFUL',
+          createdAt: previousDayInteraction,
+        },
+        {
+          userId: secondActor.id,
+          lId: winner.id,
+          type: 'RESPECT',
+          createdAt: previousDayInteraction,
+        },
+        {
+          userId: firstActor.id,
+          lId: runnerUp.id,
+          type: 'HELPFUL',
+          createdAt: previousDayInteraction,
+        },
+      ],
+    });
+
+    const selected = h.expectShape(await sidebar(), feedSidebarResponseSchema);
+    assert.equal(selected.lOfTheDay.item.l.id, winner.id);
+    await h.ctx.prisma.l.delete({ where: { id: winner.id } });
+
+    const replaced = h.expectShape(await sidebar(), feedSidebarResponseSchema);
+    assert.equal(replaced.lOfTheDay.item.l.id, runnerUp.id);
+  });
 });

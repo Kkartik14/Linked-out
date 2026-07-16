@@ -1,8 +1,12 @@
 import { Injectable } from '@nestjs/common';
-import { Prisma, type LCategory } from '@linkedout/db';
+import { Prisma, type LCategory, type ReactionType } from '@linkedout/db';
 
 import { PrismaService } from '../../prisma/prisma.service';
 import type { UserSummarySource } from '../../common/mappers/user-summary.mapper';
+import {
+  L_AUTHOR_INCLUDE,
+  type LWithAuthor,
+} from '../../common/read-models/l-read-model';
 
 export interface SearchLRow {
   id: string;
@@ -97,5 +101,44 @@ export class SearchRepository {
       ORDER BY "username" ASC, "id" ASC
       LIMIT ${limit}
     `;
+  }
+
+  /** Rechecks privacy in SQL before hydrating raw full-text result ids. */
+  async visibleLsByIds(ids: string[], viewerId: string | undefined): Promise<LWithAuthor[]> {
+    if (ids.length === 0) return [];
+    const rows = await this.prisma.db.l.findMany({
+      where: {
+        id: { in: ids },
+        OR: [
+          { visibility: 'PUBLIC' },
+          ...(viewerId
+            ? [
+                { authorId: viewerId },
+                {
+                  visibility: 'FOLLOWERS' as const,
+                  author: { followers: { some: { followerId: viewerId } } },
+                },
+              ]
+            : []),
+        ],
+      },
+      include: L_AUTHOR_INCLUDE,
+    });
+    const byId = new Map(rows.map((row) => [row.id, row]));
+    return ids.flatMap((id) => {
+      const row = byId.get(id);
+      return row ? [row] : [];
+    });
+  }
+
+  viewerReactions(
+    viewerId: string,
+    lIds: string[],
+  ): Promise<Array<{ lId: string; type: ReactionType }>> {
+    if (lIds.length === 0) return Promise.resolve([]);
+    return this.prisma.db.reaction.findMany({
+      where: { userId: viewerId, lId: { in: lIds } },
+      select: { lId: true, type: true },
+    });
   }
 }

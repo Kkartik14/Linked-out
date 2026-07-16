@@ -15,7 +15,13 @@ import type {
 import { toUserSummary } from '../../common/mappers/user-summary.mapper';
 import { AppErrors } from '../../common/errors/app-exception';
 import { decodeCursor, encodeCursor } from '../../common/pagination/cursor';
-import { LsService } from '../ls/ls.service';
+import {
+  groupViewerReactions,
+  mapLRows,
+  type LWithAuthor,
+} from '../../common/read-models/l-read-model';
+import { toLCard } from '../ls/ls.mapper';
+import { toV2LCard } from '../ls/ls-v2.mapper';
 import { SearchRepository } from './search.repository';
 import type { SearchLCursor, SearchUserCursor } from './search.repository';
 
@@ -47,10 +53,7 @@ function readUserCursor(cursor: string | undefined): SearchUserCursor | null {
 
 @Injectable()
 export class SearchService {
-  constructor(
-    private readonly repo: SearchRepository,
-    private readonly ls: LsService,
-  ) {}
+  constructor(private readonly repo: SearchRepository) {}
 
   async search(query: SearchQuery, viewerId: string | undefined): Promise<SearchResult> {
     if (query.type === 'users') {
@@ -81,7 +84,7 @@ export class SearchService {
     const hasMore = rows.length > query.limit;
     const pageRows = hasMore ? rows.slice(0, query.limit) : rows;
     const pageIds = pageRows.map((row) => row.id);
-    const data = await this.ls.getVisibleCardsByIds(pageIds, viewerId);
+    const data = await this.cards(pageIds, viewerId, toLCard);
     const last = pageRows[pageRows.length - 1];
     return {
       data,
@@ -102,10 +105,7 @@ export class SearchService {
     );
     const hasMore = rows.length > query.limit;
     const pageRows = hasMore ? rows.slice(0, query.limit) : rows;
-    const data = await this.ls.getVisibleCardsByIdsV2(
-      pageRows.map((row) => row.id),
-      viewerId,
-    );
+    const data = await this.cards(pageRows.map((row) => row.id), viewerId, toV2LCard);
     const last = pageRows[pageRows.length - 1];
     return {
       data,
@@ -125,5 +125,24 @@ export class SearchService {
       data: pageRows.map(toUserSummary),
       nextCursor: hasMore && last ? encodeCursor({ username: last.username, id: last.id }) : null,
     };
+  }
+
+  private async cards<T>(
+    ids: string[],
+    viewerId: string | undefined,
+    mapper: Parameters<typeof mapLRows<T>>[3],
+  ): Promise<T[]> {
+    const rows = await this.repo.visibleLsByIds(ids, viewerId);
+    return mapLRows(rows, viewerId, await this.reactionMap(viewerId, rows), mapper);
+  }
+
+  private async reactionMap(viewerId: string | undefined, rows: LWithAuthor[]) {
+    if (!viewerId || rows.length === 0) return new Map();
+    return groupViewerReactions(
+      await this.repo.viewerReactions(
+        viewerId,
+        rows.map((row) => row.id),
+      ),
+    );
   }
 }

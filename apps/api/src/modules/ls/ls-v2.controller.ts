@@ -1,6 +1,7 @@
 import { Body, Controller, Delete, Get, Param, Patch, Post, Query, UseGuards } from '@nestjs/common';
 import {
   paginationQuerySchema,
+  ulidSchema,
   type CreateLInput,
   type LCard,
   type LDetail,
@@ -21,6 +22,7 @@ import { LsService } from './ls.service';
 const createPipe = new ZodValidationPipe(API_ROUTE_CONTRACTS_V2.lCreate.body.schema);
 const updatePipe = new ZodValidationPipe(API_ROUTE_CONTRACTS_V2.lUpdate.body.schema);
 const savedQueryPipe = new ZodValidationPipe(paginationQuerySchema());
+const idPipe = new ZodValidationPipe(ulidSchema);
 
 @Controller({ version: '2' })
 export class LsV2Controller {
@@ -36,7 +38,10 @@ export class LsV2Controller {
   @Get('ls/:id')
   @UseGuards(StrictOptionalAuthGuard)
   @ApiContract(API_ROUTE_CONTRACTS_V2.lDetail)
-  detail(@OptionalUser() user: AuthUser | undefined, @Param('id') id: string): Promise<LDetail> {
+  detail(
+    @OptionalUser() user: AuthUser | undefined,
+    @Param('id', idPipe) id: string,
+  ): Promise<LDetail> {
     return this.ls.getDetailV2(id, user?.id);
   }
 
@@ -45,7 +50,7 @@ export class LsV2Controller {
   @ApiContract(API_ROUTE_CONTRACTS_V2.lUpdate)
   update(
     @CurrentUser() user: AuthUser,
-    @Param('id') id: string,
+    @Param('id', idPipe) id: string,
     @Body(updatePipe) body: UpdateLInput,
   ): Promise<LDetail> {
     return this.ls.updateV2(user, id, body);
@@ -54,7 +59,7 @@ export class LsV2Controller {
   @Delete('ls/:id')
   @UseGuards(JwtAuthGuard)
   @ApiContract(API_ROUTE_CONTRACTS_V2.lDelete)
-  remove(@CurrentUser() user: AuthUser, @Param('id') id: string): Promise<{ ok: true }> {
+  remove(@CurrentUser() user: AuthUser, @Param('id', idPipe) id: string): Promise<{ ok: true }> {
     return this.ls.remove(user, id);
   }
 

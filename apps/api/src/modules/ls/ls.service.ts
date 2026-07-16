@@ -30,6 +30,12 @@ import type {
 import { AppErrors } from '../../common/errors/app-exception';
 import { decodeCursor } from '../../common/pagination/cursor';
 import { mapPage } from '../../common/pagination/paginate';
+import {
+  groupViewerReactions,
+  lAudiencePolicy,
+  mapLRows,
+  type LViewerContext,
+} from '../../common/read-models/l-read-model';
 import type { AuthUser } from '../../common/types/auth';
 import {
   LsRepository,
@@ -50,8 +56,6 @@ import {
 } from './ls.write-plan';
 import { toJourneyNode, toLCard, toLDetail } from './ls.mapper';
 import { toV2JourneyNode, toV2LCard, toV2LDetail } from './ls-v2.mapper';
-
-const ALL_VISIBILITIES: Visibility[] = ['PUBLIC', 'FOLLOWERS', 'PRIVATE'];
 
 function normalizeCreate(input: CreateLInput): WriteLData {
   return {
@@ -213,33 +217,13 @@ export class LsService {
   }
 
   async getDetail(id: string, viewerId: string | undefined): Promise<LDetail> {
-    const l = await this.repo.findById(id);
-    if (!l) throw AppErrors.lNotFound();
-    await this.assertCanView(l, viewerId);
-    const [collections, reactionMap] = await Promise.all([
-      l.isAnonymous && viewerId !== l.authorId ? Promise.resolve([]) : this.repo.collectionsForL(id),
-      this.reactionMap(viewerId, [id]),
-    ]);
-    return toLDetail(
-      l,
-      { reactions: reactionMap.get(id) ?? [], canEdit: viewerId === l.authorId },
-      collections,
-    );
+    const detail = await this.detailState(id, viewerId);
+    return toLDetail(detail.l, detail.viewer, detail.collections);
   }
 
   async getDetailV2(id: string, viewerId: string | undefined): Promise<LDetailV2> {
-    const l = await this.repo.findById(id);
-    if (!l) throw AppErrors.lNotFound();
-    await this.assertCanView(l, viewerId);
-    const [collections, reactionMap] = await Promise.all([
-      l.isAnonymous && viewerId !== l.authorId ? Promise.resolve([]) : this.repo.collectionsForL(id),
-      this.reactionMap(viewerId, [id]),
-    ]);
-    return toV2LDetail(
-      l,
-      { reactions: reactionMap.get(id) ?? [], canEdit: viewerId === l.authorId },
-      collections,
-    );
+    const detail = await this.detailState(id, viewerId);
+    return toV2LDetail(detail.l, detail.viewer, detail.collections);
   }
 
   async getFeed(query: FeedQuery, viewerId: string | undefined): Promise<Paginated<LCard>> {
@@ -326,6 +310,14 @@ export class LsService {
     return { data: await this.toV2Cards(page.rows, viewerId), nextCursor: page.nextCursor };
   }
 
+  async getUserLsByUsernameV2(
+    username: string,
+    query: UserLsQueryV2,
+    viewerId: string | undefined,
+  ): Promise<Paginated<LCardV2>> {
+    return this.getUserLsV2(await this.requireAuthorId(username), query, viewerId);
+  }
+
   async getJourney(
     authorId: string,
     query: JourneyQuery,
@@ -358,6 +350,14 @@ export class LsService {
     return mapPage(page, toV2JourneyNode);
   }
 
+  async getJourneyByUsernameV2(
+    username: string,
+    query: JourneyQueryV2,
+    viewerId: string | undefined,
+  ): Promise<Paginated<JourneyNodeV2>> {
+    return this.getJourneyV2(await this.requireAuthorId(username), query, viewerId);
+  }
+
   async getSaved(userId: string, query: PaginationQuery): Promise<Paginated<LCard>> {
     const page = await this.repo.savedByUser(userId, query.limit, cursorField(query.cursor, 'rid'));
     return { data: await this.toCards(page.rows, userId), nextCursor: page.nextCursor };
@@ -368,105 +368,26 @@ export class LsService {
     return { data: await this.toV2Cards(page.rows, userId), nextCursor: page.nextCursor };
   }
 
-  /** For search: hydrate ranked ids into cards, preserving rank order. */
-  async getCardsByIds(ids: string[], viewerId: string | undefined): Promise<LCard[]> {
-    const rows = await this.repo.hydrateOrdered(ids);
-    return this.toCards(rows, viewerId);
-  }
-
-  /** Hydrate ids and re-check visibility, used when ids came from raw SQL before hydration. */
-  async getVisibleCardsByIds(ids: string[], viewerId: string | undefined): Promise<LCard[]> {
-    const rows = await this.repo.hydrateVisibleOrdered(ids, viewerId);
-    return this.toCards(rows, viewerId);
-  }
-
-  async getVisibleCardsByIdsV2(
-    ids: string[],
-    viewerId: string | undefined,
-  ): Promise<LCardV2[]> {
-    const rows = await this.repo.hydrateVisibleOrdered(ids, viewerId);
-    return this.toV2Cards(rows, viewerId);
-  }
-
-  /** For collections: hydrate ids in order, keeping only Ls the viewer may see. */
-  async getCardsByIdsFiltered(
-    ids: string[],
-    viewerId: string | undefined,
-    visibilities: Visibility[],
-    includeAnonymous = true,
-  ): Promise<LCard[]> {
-    const rows = await this.repo.hydrateOrdered(ids);
-    const allowed = new Set<Visibility>(visibilities);
-    return this.toCards(
-      rows.filter((row) => allowed.has(row.visibility) && (includeAnonymous || !row.isAnonymous)),
-      viewerId,
-    );
-  }
-
-  async getCardsByIdsFilteredV2(
-    ids: string[],
-    viewerId: string | undefined,
-    visibilities: Visibility[],
-    includeAnonymous = true,
-  ): Promise<LCardV2[]> {
-    const rows = await this.repo.hydrateOrdered(ids);
-    const allowed = new Set<Visibility>(visibilities);
-    return this.toV2Cards(
-      rows.filter((row) => allowed.has(row.visibility) && (includeAnonymous || !row.isAnonymous)),
-      viewerId,
-    );
-  }
-
-  /** Which visibilities of `ownerId`'s content may `viewerId` see. */
-  allowedVisibilitiesFor(viewerId: string | undefined, ownerId: string): Promise<Visibility[]> {
-    return this.allowedVisibilities(viewerId, ownerId);
-  }
-
   // ─── Writes ───────────────────────────────────────────────────────────────
 
   async create(user: AuthUser, input: CreateLInput): Promise<LDetail> {
-    if (!user.username) throw AppErrors.onboardingRequired();
-    const data = normalizeCreate(input);
-    const l = await this.repo.createL(user.id, data, reputationForType(data.type));
+    const l = await this.createRow(user, normalizeCreate(input));
     return toLDetail(l, { reactions: [], canEdit: true }, []);
   }
 
   async createV2(user: AuthUser, input: CreateLInputV2): Promise<LDetailV2> {
-    if (!user.username) throw AppErrors.onboardingRequired();
-    const data = normalizeCreateV2(input);
-    const l = await this.repo.createL(user.id, data, reputationForType(data.type));
+    const l = await this.createRow(user, normalizeCreateV2(input));
     return toV2LDetail(l, { reactions: [], canEdit: true }, []);
   }
 
   async update(user: AuthUser, id: string, input: UpdateLInput): Promise<LDetail> {
-    const result = await this.repo.updateOwnedL(
-      id,
-      user.id,
-      updatePlans(input),
-    );
-    if (result.status === 'not_found') throw AppErrors.lNotFound();
-    if (result.status === 'not_owner') throw AppErrors.notLOwner();
-    const updated = result.row;
-    const [collections, reactionMap] = await Promise.all([
-      this.repo.collectionsForL(id),
-      this.reactionMap(user.id, [id]),
-    ]);
-    return toLDetail(updated, { reactions: reactionMap.get(id) ?? [], canEdit: true }, collections);
+    const detail = await this.updateState(user, id, updatePlans(input));
+    return toLDetail(detail.l, detail.viewer, detail.collections);
   }
 
   async updateV2(user: AuthUser, id: string, input: UpdateLInputV2): Promise<LDetailV2> {
-    const result = await this.repo.updateOwnedL(id, user.id, updatePlansV2(input));
-    if (result.status === 'not_found') throw AppErrors.lNotFound();
-    if (result.status === 'not_owner') throw AppErrors.notLOwner();
-    const [collections, reactionMap] = await Promise.all([
-      this.repo.collectionsForL(id),
-      this.reactionMap(user.id, [id]),
-    ]);
-    return toV2LDetail(
-      result.row,
-      { reactions: reactionMap.get(id) ?? [], canEdit: true },
-      collections,
-    );
+    const detail = await this.updateState(user, id, updatePlansV2(input));
+    return toV2LDetail(detail.l, detail.viewer, detail.collections);
   }
 
   async remove(user: AuthUser, id: string): Promise<{ ok: true }> {
@@ -479,15 +400,14 @@ export class LsService {
   // ─── Internal helpers ───────────────────────────────────────────────────────
 
   private async toCards(rows: LWithAuthor[], viewerId: string | undefined): Promise<LCard[]> {
-    const reactionMap = await this.reactionMap(
+    return mapLRows(
+      rows,
       viewerId,
-      rows.map((row) => row.id),
-    );
-    return rows.map((row) =>
-      toLCard(row, {
-        reactions: reactionMap.get(row.id) ?? [],
-        canEdit: viewerId === row.authorId,
-      }),
+      await this.reactionMap(
+        viewerId,
+        rows.map((row) => row.id),
+      ),
+      toLCard,
     );
   }
 
@@ -495,15 +415,14 @@ export class LsService {
     rows: LWithAuthor[],
     viewerId: string | undefined,
   ): Promise<LCardV2[]> {
-    const reactionMap = await this.reactionMap(
+    return mapLRows(
+      rows,
       viewerId,
-      rows.map((row) => row.id),
-    );
-    return rows.map((row) =>
-      toV2LCard(row, {
-        reactions: reactionMap.get(row.id) ?? [],
-        canEdit: viewerId === row.authorId,
-      }),
+      await this.reactionMap(
+        viewerId,
+        rows.map((row) => row.id),
+      ),
+      toV2LCard,
     );
   }
 
@@ -511,30 +430,64 @@ export class LsService {
     viewerId: string | undefined,
     lIds: string[],
   ): Promise<Map<string, ReactionType[]>> {
-    const map = new Map<string, ReactionType[]>();
-    if (!viewerId || lIds.length === 0) return map;
-    const rows = await this.repo.viewerReactions(viewerId, lIds);
-    for (const row of rows) {
-      const existing = map.get(row.lId);
-      if (existing) {
-        existing.push(row.type);
-      } else {
-        map.set(row.lId, [row.type]);
-      }
-    }
-    return map;
+    if (!viewerId || lIds.length === 0) return new Map();
+    return groupViewerReactions(await this.repo.viewerReactions(viewerId, lIds));
+  }
+
+  private async detailState(id: string, viewerId: string | undefined) {
+    const l = await this.repo.findById(id);
+    if (!l) throw AppErrors.lNotFound();
+    await this.assertCanView(l, viewerId);
+    const [collections, reactionMap] = await Promise.all([
+      l.isAnonymous && viewerId !== l.authorId
+        ? Promise.resolve([])
+        : this.repo.collectionsForL(id),
+      this.reactionMap(viewerId, [id]),
+    ]);
+    return {
+      l,
+      collections,
+      viewer: {
+        reactions: reactionMap.get(id) ?? [],
+        canEdit: viewerId === l.authorId,
+      } satisfies LViewerContext,
+    };
+  }
+
+  private async createRow(user: AuthUser, data: WriteLData): Promise<LWithAuthor> {
+    if (!user.username) throw AppErrors.onboardingRequired();
+    return this.repo.createL(user.id, data, reputationForType(data.type));
+  }
+
+  private async updateState(user: AuthUser, id: string, plans: LUpdatePlans) {
+    const result = await this.repo.updateOwnedL(id, user.id, plans);
+    if (result.status === 'not_found') throw AppErrors.lNotFound();
+    if (result.status === 'not_owner') throw AppErrors.notLOwner();
+    const [collections, reactionMap] = await Promise.all([
+      this.repo.collectionsForL(id),
+      this.reactionMap(user.id, [id]),
+    ]);
+    return {
+      l: result.row,
+      collections,
+      viewer: { reactions: reactionMap.get(id) ?? [], canEdit: true } satisfies LViewerContext,
+    };
+  }
+
+  private async requireAuthorId(username: string): Promise<string> {
+    const author = await this.repo.authorIdByUsername(username);
+    if (!author) throw AppErrors.userNotFound();
+    return author.id;
   }
 
   private async allowedVisibilities(
     viewerId: string | undefined,
     authorId: string,
   ): Promise<Visibility[]> {
-    if (viewerId === authorId) return ALL_VISIBILITIES;
-    const visibilities: Visibility[] = ['PUBLIC'];
-    if (viewerId && (await this.repo.viewerFollows(viewerId, authorId))) {
-      visibilities.push('FOLLOWERS');
-    }
-    return visibilities;
+    const isFollowing = Boolean(
+      viewerId && viewerId !== authorId && (await this.repo.viewerFollows(viewerId, authorId)),
+    );
+    return lAudiencePolicy(viewerId, authorId, isFollowing).visibilities;
   }
 
   private async assertCanView(l: LWithAuthor, viewerId: string | undefined): Promise<void> {

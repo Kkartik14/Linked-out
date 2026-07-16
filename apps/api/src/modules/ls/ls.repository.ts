@@ -1,10 +1,14 @@
 import { Injectable } from '@nestjs/common';
-import { Prisma } from '@linkedout/db';
-import type { FeedSort, LCategory, LType, ReactionType, Visibility } from '@linkedout/contracts';
+import { Prisma, type Visibility } from '@linkedout/db';
+import type { FeedSort, LCategory, LType, ReactionType } from '@linkedout/contracts';
 
 import { PrismaService } from '../../prisma/prisma.service';
 import { encodeCursor } from '../../common/pagination/cursor';
 import { buildPage, type EntityPage } from '../../common/pagination/paginate';
+import {
+  L_AUTHOR_INCLUDE,
+  type LWithAuthor,
+} from '../../common/read-models/l-read-model';
 import type {
   FeedPageCursor,
   CreatedAtJourneyPageCursor,
@@ -17,15 +21,7 @@ import type {
   WriteLData,
 } from './ls.types';
 
-const AUTHOR_INCLUDE = {
-  author: { select: { id: true, username: true, name: true, image: true, status: true } },
-} satisfies Prisma.LInclude;
-
-export type LWithAuthor = Prisma.LGetPayload<{
-  include: {
-    author: { select: { id: true; username: true; name: true; image: true; status: true } };
-  };
-}>;
+export type { LWithAuthor } from '../../common/read-models/l-read-model';
 
 function toPrismaUpdateData(data: UpdateLData): Prisma.LUpdateInput {
   return {
@@ -83,8 +79,12 @@ function feedMakeCursor(sort: FeedSort, row: LWithAuthor): string {
 export class LsRepository {
   constructor(private readonly prisma: PrismaService) {}
 
+  authorIdByUsername(username: string): Promise<{ id: string } | null> {
+    return this.prisma.db.user.findUnique({ where: { username }, select: { id: true } });
+  }
+
   findById(id: string): Promise<LWithAuthor | null> {
-    return this.prisma.db.l.findUnique({ where: { id }, include: AUTHOR_INCLUDE });
+    return this.prisma.db.l.findUnique({ where: { id }, include: L_AUTHOR_INCLUDE });
   }
 
   /** Collection refs an L belongs to (for LDetail). */
@@ -105,7 +105,7 @@ export class LsRepository {
     return this.prisma.db.$transaction(async (tx) => {
       const created = await tx.l.create({
         data: { ...data, authorId },
-        include: AUTHOR_INCLUDE,
+        include: L_AUTHOR_INCLUDE,
       });
       if (Object.keys(reputation).length > 0) {
         await tx.user.update({
@@ -151,7 +151,7 @@ export class LsRepository {
     };
     const rows = await this.prisma.db.l.findMany({
       where,
-      include: AUTHOR_INCLUDE,
+      include: L_AUTHOR_INCLUDE,
       orderBy: feedOrderBy(params.sort),
       take: params.limit + 1,
     });
@@ -174,7 +174,7 @@ export class LsRepository {
         ...(params.type ? { type: params.type } : {}),
         ...(params.cursorId ? { id: { lt: params.cursorId } } : {}),
       },
-      include: AUTHOR_INCLUDE,
+      include: L_AUTHOR_INCLUDE,
       orderBy: { id: 'desc' },
       take: params.limit + 1,
     });
@@ -203,7 +203,7 @@ export class LsRepository {
         },
         ...(cursorReactionId ? { id: { lt: cursorReactionId } } : {}),
       },
-      select: { id: true, l: { include: AUTHOR_INCLUDE } },
+      select: { id: true, l: { include: L_AUTHOR_INCLUDE } },
       orderBy: { id: 'desc' },
       take: limit + 1,
     });
@@ -263,7 +263,7 @@ export class LsRepository {
         ...(params.includeAnonymous ? {} : { isAnonymous: false }),
         ...(cursorWhere ? { AND: [cursorWhere] } : {}),
       },
-      include: AUTHOR_INCLUDE,
+      include: L_AUTHOR_INCLUDE,
       orderBy: [{ createdAt: 'asc' }, { id: 'asc' }],
       take: params.limit + 1,
     });
@@ -277,7 +277,7 @@ export class LsRepository {
     if (ids.length === 0) return [];
     const rows = await this.prisma.db.l.findMany({
       where: { id: { in: ids } },
-      include: AUTHOR_INCLUDE,
+      include: L_AUTHOR_INCLUDE,
     });
     const byId = new Map(rows.map((row) => [row.id, row]));
     const ordered: LWithAuthor[] = [];
@@ -310,7 +310,7 @@ export class LsRepository {
             : []),
         ],
       },
-      include: AUTHOR_INCLUDE,
+      include: L_AUTHOR_INCLUDE,
     });
     const byId = new Map(rows.map((row) => [row.id, row]));
     const ordered: LWithAuthor[] = [];
@@ -351,7 +351,7 @@ export class LsRepository {
             const row = await tx.l.update({
               where: { id },
               data: toPrismaUpdateData(plan.data),
-              include: AUTHOR_INCLUDE,
+              include: L_AUTHOR_INCLUDE,
             });
             if (Object.keys(plan.reputation).length > 0) {
               await tx.user.update({
