@@ -40,11 +40,19 @@ function SuggestionRow({
       </Link>
 
       <div className="min-w-0 flex-1">
-        <Link href={`/u/${user.username}`} className="block truncate text-sm font-medium hover:underline">
+        <Link
+          href={`/u/${user.username}`}
+          className="block truncate text-sm leading-tight font-medium hover:underline"
+        >
           {name}
         </Link>
-        {/* Server-composed. Rendered verbatim — the frontend never infers why. */}
-        <p className="text-muted-foreground truncate text-xs">{reason.text}</p>
+        {/*
+         * Server-composed, rendered verbatim — the frontend never infers why someone is
+         * suggested. Its length is the backend's choice, so wrap to two lines rather than
+         * truncating: "Active builder this week" clipped to "Active builder this …" reads
+         * like a bug, and a rail this narrow clips more copy than it keeps.
+         */}
+        <p className="text-muted-foreground line-clamp-2 text-xs leading-snug">{reason.text}</p>
       </div>
 
       {viewer.canFollow ? (
