@@ -1,6 +1,6 @@
 import type { Metadata } from "next";
 import { redirect } from "next/navigation";
-import { isSafeReturnTo } from "@linkedout/contracts";
+import { isSafeReturnTo } from "@linkedout/contracts/v2";
 
 import { getSession } from "@/lib/session";
 import { OnboardingForm } from "@/components/onboarding-form";

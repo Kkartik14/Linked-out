@@ -1,5 +1,5 @@
 import type { InfiniteData } from "@tanstack/react-query";
-import type { Comment, Paginated } from "@linkedout/contracts";
+import type { Comment, Paginated } from "@linkedout/contracts/v2";
 
 // TanStack stores pageParams as `unknown` unless every generic is repeated at each hook.
 // Cache transforms never interpret those values, so model the canonical cache shape directly.

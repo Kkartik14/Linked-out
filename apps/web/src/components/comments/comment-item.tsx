@@ -5,7 +5,7 @@ import Link from "next/link";
 import { ChevronDown, ChevronUp, Trash2 } from "lucide-react";
 import { useInfiniteQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { toast } from "sonner";
-import type { Comment } from "@linkedout/contracts";
+import type { Comment } from "@linkedout/contracts/v2";
 
 import { addReply, deleteComment, errorMessage, getReplies } from "@/lib/api";
 import {

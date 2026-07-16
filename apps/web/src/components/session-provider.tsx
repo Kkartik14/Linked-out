@@ -2,7 +2,7 @@
 
 import * as React from "react";
 import { useQueryClient } from "@tanstack/react-query";
-import type { UserProfile } from "@linkedout/contracts";
+import type { UserProfile } from "@linkedout/contracts/v2";
 
 export interface Session {
   user: UserProfile | null;

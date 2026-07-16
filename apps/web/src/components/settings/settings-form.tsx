@@ -3,7 +3,7 @@
 import * as React from "react";
 import { useRouter } from "next/navigation";
 import { toast } from "sonner";
-import type { AvatarContentType, JourneyStatus, UserProfile } from "@linkedout/contracts";
+import type { AvatarContentType, JourneyStatus, UserProfile } from "@linkedout/contracts/v2";
 
 import { errorMessage, patchMe, presignAvatar } from "@/lib/api";
 import { useMeta } from "@/components/meta-provider";

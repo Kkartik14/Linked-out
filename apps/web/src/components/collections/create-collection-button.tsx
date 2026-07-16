@@ -5,7 +5,7 @@ import { Plus } from "lucide-react";
 import { useRouter } from "next/navigation";
 import { useMutation, useQueryClient, type QueryKey } from "@tanstack/react-query";
 import { toast } from "sonner";
-import type { Collection } from "@linkedout/contracts";
+import type { Collection } from "@linkedout/contracts/v2";
 
 import { createCollection, errorMessage } from "@/lib/api";
 import { Button } from "@/components/ui/button";

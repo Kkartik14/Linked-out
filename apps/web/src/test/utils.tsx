@@ -9,7 +9,7 @@ import {
   PathnameContext,
   SearchParamsContext,
 } from "next/dist/shared/lib/hooks-client-context.shared-runtime";
-import type { UserProfile } from "@linkedout/contracts";
+import type { UserProfile } from "@linkedout/contracts/v2";
 
 import { DEFAULT_META } from "@/lib/meta-fallback";
 import { MetaProvider } from "@/components/meta-provider";

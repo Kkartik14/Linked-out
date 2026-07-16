@@ -1,4 +1,4 @@
-import { API_BASE_URL } from "@/lib/env";
+import { API_BASE_URL, API_V2_BASE_URL } from "@/lib/env";
 import type {
   AuthMeResponse,
   AvatarUploadRequest,
@@ -8,9 +8,9 @@ import type {
   Comment,
   CreateCommentInput,
   CreateLInput,
+  FeedSidebarResponse,
   FeedSort as ContractFeedSort,
   FollowResult,
-  JourneyNode,
   LCard,
   LDetail,
   LType,
@@ -19,13 +19,17 @@ import type {
   Paginated,
   UpdateLInput,
   UpdateUserInput,
-  PopularTagsResponse,
   ReactionResult,
   ReactionType,
   UserProfile,
   UserSummary,
-} from "@linkedout/contracts";
-import { isSafeReturnTo } from "@linkedout/contracts";
+} from "@linkedout/contracts/v2";
+import { feedSidebarResponseSchema, isSafeReturnTo } from "@linkedout/contracts/v2";
+// The journey is the one surface v2 cannot serve yet: v1's JourneyNode has no `createdAt`
+// (it sends the `eventDate ?? createdAt` alias as `date`) and v1 orders by that alias, so
+// adopting the v2 node here would render an out-of-order timeline labelled with the wrong
+// timestamps. Reverted to the v2 import the moment GET /v2/users/:username/journey ships.
+import type { JourneyNode } from "@linkedout/contracts";
 import { apiFetch } from "./client";
 
 type QueryValue = string | number | boolean | undefined | null;
@@ -67,8 +71,6 @@ export const getMeta = () =>
     credentials: "omit",
     next: { revalidate: 86_400 },
   });
-export const getPopularTags = (q?: string, limit = 10) =>
-  apiFetch<PopularTagsResponse>(`/tags/popular${qs({ q, limit })}`);
 
 // ── Feed ─────────────────────────────────────────────────────────────────────
 export type FeedScope = "global" | "following";
@@ -77,7 +79,6 @@ export type FeedSort = ContractFeedSort;
 export interface FeedQuery {
   scope?: FeedScope;
   sort?: FeedSort;
-  filter?: string; // lowercased LCategory
   cursor?: string;
   limit?: number;
 }
@@ -85,8 +86,30 @@ export interface FeedQuery {
 export function getFeed(opts: FeedQuery = {}): Promise<Paginated<LCard>> {
   const path = opts.scope === "following" ? "/feed/following" : "/feed";
   return apiFetch<Paginated<LCard>>(
-    `${path}${qs({ sort: opts.sort, filter: opts.filter, cursor: opts.cursor, limit: opts.limit })}`,
+    `${path}${qs({ sort: opts.sort, cursor: opts.cursor, limit: opts.limit })}`,
   );
+}
+
+/**
+ * The feed page's discovery rails: viewer, people to follow, Top Ls, L of the day
+ * (contract v2 §2). One optional-auth aggregate; the wire does not encode left/right.
+ *
+ * Fails independently of the centre feed — callers hide the rails rather than the page.
+ */
+export async function getFeedSidebar(): Promise<FeedSidebarResponse> {
+  if (process.env.NEXT_PUBLIC_FEED_SIDEBAR_FIXTURE === "1") {
+    // Dynamically imported so the fixture is dead-code-eliminated from the production
+    // bundle: the env check folds to `false` at build time and this branch disappears.
+    const { makeFeedSidebarFixture } = await import("./fixtures/feed-sidebar");
+    const me = await getMe().catch<AuthMeResponse>(() => ({
+      user: null,
+      needsOnboarding: false,
+    }));
+    // Parsed, not cast: a fixture that drifts from the contract fails here rather than
+    // rendering a shape the real endpoint would never send.
+    return feedSidebarResponseSchema.parse(makeFeedSidebarFixture(new Date(), me));
+  }
+  return apiFetch<FeedSidebarResponse>("/feed/sidebar", { baseUrl: API_V2_BASE_URL });
 }
 
 // ── Ls (core object) ─────────────────────────────────────────────────────────
@@ -155,8 +178,9 @@ export const removeLFromCollection = (id: string, lId: string) =>
   apiFetch<CollectionDetail>(`/collections/${id}/ls/${lId}`, { method: "DELETE" });
 
 // ── Search ───────────────────────────────────────────────────────────────────
-export const searchLs = (q: string, filter?: string, cursor?: string, limit?: number) =>
-  apiFetch<Paginated<LCard>>(`/search${qs({ q, type: "ls", filter, cursor, limit })}`);
+/** v2 search is always relevance-ranked and has no category filter. */
+export const searchLs = (q: string, cursor?: string, limit?: number) =>
+  apiFetch<Paginated<LCard>>(`/search${qs({ q, type: "ls", cursor, limit })}`);
 export const searchUsers = (q: string, cursor?: string, limit?: number) =>
   apiFetch<Paginated<UserSummary>>(`/search${qs({ q, type: "users", cursor, limit })}`);
 

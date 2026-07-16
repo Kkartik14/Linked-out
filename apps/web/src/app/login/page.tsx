@@ -1,5 +1,5 @@
 import type { Metadata } from "next";
-import { isSafeReturnTo } from "@linkedout/contracts";
+import { isSafeReturnTo } from "@linkedout/contracts/v2";
 
 import { oauthLoginUrl } from "@/lib/api";
 import { Button } from "@/components/ui/button";

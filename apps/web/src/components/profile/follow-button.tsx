@@ -3,7 +3,7 @@
 import { useRouter } from "next/navigation";
 import { useMutation, useQueryClient } from "@tanstack/react-query";
 import { toast } from "sonner";
-import type { UserProfile } from "@linkedout/contracts";
+import type { UserProfile } from "@linkedout/contracts/v2";
 
 import { errorMessage, follow, unfollow } from "@/lib/api";
 import { queryKeys } from "@/lib/query-keys";

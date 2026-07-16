@@ -2,7 +2,7 @@
 
 import * as React from "react";
 import { useInfiniteQuery } from "@tanstack/react-query";
-import type { LCard as LCardType, Paginated } from "@linkedout/contracts";
+import type { LCard as LCardType, Paginated } from "@linkedout/contracts/v2";
 
 import { errorMessage, getFeed, type FeedScope, type FeedSort } from "@/lib/api";
 import { LCard } from "@/components/l/l-card";
@@ -11,10 +11,11 @@ import { Button } from "@/components/ui/button";
 import { usePrincipal } from "@/components/session-provider";
 import { queryKeys } from "@/lib/query-keys";
 
-function EmptyState({ scope, filter }: { scope: FeedScope; filter: string | null }) {
-  let message = "No Ls to show yet.";
-  if (scope === "following") message = "Follow some builders and their Ls will show up here.";
-  else if (filter) message = "No Ls in this category yet. Try another filter.";
+function EmptyState({ scope }: { scope: FeedScope }) {
+  const message =
+    scope === "following"
+      ? "Follow some builders and their Ls will show up here."
+      : "No Ls to show yet.";
   return (
     <div className="border-border/60 rounded-xl border border-dashed py-16 text-center">
       <p className="text-muted-foreground text-sm">{message}</p>
@@ -26,12 +27,10 @@ export function FeedList({
   initial,
   scope,
   sort,
-  filter,
 }: {
   initial: Paginated<LCardType>;
   scope: FeedScope;
   sort: FeedSort;
-  filter: string | null;
 }) {
   const principal = usePrincipal();
   const {
@@ -44,9 +43,8 @@ export function FeedList({
     refetch,
     isRefetching,
   } = useInfiniteQuery({
-    queryKey: queryKeys.feed.infinite(principal, scope, sort, filter),
-    queryFn: ({ pageParam }) =>
-      getFeed({ scope, sort, filter: filter ?? undefined, cursor: pageParam }),
+    queryKey: queryKeys.feed.infinite(principal, scope, sort),
+    queryFn: ({ pageParam }) => getFeed({ scope, sort, cursor: pageParam }),
     initialPageParam: undefined as string | undefined,
     getNextPageParam: (last) => last.nextCursor ?? undefined,
     initialData: { pages: [initial], pageParams: [undefined] },
@@ -71,7 +69,7 @@ export function FeedList({
   }, [hasNextPage, isFetchingNextPage, fetchNextPage]);
 
   if (cards.length === 0 && !isError) {
-    return <EmptyState scope={scope} filter={filter} />;
+    return <EmptyState scope={scope} />;
   }
 
   return (

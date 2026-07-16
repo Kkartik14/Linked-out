@@ -1,13 +1,10 @@
 "use client";
 
 import * as React from "react";
-import type {
-  Collection,
-  JourneyNode,
-  LCard as LCardType,
-  LType,
-  Paginated,
-} from "@linkedout/contracts";
+import type { Collection, LCard as LCardType, LType, Paginated } from "@linkedout/contracts/v2";
+// v1 node: it only passes this through to JourneyTimeline, the app's one v1 island.
+// See the note at the top of `./journey-timeline`.
+import type { JourneyNode } from "@linkedout/contracts";
 
 import { getUserCollections, getUserLs } from "@/lib/api";
 import { InfiniteList } from "@/components/infinite-list";

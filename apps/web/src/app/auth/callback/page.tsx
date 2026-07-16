@@ -3,7 +3,7 @@
 import * as React from "react";
 import Link from "next/link";
 import { useRouter, useSearchParams } from "next/navigation";
-import { isSafeReturnTo } from "@linkedout/contracts";
+import { isSafeReturnTo } from "@linkedout/contracts/v2";
 
 import { getMe } from "@/lib/api";
 import { Button } from "@/components/ui/button";

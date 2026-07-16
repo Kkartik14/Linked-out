@@ -1,11 +1,12 @@
-import { beforeEach, describe, expect, it, vi } from "vitest";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
-import type { CreateLInput } from "@linkedout/contracts";
+import { feedSidebarResponseSchema, type CreateLInput } from "@linkedout/contracts/v2";
 
 import { apiFetch } from "./client";
 import {
   createL,
   getFeed,
+  getFeedSidebar,
   getMeta,
   getNotifications,
   getSaved,
@@ -23,10 +24,14 @@ describe("API endpoint helpers", () => {
     vi.mocked(apiFetch).mockReset();
   });
 
-  it("builds global feed query strings without empty params", () => {
-    void getFeed({ sort: "popular", filter: "startups", limit: 10 });
+  afterEach(() => {
+    vi.unstubAllEnvs();
+  });
 
-    expect(apiFetch).toHaveBeenCalledWith("/feed?sort=popular&filter=startups&limit=10");
+  it("builds global feed query strings without empty params", () => {
+    void getFeed({ sort: "popular", limit: 10 });
+
+    expect(apiFetch).toHaveBeenCalledWith("/feed?sort=popular&limit=10");
   });
 
   it("uses the following feed path when requested", () => {
@@ -46,14 +51,11 @@ describe("API endpoint helpers", () => {
   });
 
   it("sends create L writes as POST JSON", () => {
+    // v2 create body: the removed category/company/tags/eventDate fields cannot be expressed.
     const body: CreateLInput = {
       title: "Rejected after the final round",
       story: "I wrote down the lesson while it was fresh.",
       type: "L",
-      category: "INTERVIEWS",
-      company: "Google",
-      tags: ["interviews"],
-      eventDate: null,
       visibility: "PUBLIC",
       isAnonymous: false,
     };
@@ -66,18 +68,15 @@ describe("API endpoint helpers", () => {
     });
   });
 
-  it("builds saved, notifications, and search URLs with encoded filters", () => {
+  it("builds saved, notifications, and search URLs without a category filter", () => {
     void getSaved("cursor value", 2);
     void getNotifications(undefined, 3);
-    void searchLs("final round", "interviews", "next", 4);
+    void searchLs("final round", "next", 4);
     void searchUsers("Kartik Gupta", "users-next", 5);
 
     expect(apiFetch).toHaveBeenNthCalledWith(1, "/me/saved?cursor=cursor+value&limit=2");
     expect(apiFetch).toHaveBeenNthCalledWith(2, "/notifications?limit=3");
-    expect(apiFetch).toHaveBeenNthCalledWith(
-      3,
-      "/search?q=final+round&type=ls&filter=interviews&cursor=next&limit=4",
-    );
+    expect(apiFetch).toHaveBeenNthCalledWith(3, "/search?q=final+round&type=ls&cursor=next&limit=4");
     expect(apiFetch).toHaveBeenNthCalledWith(
       4,
       "/search?q=Kartik+Gupta&type=users&cursor=users-next&limit=5",
@@ -89,10 +88,49 @@ describe("API endpoint helpers", () => {
       "/auth/google?returnTo=%2Fnew%3Fdraft%3D1",
     );
 
-    expect(() => oauthLoginUrl("github", "https://evil.example")).toThrow(
-      /safe relative path/,
-    );
+    expect(() => oauthLoginUrl("github", "https://evil.example")).toThrow(/safe relative path/);
     expect(() => oauthLoginUrl("github", "//evil.example")).toThrow(/safe relative path/);
     expect(() => oauthLoginUrl("github", "/\\evil")).toThrow(/safe relative path/);
+  });
+});
+
+describe("getFeedSidebar", () => {
+  beforeEach(() => {
+    vi.mocked(apiFetch).mockReset();
+  });
+
+  afterEach(() => {
+    vi.unstubAllEnvs();
+  });
+
+  it("serves a schema-valid fixture without hitting the unshipped v2 route", async () => {
+    vi.stubEnv("NEXT_PUBLIC_FEED_SIDEBAR_FIXTURE", "1");
+    // The fixture reads the real /auth/me so dev sees its own signed-in state.
+    vi.mocked(apiFetch).mockResolvedValueOnce({ user: null, needsOnboarding: false });
+
+    const sidebar = await getFeedSidebar();
+
+    expect(() => feedSidebarResponseSchema.parse(sidebar)).not.toThrow();
+    expect(apiFetch).not.toHaveBeenCalledWith("/feed/sidebar", expect.anything());
+  });
+
+  it("degrades the fixture to a guest response when /auth/me fails", async () => {
+    vi.stubEnv("NEXT_PUBLIC_FEED_SIDEBAR_FIXTURE", "1");
+    vi.mocked(apiFetch).mockRejectedValueOnce(new Error("network"));
+
+    const sidebar = await getFeedSidebar();
+
+    expect(sidebar.viewer.state).toBe("SIGNED_OUT");
+  });
+
+  it("calls the v2 route on the v2 base URL once the fixture flag is off", () => {
+    vi.stubEnv("NEXT_PUBLIC_FEED_SIDEBAR_FIXTURE", "");
+
+    void getFeedSidebar();
+
+    // v2 lives beside v1 on the same host; only this route is v2-only today.
+    expect(apiFetch).toHaveBeenCalledWith("/feed/sidebar", {
+      baseUrl: "http://localhost:4000/v2",
+    });
   });
 });

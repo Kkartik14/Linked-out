@@ -1,5 +1,5 @@
 import { API_BASE_URL } from "@/lib/env";
-import type { ErrorEnvelope } from "@linkedout/contracts";
+import type { ErrorEnvelope } from "@linkedout/contracts/v2";
 import { ApiError } from "./errors";
 
 export interface ApiFetchInit extends RequestInit {
@@ -7,6 +7,8 @@ export interface ApiFetchInit extends RequestInit {
   skipRefresh?: boolean;
   /** Internal: server-side retry cookie after a refresh response sets cookies. */
   cookieHeader?: string;
+  /** Override the API version base. Defaults to `API_BASE_URL` (v1). */
+  baseUrl?: string;
 }
 
 /**
@@ -91,7 +93,7 @@ function setCookiesFrom(headers: Headers): string[] {
  * typed as `T`, or throws `ApiError`.
  */
 export async function apiFetch<T>(path: string, init: ApiFetchInit = {}): Promise<T> {
-  const { skipRefresh, cookieHeader, ...rest } = init;
+  const { skipRefresh, cookieHeader, baseUrl = API_BASE_URL, ...rest } = init;
   const headers = new Headers(rest.headers);
   const forwardsCredentials = rest.credentials !== "omit";
   if (!forwardsCredentials) headers.delete("cookie");
@@ -103,7 +105,7 @@ export async function apiFetch<T>(path: string, init: ApiFetchInit = {}): Promis
     headers.set("content-type", "application/json");
   }
 
-  const res = await fetch(`${API_BASE_URL}${path}`, {
+  const res = await fetch(`${baseUrl}${path}`, {
     ...rest,
     headers,
     credentials: rest.credentials ?? "include",

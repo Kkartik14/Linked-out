@@ -6,17 +6,17 @@ import { useRouter } from "next/navigation";
 import { CircleCheck, Pencil, RotateCcw, Trash2 } from "lucide-react";
 import { useMutation } from "@tanstack/react-query";
 import { toast } from "sonner";
-import type { LDetail } from "@linkedout/contracts";
+import type { LDetail } from "@linkedout/contracts/v2";
 
 import { deleteL, errorMessage, patchL } from "@/lib/api";
-import { categoryLabel, statusOption, typeLabel, useMeta } from "@/components/meta-provider";
+import { statusOption, typeLabel, useMeta } from "@/components/meta-provider";
 import { UserAvatar } from "@/components/user-avatar";
 import { ReactionBar } from "@/components/l/reaction-bar";
 import { SaveToCollectionButton } from "@/components/collections/save-to-collection-button";
 import { ConfirmDialog } from "@/components/confirm-dialog";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
-import { formatDate, timeAgo } from "@/lib/format";
+import { timeAgo } from "@/lib/format";
 
 export function LDetailView({ l }: { l: LDetail }) {
   const meta = useMeta();
@@ -26,7 +26,6 @@ export function LDetailView({ l }: { l: LDetail }) {
   const [confirmDelete, setConfirmDelete] = React.useState(false);
 
   const status = l.author ? statusOption(meta, l.author.status) : undefined;
-  const cat = categoryLabel(meta, l.category);
   const isBattle = l.type === "BATTLE";
 
   const del = useMutation({
@@ -95,33 +94,7 @@ export function LDetailView({ l }: { l: LDetail }) {
         {l.title}
       </h1>
 
-      {cat || l.company || l.eventDate ? (
-        <div className="text-muted-foreground mt-2 flex flex-wrap items-center gap-2 text-sm">
-          {cat ? (
-            <Badge variant="outline" className="font-normal">
-              {cat}
-            </Badge>
-          ) : null}
-          {l.company ? <span>{l.company}</span> : null}
-          {l.eventDate ? <time dateTime={l.eventDate}>{formatDate(l.eventDate)}</time> : null}
-        </div>
-      ) : null}
-
       <div className="mt-5 text-[15px] leading-relaxed whitespace-pre-line">{l.story}</div>
-
-      {l.tags.length > 0 ? (
-        <div className="mt-4 flex flex-wrap gap-x-3 gap-y-1">
-          {l.tags.map((tag) => (
-            <Link
-              key={tag}
-              href={`/search?q=${encodeURIComponent(tag)}`}
-              className="text-muted-foreground hover:text-foreground text-sm"
-            >
-              #{tag}
-            </Link>
-          ))}
-        </div>
-      ) : null}
 
       {l.collections.length > 0 ? (
         <div className="mt-5">

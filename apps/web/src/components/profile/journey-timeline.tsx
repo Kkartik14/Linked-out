@@ -1,12 +1,18 @@
 "use client";
 
 import Link from "next/link";
+// The one v1 island left in the app. v2's JourneyNode carries `createdAt`, but v1 never
+// sends it — it sends the `eventDate ?? createdAt` alias as `date` and *orders by that
+// alias*. Adopting the v2 node against the live v1 route would render a timeline sorted
+// one way and labelled another (a backdated L would sort first but display its publish
+// date). Migrate this file the moment GET /v2/users/:username/journey ships; the category
+// and company lines are already gone, so only the date field and its import change.
 import type { JourneyNode, Paginated } from "@linkedout/contracts";
 
 import { getJourney } from "@/lib/api";
 import { InfiniteList } from "@/components/infinite-list";
 import { EmptyState } from "@/components/empty-state";
-import { categoryLabel, typeLabel, useMeta } from "@/components/meta-provider";
+import { typeLabel, useMeta } from "@/components/meta-provider";
 import { Badge } from "@/components/ui/badge";
 import { Skeleton } from "@/components/ui/skeleton";
 import { formatDate } from "@/lib/format";
@@ -15,7 +21,6 @@ import { queryKeys } from "@/lib/query-keys";
 
 function TimelineNode({ node }: { node: JourneyNode }) {
   const meta = useMeta();
-  const cat = categoryLabel(meta, node.category);
 
   return (
     <div className="border-border relative border-l pt-1 pb-6 pl-6">
@@ -36,8 +41,6 @@ function TimelineNode({ node }: { node: JourneyNode }) {
             {node.resolvedAt ? "Resolved" : "Ongoing"}
           </Badge>
         ) : null}
-        {cat ? <span className="text-muted-foreground">{cat}</span> : null}
-        {node.company ? <span className="text-muted-foreground">· {node.company}</span> : null}
       </div>
     </div>
   );

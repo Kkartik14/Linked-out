@@ -1,7 +1,7 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { screen, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
-import type { Notification } from "@linkedout/contracts";
+import type { Notification } from "@linkedout/contracts/v2";
 
 import { mockUser, renderWithProviders } from "@/test/utils";
 

@@ -1,18 +1,17 @@
 "use client";
 
 import Link from "next/link";
-import type { LCard as LCardType } from "@linkedout/contracts";
+import type { LCard as LCardType } from "@linkedout/contracts/v2";
 
 import { Card } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { UserAvatar } from "@/components/user-avatar";
 import { ReactionBar } from "@/components/l/reaction-bar";
-import { categoryLabel, statusOption, typeLabel, useMeta } from "@/components/meta-provider";
-import { formatDate, timeAgo } from "@/lib/format";
+import { statusOption, typeLabel, useMeta } from "@/components/meta-provider";
+import { timeAgo } from "@/lib/format";
 
 export function LCard({ l }: { l: LCardType }) {
   const meta = useMeta();
-  const cat = categoryLabel(meta, l.category);
   const isBattle = l.type === "BATTLE";
   const status = l.author ? statusOption(meta, l.author.status) : undefined;
   const href = `/ls/${l.id}`;
@@ -73,36 +72,6 @@ export function LCard({ l }: { l: LCardType }) {
           </h2>
         </Link>
         <p className="text-muted-foreground mt-2 text-sm leading-relaxed">{l.storyPreview}</p>
-
-        {cat || l.company || l.eventDate ? (
-          <div className="text-muted-foreground mt-3 flex flex-wrap items-center gap-2 text-xs">
-            {cat ? (
-              <Badge variant="outline" className="font-normal">
-                {cat}
-              </Badge>
-            ) : null}
-            {l.company ? <span>{l.company}</span> : null}
-            {l.eventDate ? (
-              <span>
-                <time dateTime={l.eventDate}>{formatDate(l.eventDate)}</time>
-              </span>
-            ) : null}
-          </div>
-        ) : null}
-
-        {l.tags.length > 0 ? (
-          <div className="mt-2 flex flex-wrap gap-x-3 gap-y-1">
-            {l.tags.map((tag) => (
-              <Link
-                key={tag}
-                href={`/search?q=${encodeURIComponent(tag)}`}
-                className="text-muted-foreground hover:text-foreground text-xs"
-              >
-                #{tag}
-              </Link>
-            ))}
-          </div>
-        ) : null}
       </div>
 
       {/* Actions */}

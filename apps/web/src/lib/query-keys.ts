@@ -21,12 +21,14 @@ export type Principal = string;
 
 export const queryKeys = {
   feed: {
-    infinite: (p: Principal, scope: string, sort: string, filter: string | null) =>
-      ["feed", p, scope, sort, filter] as const,
+    infinite: (p: Principal, scope: string, sort: string) => ["feed", p, scope, sort] as const,
+  },
+  /** The feed page's discovery rails. Principal-scoped: the response carries viewer state. */
+  feedSidebar: {
+    detail: (p: Principal) => ["feed-sidebar", p] as const,
   },
   search: {
-    ls: (p: Principal, query: string, filter: string | null) =>
-      ["search", p, "ls", query, filter] as const,
+    ls: (p: Principal, query: string) => ["search", p, "ls", query] as const,
     users: (p: Principal, query: string) => ["search", p, "users", query] as const,
   },
   users: {
