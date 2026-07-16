@@ -10,6 +10,9 @@ describe("notification query keys (FRONTEND-01)", () => {
   });
 
   it("scopes every key by principal", () => {
+    expect(queryKeys.feed.infinite("u1", "global", "latest", null)).not.toEqual(
+      queryKeys.feed.infinite("u2", "global", "latest", null),
+    );
     expect(queryKeys.notifications.preview("u1")).not.toEqual(
       queryKeys.notifications.preview("u2"),
     );

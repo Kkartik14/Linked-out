@@ -13,7 +13,7 @@ export interface FollowNotificationWrite {
   recipientId: string;
   actorId: string;
   lId: null;
-  dedupeKey: null;
+  dedupeKey: string;
 }
 
 @Injectable()
@@ -34,7 +34,7 @@ export class FollowsRepository {
         skipDuplicates: true,
       });
       if (result.count === 0) return false;
-      await tx.notification.create({ data: notification, select: { id: true } });
+      await tx.notification.createMany({ data: [notification], skipDuplicates: true });
       return true;
     });
     return created;

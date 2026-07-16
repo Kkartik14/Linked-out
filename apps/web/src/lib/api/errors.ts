@@ -7,13 +7,22 @@ export class ApiError extends Error {
   readonly code: string;
   /** Present on VALIDATION_ERROR: per-field problems. */
   readonly details?: FieldError[];
+  /** Server-directed delay for RATE_LIMITED responses. */
+  readonly retryAfterMs?: number;
 
-  constructor(status: number, code: string, message: string, details?: FieldError[]) {
+  constructor(
+    status: number,
+    code: string,
+    message: string,
+    details?: FieldError[],
+    retryAfterMs?: number,
+  ) {
     super(message);
     this.name = "ApiError";
     this.status = status;
     this.code = code;
     this.details = details;
+    this.retryAfterMs = retryAfterMs;
   }
 }
 

@@ -17,8 +17,13 @@ const ulid = monotonicFactory();
 const MODELS_WITHOUT_ULID: ReadonlySet<string> = new Set([
   'AvatarDeletionClaim',
   'CollectionL',
+  'RateLimitBucket',
   'VerificationToken',
 ]);
+
+export function modelUsesUlid(model: string): boolean {
+  return !MODELS_WITHOUT_ULID.has(model);
+}
 
 /**
  * ORM boundary: Prisma types write-`data` as a broad union, so we narrow at runtime and
@@ -50,25 +55,25 @@ export const ulidExtension = Prisma.defineExtension({
   query: {
     $allModels: {
       create({ model, args, query }) {
-        if (!MODELS_WITHOUT_ULID.has(model)) {
+        if (modelUsesUlid(model)) {
           assignUlid(args.data);
         }
         return query(args);
       },
       createMany({ model, args, query }) {
-        if (!MODELS_WITHOUT_ULID.has(model) && args.data !== undefined) {
+        if (modelUsesUlid(model) && args.data !== undefined) {
           assignUlidToRows(args.data);
         }
         return query(args);
       },
       createManyAndReturn({ model, args, query }) {
-        if (!MODELS_WITHOUT_ULID.has(model) && args.data !== undefined) {
+        if (modelUsesUlid(model) && args.data !== undefined) {
           assignUlidToRows(args.data);
         }
         return query(args);
       },
       upsert({ model, args, query }) {
-        if (!MODELS_WITHOUT_ULID.has(model)) {
+        if (modelUsesUlid(model)) {
           assignUlid(args.create);
         }
         return query(args);

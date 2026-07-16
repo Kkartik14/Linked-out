@@ -34,13 +34,21 @@ async function safeJson(res: Response): Promise<unknown> {
   }
 }
 
-function toApiError(status: number, body: unknown): ApiError {
+function parseRetryAfter(value: string | null): number | undefined {
+  if (!value) return undefined;
+  if (/^\d+$/.test(value.trim())) return Number(value.trim()) * 1_000;
+  const at = Date.parse(value);
+  return Number.isNaN(at) ? undefined : Math.max(0, at - Date.now());
+}
+
+function toApiError(status: number, body: unknown, headers?: Headers): ApiError {
   const err = (body as ErrorEnvelope | null)?.error;
   return new ApiError(
     status,
     err?.code ?? "UNKNOWN",
     err?.message ?? `Request failed (${status}).`,
     err?.details,
+    parseRetryAfter(headers?.get("retry-after") ?? null),
   );
 }
 
@@ -112,17 +120,17 @@ export async function apiFetch<T>(path: string, init: ApiFetchInit = {}): Promis
       forwardsCredentials &&
       typeof window !== "undefined"
     ) {
-      const refreshedCookie = await refreshSession(headers.get("cookie"));
+      const refreshedCookie = await refreshSessionSingleFlight(headers.get("cookie"));
       return apiFetch<T>(path, {
         ...init,
         skipRefresh: true,
         cookieHeader: refreshedCookie ?? cookieHeader,
       });
     }
-    throw toApiError(401, body);
+    throw toApiError(401, body, res.headers);
   }
 
-  if (!res.ok) throw toApiError(res.status, await safeJson(res));
+  if (!res.ok) throw toApiError(res.status, await safeJson(res), res.headers);
   if (res.status === 204) return undefined as T;
   return (await res.json()) as T;
 }
@@ -141,4 +149,15 @@ async function refreshSession(cookie: string | null): Promise<string | null> {
     // The retried request will surface a fresh 401 if refresh failed.
     return null;
   }
+}
+
+let refreshInFlight: Promise<string | null> | null = null;
+
+function refreshSessionSingleFlight(cookie: string | null): Promise<string | null> {
+  if (!refreshInFlight) {
+    refreshInFlight = refreshSession(cookie).finally(() => {
+      refreshInFlight = null;
+    });
+  }
+  return refreshInFlight;
 }

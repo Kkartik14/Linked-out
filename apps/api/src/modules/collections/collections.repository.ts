@@ -32,6 +32,13 @@ export class CollectionSlugConflictError extends Error {
   }
 }
 
+export class CollectionNotFoundError extends Error {
+  constructor() {
+    super('Collection no longer exists.');
+    this.name = 'CollectionNotFoundError';
+  }
+}
+
 export type CollectionWithMeta = Prisma.CollectionGetPayload<{
   include: {
     owner: { select: { id: true; username: true; name: true; image: true; status: true } };
@@ -65,6 +72,9 @@ export class CollectionsRepository {
       if (error instanceof Prisma.PrismaClientKnownRequestError && error.code === 'P2002') {
         throw new CollectionSlugConflictError();
       }
+      if (error instanceof Prisma.PrismaClientKnownRequestError && error.code === 'P2025') {
+        throw new CollectionNotFoundError();
+      }
       throw error;
     }
   }
@@ -91,19 +101,29 @@ export class CollectionsRepository {
       if (error instanceof Prisma.PrismaClientKnownRequestError && error.code === 'P2002') {
         throw new CollectionSlugConflictError();
       }
+      if (error instanceof Prisma.PrismaClientKnownRequestError && error.code === 'P2025') {
+        throw new CollectionNotFoundError();
+      }
       throw error;
     }
   }
 
   async delete(id: string, ownerId: string): Promise<void> {
-    await this.prisma.db.$transaction(async (tx) => {
-      await tx.collection.delete({ where: { id }, select: { id: true } });
-      await tx.user.update({
-        where: { id: ownerId },
-        data: { collectionsCreated: { decrement: 1 } },
-        select: { id: true },
+    try {
+      await this.prisma.db.$transaction(async (tx) => {
+        await tx.collection.delete({ where: { id }, select: { id: true } });
+        await tx.user.update({
+          where: { id: ownerId },
+          data: { collectionsCreated: { decrement: 1 } },
+          select: { id: true },
+        });
       });
-    });
+    } catch (error) {
+      if (error instanceof Prisma.PrismaClientKnownRequestError && error.code === 'P2025') {
+        throw new CollectionNotFoundError();
+      }
+      throw error;
+    }
   }
 
   async listByOwner(
@@ -123,11 +143,18 @@ export class CollectionsRepository {
   async visibleLCounts(
     collectionIds: string[],
     visibilities: Visibility[],
+    includeAnonymous: boolean,
   ): Promise<Map<string, number>> {
     if (collectionIds.length === 0) return new Map();
     const rows = await this.prisma.db.collectionL.groupBy({
       by: ['collectionId'],
-      where: { collectionId: { in: collectionIds }, l: { visibility: { in: visibilities } } },
+      where: {
+        collectionId: { in: collectionIds },
+        l: {
+          visibility: { in: visibilities },
+          ...(includeAnonymous ? {} : { isAnonymous: false }),
+        },
+      },
       _count: { _all: true },
     });
     return new Map(rows.map((row) => [row.collectionId, row._count._all]));

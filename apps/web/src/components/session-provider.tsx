@@ -1,6 +1,7 @@
 "use client";
 
 import * as React from "react";
+import { useQueryClient } from "@tanstack/react-query";
 import type { UserProfile } from "@linkedout/contracts";
 
 export interface Session {
@@ -17,6 +18,20 @@ export function SessionProvider({
   session: Session;
   children: React.ReactNode;
 }) {
+  const queryClient = useQueryClient();
+  const principal = session.user?.id ?? "anon";
+  const previousPrincipal = React.useRef(principal);
+
+  React.useEffect(() => {
+    const previous = previousPrincipal.current;
+    if (previous === principal) return;
+    previousPrincipal.current = principal;
+    const ownedByPrevious = (key: readonly unknown[]) => key.includes(previous);
+    void queryClient.cancelQueries({ predicate: (query) => ownedByPrevious(query.queryKey) });
+    queryClient.removeQueries({ predicate: (query) => ownedByPrevious(query.queryKey) });
+    queryClient.getMutationCache().clear();
+  }, [principal, queryClient]);
+
   return <SessionContext.Provider value={session}>{children}</SessionContext.Provider>;
 }
 

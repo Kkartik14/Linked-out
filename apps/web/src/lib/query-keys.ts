@@ -20,6 +20,22 @@
 export type Principal = string;
 
 export const queryKeys = {
+  feed: {
+    infinite: (p: Principal, scope: string, sort: string, filter: string | null) =>
+      ["feed", p, scope, sort, filter] as const,
+  },
+  search: {
+    ls: (p: Principal, query: string, filter: string | null) =>
+      ["search", p, "ls", query, filter] as const,
+    users: (p: Principal, query: string) => ["search", p, "users", query] as const,
+  },
+  users: {
+    ls: (p: Principal, username: string, type: string) =>
+      ["user-ls", p, username, type] as const,
+    journey: (p: Principal, username: string) => ["journey", p, username] as const,
+    collections: (p: Principal, username: string) =>
+      ["user-collections", p, username] as const,
+  },
   ls: {
     reactions: (p: Principal, lId: string) => ["ls", p, lId, "reactions"] as const,
     commentCount: (p: Principal, lId: string) => ["ls", p, lId, "comment-count"] as const,

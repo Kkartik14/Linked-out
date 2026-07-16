@@ -20,6 +20,8 @@ import { CreateCollectionButton } from "@/components/collections/create-collecti
 import { typeSectionLabel, useMeta } from "@/components/meta-provider";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import { usePrincipal } from "@/components/session-provider";
+import { queryKeys } from "@/lib/query-keys";
 
 const SECTION_TYPES: LType[] = [
   "L",
@@ -33,9 +35,10 @@ const SECTION_TYPES: LType[] = [
 ];
 
 function LsList({ username, type, empty }: { username: string; type?: LType; empty: string }) {
+  const principal = usePrincipal();
   return (
     <InfiniteList<LCardType>
-      queryKey={["user-ls", username, type ?? "all"]}
+      queryKey={queryKeys.users.ls(principal, username, type ?? "all")}
       queryFn={(cursor) => getUserLs(username, type, cursor)}
       getItemKey={(l) => l.id}
       renderItem={(l) => <LCard l={l} />}
@@ -60,7 +63,8 @@ function CollectionsList({
   empty: string;
   canCreate: boolean;
 }) {
-  const queryKey = ["user-collections", username];
+  const principal = usePrincipal();
+  const queryKey = queryKeys.users.collections(principal, username);
 
   return (
     <div className="flex flex-col gap-3">

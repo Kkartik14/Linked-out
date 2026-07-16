@@ -148,6 +148,11 @@ jobs:
         # using the explicit "built" test entrypoint that imports compiled modules.
         run: pnpm --filter @linkedout/api test:unit:built
 
+      - name: Verify migration parity and SQL-only objects
+        env:
+          ALLOW_TEST_DB_RESET: "1"
+        run: pnpm db:test:verify-schema
+
       # Boots the real NestJS server (twice — one with uploads, one without) over HTTP
       # against the Postgres service, and validates every response with the shared Zod
       # contract. See apps/api/test/README.md.

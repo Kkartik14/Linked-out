@@ -4,32 +4,66 @@
  * comments, follows and a collection — then recomputes every denormalized counter so the
  * seeded state is exactly what the services would have produced.
  *
- * Run:  pnpm --filter @linkedout/db seed
+ * Run: ALLOW_DB_SEED=1 SEED_DB_EXPECTED_SESSION_USER=<role> pnpm --filter @linkedout/db seed
  */
 const { createPrismaClient } = require('../dist');
 const { helpfulReactionWhere, popularityScoreFor } = require('./seed-policy.cjs');
 
 const prisma = createPrismaClient();
 
-async function wipe() {
+function assertSeedEnvironment() {
+  if (process.env.ALLOW_DB_SEED !== '1') {
+    throw new Error('Refusing destructive seed: set ALLOW_DB_SEED=1 explicitly.');
+  }
+  if (!process.env.SEED_DB_EXPECTED_SESSION_USER) {
+    throw new Error('Refusing destructive seed: SEED_DB_EXPECTED_SESSION_USER is required.');
+  }
+  const rawUrl = process.env.DATABASE_URL;
+  if (!rawUrl) throw new Error('Refusing destructive seed: DATABASE_URL is required.');
+  if (process.env.DIRECT_URL && process.env.DIRECT_URL !== rawUrl) {
+    throw new Error('Refusing destructive seed: DATABASE_URL and DIRECT_URL disagree.');
+  }
+  const url = new URL(rawUrl);
+  if (!['localhost', '127.0.0.1', '::1'].includes(url.hostname)) {
+    throw new Error(`Refusing destructive seed on non-loopback host ${url.hostname}.`);
+  }
+  const allowed = new Set((process.env.SEED_DB_ALLOWED_NAMES || 'linkedout,linkedout_dev').split(',').map((name) => name.trim()).filter(Boolean));
+  const declared = decodeURIComponent(url.pathname.replace(/^\//, ''));
+  if (!allowed.has(declared)) {
+    throw new Error(`Refusing destructive seed for database ${declared}; allowed: ${[...allowed].join(', ')}.`);
+  }
+  return declared;
+}
+
+async function wipe(tx) {
   // FK children first, then standalone auth/maintenance state, then users.
-  await prisma.notification.deleteMany();
-  await prisma.reaction.deleteMany();
-  await prisma.comment.deleteMany();
-  await prisma.collectionL.deleteMany();
-  await prisma.collection.deleteMany();
-  await prisma.follow.deleteMany();
-  await prisma.l.deleteMany();
-  await prisma.account.deleteMany();
-  await prisma.session.deleteMany();
-  await prisma.verificationToken.deleteMany();
-  await prisma.rateLimitBucket.deleteMany();
-  await prisma.avatarDeletionClaim.deleteMany();
-  await prisma.user.deleteMany();
+  await tx.notification.deleteMany();
+  await tx.reaction.deleteMany();
+  await tx.comment.deleteMany();
+  await tx.collectionL.deleteMany();
+  await tx.collection.deleteMany();
+  await tx.follow.deleteMany();
+  await tx.l.deleteMany();
+  await tx.account.deleteMany();
+  await tx.session.deleteMany();
+  await tx.verificationToken.deleteMany();
+  await tx.rateLimitBucket.deleteMany();
+  await tx.avatarDeletionClaim.deleteMany();
+  await tx.user.deleteMany();
 }
 
 async function main() {
-  await wipe();
+  const declaredDatabase = assertSeedEnvironment();
+  await prisma.$transaction(async (tx) => {
+    const [actual] = await tx.$queryRawUnsafe('SELECT current_database() AS database, session_user AS role');
+    if (actual.database !== declaredDatabase) {
+      throw new Error(`Refusing destructive seed: URL names ${declaredDatabase}, connection reached ${actual.database}.`);
+    }
+    if (actual.role !== process.env.SEED_DB_EXPECTED_SESSION_USER) {
+      throw new Error(`Refusing destructive seed: expected role ${process.env.SEED_DB_EXPECTED_SESSION_USER}, connected as ${actual.role}.`);
+    }
+    await wipe(tx);
+  });
 
   const kartik = await prisma.user.create({
     data: { username: 'kartik', name: 'Kartik Gupta', email: 'kartik@example.com', bio: 'Building in public. Surviving my Ls.', status: 'BUILDING' },

@@ -29,7 +29,7 @@ export class CommentsService {
       planCommentCreate({
         authorId: user.id,
         lId,
-        lAuthorId: l.authorId,
+        notificationRecipientIds: [l.authorId],
         body: input.body,
         parentId: null,
       }),
@@ -54,7 +54,7 @@ export class CommentsService {
       planCommentCreate({
         authorId: user.id,
         lId: parent.lId,
-        lAuthorId: l.authorId,
+        notificationRecipientIds: [l.authorId, parent.authorId],
         body: input.body,
         parentId: parent.id,
       }),

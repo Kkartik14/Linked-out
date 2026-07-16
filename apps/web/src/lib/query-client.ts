@@ -13,6 +13,10 @@ function makeQueryClient(): QueryClient {
           if (isApiError(error) && error.status < 500 && error.status !== 429) return false;
           return failureCount < 2;
         },
+        retryDelay: (attempt, error) =>
+          isApiError(error) && error.retryAfterMs !== undefined
+            ? error.retryAfterMs
+            : Math.min(1_000 * 2 ** attempt, 30_000),
       },
       mutations: { retry: false },
     },

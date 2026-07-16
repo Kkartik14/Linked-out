@@ -8,6 +8,8 @@ import { errorMessage, getFeed, type FeedScope, type FeedSort } from "@/lib/api"
 import { LCard } from "@/components/l/l-card";
 import { LCardSkeleton } from "@/components/l/l-card-skeleton";
 import { Button } from "@/components/ui/button";
+import { usePrincipal } from "@/components/session-provider";
+import { queryKeys } from "@/lib/query-keys";
 
 function EmptyState({ scope, filter }: { scope: FeedScope; filter: string | null }) {
   let message = "No Ls to show yet.";
@@ -31,6 +33,7 @@ export function FeedList({
   sort: FeedSort;
   filter: string | null;
 }) {
+  const principal = usePrincipal();
   const {
     data,
     fetchNextPage,
@@ -41,7 +44,7 @@ export function FeedList({
     refetch,
     isRefetching,
   } = useInfiniteQuery({
-    queryKey: ["feed", scope, sort, filter],
+    queryKey: queryKeys.feed.infinite(principal, scope, sort, filter),
     queryFn: ({ pageParam }) =>
       getFeed({ scope, sort, filter: filter ?? undefined, cursor: pageParam }),
     initialPageParam: undefined as string | undefined,

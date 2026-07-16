@@ -12,7 +12,8 @@ import {
   errorMessage,
   getUserCollections,
 } from "@/lib/api";
-import { useSession } from "@/components/session-provider";
+import { usePrincipal, useSession } from "@/components/session-provider";
+import { queryKeys } from "@/lib/query-keys";
 import { Button } from "@/components/ui/button";
 import {
   Dialog,
@@ -34,6 +35,7 @@ export function SaveToCollectionButton({
   className?: string;
 }) {
   const { user } = useSession();
+  const principal = usePrincipal();
   const router = useRouter();
   const queryClient = useQueryClient();
   const [open, setOpen] = React.useState(false);
@@ -41,7 +43,7 @@ export function SaveToCollectionButton({
 
   const existing = React.useMemo(() => new Set(existingCollectionIds), [existingCollectionIds]);
   const collections = useInfiniteQuery({
-    queryKey: ["user-collections", user?.username],
+    queryKey: queryKeys.users.collections(principal, user?.username ?? "anonymous"),
     queryFn: ({ pageParam }) => getUserCollections(user!.username, pageParam),
     enabled: open && Boolean(user),
     initialPageParam: undefined as string | undefined,
@@ -49,7 +51,11 @@ export function SaveToCollectionButton({
   });
 
   const afterChange = () => {
-    if (user) void queryClient.invalidateQueries({ queryKey: ["user-collections", user.username] });
+    if (user) {
+      void queryClient.invalidateQueries({
+        queryKey: queryKeys.users.collections(principal, user.username),
+      });
+    }
     setOpen(false);
     router.refresh();
   };

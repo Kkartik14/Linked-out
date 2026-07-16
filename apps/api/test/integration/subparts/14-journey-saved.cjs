@@ -155,10 +155,13 @@ describe('14 · L Journey (contract §4.2, FE review #4)', () => {
     h.expectError(await h.get('/users/mine/journey?cursor=%2Fbad'), 400, 'BAD_CURSOR');
   });
 
-  test('an anonymous L appears in the journey without leaking an author field', async () => {
+  test('an anonymous L appears in the journey only for its author', async () => {
     const anon = await h.createL(me.id, { isAnonymous: true });
-    const res = await h.get('/users/mine/journey');
-    const node = h.expectShape(res, journeySchema).data.find((n) => n.id === anon.id);
+    const outsider = h.expectShape(await h.get('/users/mine/journey'), journeySchema);
+    assert.equal(outsider.data.some((node) => node.id === anon.id), false);
+
+    const own = await h.get('/users/mine/journey', { cookie: me.cookie });
+    const node = h.expectShape(own, journeySchema).data.find((n) => n.id === anon.id);
 
     assert.equal(node.isAnonymous, true);
     assert.equal(node.author, undefined, 'JourneyNode carries no author at all');

@@ -1,6 +1,7 @@
 import { PrismaClient } from '../generated/client';
 
 import { ulidExtension } from './ulid';
+export { modelUsesUlid } from './ulid';
 
 export type PrismaClientOptions = ConstructorParameters<typeof PrismaClient>[0];
 

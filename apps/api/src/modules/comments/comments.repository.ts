@@ -71,11 +71,8 @@ export class CommentsRepository {
         data: applyCommentCounters(plan.lCounters),
         select: { id: true },
       });
-      if (plan.notification) {
-        await tx.notification.create({
-          data: plan.notification.record,
-          select: { id: true },
-        });
+      if (plan.notifications.length > 0) {
+        await tx.notification.createMany({ data: plan.notifications });
       }
       return comment;
     });

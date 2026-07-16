@@ -59,11 +59,17 @@ describe('17 · anonymity is absolute across every surface (contract §3)', () =
     assert.equal(card.author, null);
   });
 
-  test('GET /users/:username/ls hides the author', async () => {
-    for (const [who, cookie] of everyViewer()) {
-      const res = await h.get('/users/author/ls', { cookie });
-      const card = res.body.data.find((c) => c.id === anon.id);
-      assert.equal(card.author, null, `author leaked on the profile to ${who}`);
+  test('author-owned profile surfaces expose an anonymous L only to its author', async () => {
+    const ownerLs = await h.get('/users/author/ls', { cookie: author.cookie });
+    assert.equal(ownerLs.body.data.find((c) => c.id === anon.id).author, null);
+    const ownerJourney = await h.get('/users/author/journey', { cookie: author.cookie });
+    assert.ok(ownerJourney.body.data.some((node) => node.id === anon.id));
+
+    for (const [who, cookie] of everyViewer().filter(([label]) => label !== 'the author themselves')) {
+      const ls = await h.get('/users/author/ls', { cookie });
+      assert.ok(!ls.body.data.some((card) => card.id === anon.id), `profile associated the anonymous L with ${who}`);
+      const journey = await h.get('/users/author/journey', { cookie });
+      assert.ok(!journey.body.data.some((node) => node.id === anon.id), `journey associated the anonymous L with ${who}`);
     }
   });
 
@@ -76,16 +82,24 @@ describe('17 · anonymity is absolute across every surface (contract §3)', () =
     }
   });
 
-  test('GET /collections/:id hides the author of an anonymous member L', async () => {
+  test('collection membership cannot re-attribute an anonymous L', async () => {
     const collection = await h.post('/collections', {
       cookie: author.cookie,
       body: { title: 'Anonymous stories' },
     });
     await h.put(`/collections/${collection.body.id}/ls/${anon.id}`, { cookie: author.cookie });
 
-    for (const [who, cookie] of everyViewer()) {
+    const ownerL = await h.get(`/ls/${anon.id}`, { cookie: author.cookie });
+    assert.equal(ownerL.body.collections[0].id, collection.body.id, 'the owner retains collection controls');
+    const ownerCollection = await h.get(`/collections/${collection.body.id}`, { cookie: author.cookie });
+    assert.equal(ownerCollection.body.ls[0].id, anon.id);
+
+    for (const [who, cookie] of everyViewer().filter(([label]) => label !== 'the author themselves')) {
+      const l = await h.get(`/ls/${anon.id}`, { cookie });
+      assert.deepEqual(l.body.collections, [], `L detail exposed an attributive collection to ${who}`);
       const res = await h.get(`/collections/${collection.body.id}`, { cookie });
-      assert.equal(res.body.ls[0].author, null, `author leaked in a collection to ${who}`);
+      assert.ok(!res.body.ls.some((card) => card.id === anon.id), `collection associated the anonymous L with ${who}`);
+      assert.equal(res.body.lCount, 0, `collection count revealed a hidden anonymous member to ${who}`);
     }
   });
 
@@ -139,13 +153,7 @@ describe('17 · anonymity is absolute across every surface (contract §3)', () =
   });
 
   test('no response anywhere embeds the author’s username alongside an anonymous L', async () => {
-    const surfaces = [
-      `/ls/${anon.id}`,
-      '/feed',
-      '/users/author/ls',
-      '/search?q=burnout',
-      '/users/author/journey',
-    ];
+    const surfaces = [`/ls/${anon.id}`, '/feed', '/search?q=burnout'];
     for (const path of surfaces) {
       const res = await h.get(path, { cookie: follower.cookie });
       const serialized = JSON.stringify(res.body);

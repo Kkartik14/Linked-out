@@ -74,6 +74,21 @@ describe("apiFetch", () => {
     });
   });
 
+  it("parses Retry-After so query retries can honor the server delay", async () => {
+    vi.mocked(fetch).mockResolvedValueOnce(
+      jsonResponse(
+        { error: { code: "RATE_LIMITED", message: "Slow down." } },
+        { status: 429, headers: { "Retry-After": "3" } },
+      ),
+    );
+
+    await expect(apiFetch("/feed")).rejects.toMatchObject({
+      status: 429,
+      code: "RATE_LIMITED",
+      retryAfterMs: 3_000,
+    });
+  });
+
   it("refreshes once on TOKEN_EXPIRED and retries with rotated cookies", async () => {
     vi.mocked(fetch)
       .mockResolvedValueOnce(
@@ -102,6 +117,42 @@ describe("apiFetch", () => {
     const retryHeaders = new Headers(vi.mocked(fetch).mock.calls[2]![1]?.headers);
     expect(retryHeaders.get("cookie")).toContain("access_token=fresh");
     expect(retryHeaders.get("cookie")).toContain("refresh_token=next");
+  });
+
+  it("shares one refresh rotation across a burst of expired browser requests", async () => {
+    let refreshCalls = 0;
+    const attempts = new Map<string, number>();
+    vi.mocked(fetch).mockImplementation(async (input) => {
+      const url = String(input);
+      if (url.endsWith("/auth/refresh")) {
+        refreshCalls += 1;
+        await Promise.resolve();
+        return {
+          ok: true,
+          status: 200,
+          headers: {
+            getSetCookie: () => ["access_token=fresh; Path=/", "refresh_token=next; Path=/"],
+            get: () => null,
+          },
+          json: async () => ({ ok: true }),
+        } as unknown as Response;
+      }
+      const count = attempts.get(url) ?? 0;
+      attempts.set(url, count + 1);
+      if (count === 0) {
+        return jsonResponse(
+          { error: { code: "TOKEN_EXPIRED", message: "expired" } },
+          { status: 401 },
+        );
+      }
+      return jsonResponse({ ok: true });
+    });
+
+    await expect(Promise.all([apiFetch("/feed"), apiFetch("/notifications")])).resolves.toEqual([
+      { ok: true },
+      { ok: true },
+    ]);
+    expect(refreshCalls).toBe(1);
   });
 
   it("does not refresh non-expired 401 responses", async () => {

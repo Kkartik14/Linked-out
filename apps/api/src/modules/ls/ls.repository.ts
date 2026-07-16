@@ -160,6 +160,7 @@ export class LsRepository {
   async byAuthor(params: {
     authorId: string;
     visibilities: Visibility[];
+    includeAnonymous: boolean;
     type?: LType;
     limit: number;
     cursorId?: string;
@@ -168,6 +169,7 @@ export class LsRepository {
       where: {
         authorId: params.authorId,
         visibility: { in: params.visibilities },
+        ...(params.includeAnonymous ? {} : { isAnonymous: false }),
         ...(params.type ? { type: params.type } : {}),
         ...(params.cursorId ? { id: { lt: params.cursorId } } : {}),
       },
@@ -212,10 +214,12 @@ export class LsRepository {
   async journey(params: {
     authorId: string;
     visibilities: Visibility[];
+    includeAnonymous: boolean;
     limit: number;
     cursor?: JourneyPageCursor;
   }): Promise<EntityPage<LWithAuthor>> {
     let cursorClause = Prisma.empty;
+    const anonymityClause = params.includeAnonymous ? Prisma.empty : Prisma.sql`AND "isAnonymous" = false`;
     if (params.cursor) {
       cursorClause = Prisma.sql`AND (COALESCE("eventDate", "createdAt"), "id") > (${params.cursor.date}::timestamp, ${params.cursor.id})`;
     }
@@ -223,6 +227,7 @@ export class LsRepository {
       SELECT "id" FROM "L"
       WHERE "authorId" = ${params.authorId}
         AND "visibility"::text IN (${Prisma.join(params.visibilities)})
+        ${anonymityClause}
         ${cursorClause}
       ORDER BY COALESCE("eventDate", "createdAt") ASC, "id" ASC
       LIMIT ${params.limit + 1}
