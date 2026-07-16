@@ -9,6 +9,10 @@ import type {
   PaginationQuery,
   UpdateCollectionInput,
 } from '@linkedout/contracts';
+import type {
+  AddLToCollectionInput as AddLToCollectionInputV2,
+  CollectionDetail as CollectionDetailV2,
+} from '@linkedout/contracts/v2';
 
 import { AppErrors } from '../../common/errors/app-exception';
 import { decodeCursorId } from '../../common/pagination/cursor';
@@ -21,7 +25,7 @@ import {
   CollectionsRepository,
   type CollectionWithMeta,
 } from './collections.repository';
-import { toCollection, toCollectionDetail } from './collections.mapper';
+import { toCollection, toCollectionDetail, toV2CollectionDetail } from './collections.mapper';
 
 function slugify(title: string): string {
   const base = title
@@ -58,9 +62,11 @@ export class CollectionsService {
   }
 
   async getDetail(id: string, viewerId: string | undefined): Promise<CollectionDetail> {
-    const collection = await this.repo.findById(id);
-    if (!collection) throw AppErrors.collectionNotFound();
-    return this.detailFor(collection, viewerId);
+    return this.detailFor(await this.requireCollection(id), viewerId);
+  }
+
+  async getDetailV2(id: string, viewerId: string | undefined): Promise<CollectionDetailV2> {
+    return this.detailForV2(await this.requireCollection(id), viewerId);
   }
 
   async rename(user: AuthUser, id: string, input: UpdateCollectionInput): Promise<Collection> {
@@ -98,20 +104,24 @@ export class CollectionsService {
     lId: string,
     input: AddLToCollectionInput,
   ): Promise<CollectionDetail> {
-    await this.assertOwner(id, user.id);
-    const owner = await this.repo.lOwner(lId);
-    if (!owner) throw AppErrors.lNotFound();
-    if (owner.authorId !== user.id) {
-      throw AppErrors.forbidden('You can only add your own Ls to a collection.');
-    }
-    await this.repo.addL(id, lId, input.position);
-    return this.getDetail(id, user.id);
+    return this.addLAndRead(user, id, lId, input.position, () => this.getDetail(id, user.id));
+  }
+
+  async addLV2(
+    user: AuthUser,
+    id: string,
+    lId: string,
+    input: AddLToCollectionInputV2,
+  ): Promise<CollectionDetailV2> {
+    return this.addLAndRead(user, id, lId, input.position, () => this.getDetailV2(id, user.id));
   }
 
   async removeL(user: AuthUser, id: string, lId: string): Promise<CollectionDetail> {
-    await this.assertOwner(id, user.id);
-    await this.repo.removeL(id, lId);
-    return this.getDetail(id, user.id);
+    return this.removeLAndRead(user, id, lId, () => this.getDetail(id, user.id));
+  }
+
+  async removeLV2(user: AuthUser, id: string, lId: string): Promise<CollectionDetailV2> {
+    return this.removeLAndRead(user, id, lId, () => this.getDetailV2(id, user.id));
   }
 
   async listByOwner(
@@ -146,6 +156,55 @@ export class CollectionsService {
       viewerId === collection.ownerId,
     );
     return toCollectionDetail(collection, cards, viewerId);
+  }
+
+  private async detailForV2(
+    collection: CollectionWithMeta,
+    viewerId: string | undefined,
+  ): Promise<CollectionDetailV2> {
+    const ids = await this.repo.orderedLIds(collection.id);
+    const visibilities = await this.ls.allowedVisibilitiesFor(viewerId, collection.ownerId);
+    const cards = await this.ls.getCardsByIdsFilteredV2(
+      ids,
+      viewerId,
+      visibilities,
+      viewerId === collection.ownerId,
+    );
+    return toV2CollectionDetail(collection, cards, viewerId);
+  }
+
+  private async addLAndRead<T>(
+    user: AuthUser,
+    id: string,
+    lId: string,
+    position: number | undefined,
+    read: () => Promise<T>,
+  ): Promise<T> {
+    await this.assertOwner(id, user.id);
+    const owner = await this.repo.lOwner(lId);
+    if (!owner) throw AppErrors.lNotFound();
+    if (owner.authorId !== user.id) {
+      throw AppErrors.forbidden('You can only add your own Ls to a collection.');
+    }
+    await this.repo.addL(id, lId, position);
+    return read();
+  }
+
+  private async removeLAndRead<T>(
+    user: AuthUser,
+    id: string,
+    lId: string,
+    read: () => Promise<T>,
+  ): Promise<T> {
+    await this.assertOwner(id, user.id);
+    await this.repo.removeL(id, lId);
+    return read();
+  }
+
+  private async requireCollection(id: string): Promise<CollectionWithMeta> {
+    const collection = await this.repo.findById(id);
+    if (!collection) throw AppErrors.collectionNotFound();
+    return collection;
   }
 
   private async assertOwner(id: string, userId: string): Promise<void> {

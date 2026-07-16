@@ -6,6 +6,11 @@ import {
   type SearchQuery,
   type UserSummary,
 } from '@linkedout/contracts';
+import type {
+  LCard as LCardV2,
+  SearchQuery as SearchQueryV2,
+  UserSummary as UserSummaryV2,
+} from '@linkedout/contracts/v2';
 
 import { toUserSummary } from '../../common/mappers/user-summary.mapper';
 import { AppErrors } from '../../common/errors/app-exception';
@@ -15,6 +20,7 @@ import { SearchRepository } from './search.repository';
 import type { SearchLCursor, SearchUserCursor } from './search.repository';
 
 export type SearchResult = Paginated<LCard> | Paginated<UserSummary>;
+export type SearchResultV2 = Paginated<LCardV2> | Paginated<UserSummaryV2>;
 
 function readRankCursor(cursor: string | undefined): SearchLCursor | null {
   if (cursor === undefined) return null;
@@ -53,6 +59,13 @@ export class SearchService {
     return this.searchLs(query, viewerId);
   }
 
+  async searchV2(query: SearchQueryV2, viewerId: string | undefined): Promise<SearchResultV2> {
+    if (query.type === 'users') {
+      return this.searchUsers(query, readUserCursor(query.cursor));
+    }
+    return this.searchLsV2(query, viewerId);
+  }
+
   private async searchLs(
     query: SearchQuery,
     viewerId: string | undefined,
@@ -69,6 +82,30 @@ export class SearchService {
     const pageRows = hasMore ? rows.slice(0, query.limit) : rows;
     const pageIds = pageRows.map((row) => row.id);
     const data = await this.ls.getVisibleCardsByIds(pageIds, viewerId);
+    const last = pageRows[pageRows.length - 1];
+    return {
+      data,
+      nextCursor: hasMore && last ? encodeCursor({ rank: last.rank, id: last.id }) : null,
+    };
+  }
+
+  private async searchLsV2(
+    query: SearchQueryV2,
+    viewerId: string | undefined,
+  ): Promise<Paginated<LCardV2>> {
+    const rows = await this.repo.searchLRows(
+      query.q,
+      undefined,
+      viewerId,
+      query.limit + 1,
+      readRankCursor(query.cursor),
+    );
+    const hasMore = rows.length > query.limit;
+    const pageRows = hasMore ? rows.slice(0, query.limit) : rows;
+    const data = await this.ls.getVisibleCardsByIdsV2(
+      pageRows.map((row) => row.id),
+      viewerId,
+    );
     const last = pageRows[pageRows.length - 1];
     return {
       data,

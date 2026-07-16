@@ -17,7 +17,7 @@ import { REFRESH_COOKIE, TokenService } from './token.service';
 import { decodeOAuthState, OAUTH_STATE_COOKIE } from './oauth-state';
 import type { OAuthRequest } from './oauth.guards';
 
-@Controller('auth')
+@Controller({ path: 'auth', version: ['1', '2'] })
 export class AuthController {
   constructor(
     private readonly auth: AuthService,

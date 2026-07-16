@@ -9,6 +9,7 @@ import {
   Put,
   Query,
   UseGuards,
+  Version,
 } from '@nestjs/common';
 import {
   paginationQuerySchema,
@@ -39,6 +40,7 @@ export class CollectionsController {
   constructor(private readonly collections: CollectionsService) {}
 
   @Post('collections')
+  @Version(['1', '2'])
   @UseGuards(JwtAuthGuard)
   @ApiContract(API_ROUTE_CONTRACTS.collectionCreate)
   create(
@@ -59,6 +61,7 @@ export class CollectionsController {
   }
 
   @Patch('collections/:id')
+  @Version(['1', '2'])
   @UseGuards(JwtAuthGuard)
   @ApiContract(API_ROUTE_CONTRACTS.collectionUpdate)
   rename(
@@ -70,6 +73,7 @@ export class CollectionsController {
   }
 
   @Delete('collections/:id')
+  @Version(['1', '2'])
   @UseGuards(JwtAuthGuard)
   @ApiContract(API_ROUTE_CONTRACTS.collectionDelete)
   remove(@CurrentUser() user: AuthUser, @Param('id') id: string): Promise<{ ok: true }> {
@@ -100,6 +104,7 @@ export class CollectionsController {
   }
 
   @Get('users/:username/collections')
+  @Version(['1', '2'])
   @UseGuards(OptionalAuthGuard)
   @ApiContract(API_ROUTE_CONTRACTS.userCollections)
   listByOwner(

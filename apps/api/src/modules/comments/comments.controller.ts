@@ -27,7 +27,7 @@ import { CommentsService } from './comments.service';
 const bodyPipe = new ZodValidationPipe(API_ROUTE_CONTRACTS.commentCreateOnL.body.schema);
 const listPipe = new ZodValidationPipe(paginationQuerySchema());
 
-@Controller()
+@Controller({ version: ['1', '2'] })
 export class CommentsController {
   constructor(private readonly comments: CommentsService) {}
 

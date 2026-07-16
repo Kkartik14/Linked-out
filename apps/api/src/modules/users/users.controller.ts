@@ -1,4 +1,4 @@
-import { Body, Controller, Get, Param, Patch, Query, Res, UseGuards } from '@nestjs/common';
+import { Body, Controller, Get, Param, Patch, Query, Res, UseGuards, Version } from '@nestjs/common';
 import {
   journeyQuerySchema,
   userLsQuerySchema,
@@ -41,6 +41,7 @@ export class UsersController {
   ) {}
 
   @Patch('me')
+  @Version(['1', '2'])
   @UseGuards(JwtAuthGuard)
   @ApiContract(API_ROUTE_CONTRACTS.userUpdateMe)
   async updateMe(
@@ -59,6 +60,7 @@ export class UsersController {
   }
 
   @Get(':username')
+  @Version(['1', '2'])
   @UseGuards(OptionalAuthGuard)
   @ApiContract(API_ROUTE_CONTRACTS.userProfile)
   profile(

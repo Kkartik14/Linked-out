@@ -17,7 +17,7 @@ import { FollowsService } from './follows.service';
 
 const listPipe = new ZodValidationPipe(paginationQuerySchema());
 
-@Controller('users')
+@Controller({ path: 'users', version: ['1', '2'] })
 export class FollowsController {
   constructor(private readonly follows: FollowsService) {}
 

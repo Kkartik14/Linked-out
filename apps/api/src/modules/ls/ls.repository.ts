@@ -7,6 +7,7 @@ import { encodeCursor } from '../../common/pagination/cursor';
 import { buildPage, type EntityPage } from '../../common/pagination/paginate';
 import type {
   FeedPageCursor,
+  CreatedAtJourneyPageCursor,
   JourneyPageCursor,
   LDeletePlan,
   LUpdatePlans,
@@ -236,6 +237,38 @@ export class LsRepository {
     const hydrated = await this.hydrateOrdered(ids);
     return buildPage(hydrated, params.limit, (row) =>
       encodeCursor({ date: (row.eventDate ?? row.createdAt).toISOString(), id: row.id }),
+    );
+  }
+
+  /** V2 journey timeline ordered only by publication time; legacy eventDate is not consulted. */
+  async journeyByCreatedAt(params: {
+    authorId: string;
+    visibilities: Visibility[];
+    includeAnonymous: boolean;
+    limit: number;
+    cursor?: CreatedAtJourneyPageCursor;
+  }): Promise<EntityPage<LWithAuthor>> {
+    const cursorWhere: Prisma.LWhereInput | undefined = params.cursor
+      ? {
+          OR: [
+            { createdAt: { gt: new Date(params.cursor.createdAt) } },
+            { createdAt: new Date(params.cursor.createdAt), id: { gt: params.cursor.id } },
+          ],
+        }
+      : undefined;
+    const rows = await this.prisma.db.l.findMany({
+      where: {
+        authorId: params.authorId,
+        visibility: { in: params.visibilities },
+        ...(params.includeAnonymous ? {} : { isAnonymous: false }),
+        ...(cursorWhere ? { AND: [cursorWhere] } : {}),
+      },
+      include: AUTHOR_INCLUDE,
+      orderBy: [{ createdAt: 'asc' }, { id: 'asc' }],
+      take: params.limit + 1,
+    });
+    return buildPage(rows, params.limit, (row) =>
+      encodeCursor({ createdAt: row.createdAt.toISOString(), id: row.id }),
     );
   }
 

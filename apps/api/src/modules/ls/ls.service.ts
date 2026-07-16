@@ -16,6 +16,16 @@ import {
   type UserLsQuery,
   type Visibility,
 } from '@linkedout/contracts';
+import type {
+  CreateLInput as CreateLInputV2,
+  FeedQuery as FeedQueryV2,
+  JourneyNode as JourneyNodeV2,
+  JourneyQuery as JourneyQueryV2,
+  LCard as LCardV2,
+  LDetail as LDetailV2,
+  UpdateLInput as UpdateLInputV2,
+  UserLsQuery as UserLsQueryV2,
+} from '@linkedout/contracts/v2';
 
 import { AppErrors } from '../../common/errors/app-exception';
 import { decodeCursor } from '../../common/pagination/cursor';
@@ -27,6 +37,7 @@ import {
 } from './ls.repository';
 import type {
   FeedPageCursor,
+  CreatedAtJourneyPageCursor,
   JourneyPageCursor,
   LUpdatePlans,
   UpdateLData,
@@ -38,6 +49,7 @@ import {
   reputationForType,
 } from './ls.write-plan';
 import { toJourneyNode, toLCard, toLDetail } from './ls.mapper';
+import { toV2JourneyNode, toV2LCard, toV2LDetail } from './ls-v2.mapper';
 
 const ALL_VISIBILITIES: Visibility[] = ['PUBLIC', 'FOLLOWERS', 'PRIVATE'];
 
@@ -55,6 +67,20 @@ function normalizeCreate(input: CreateLInput): WriteLData {
   };
 }
 
+function normalizeCreateV2(input: CreateLInputV2): WriteLData {
+  return {
+    title: input.title,
+    story: input.story,
+    type: input.type,
+    category: null,
+    company: null,
+    tags: [],
+    eventDate: null,
+    visibility: input.visibility,
+    isAnonymous: input.isAnonymous,
+  };
+}
+
 function buildUpdateData(input: UpdateLInput, effectiveType: LType): UpdateLData {
   return {
     title: input.title,
@@ -64,6 +90,26 @@ function buildUpdateData(input: UpdateLInput, effectiveType: LType): UpdateLData
     company: input.company,
     tags: input.tags,
     eventDate: input.eventDate,
+    visibility: input.visibility,
+    isAnonymous: input.isAnonymous,
+    resolvedAt:
+      effectiveType === 'BATTLE'
+        ? input.resolvedAt
+        : input.type !== undefined || input.resolvedAt !== undefined
+          ? null
+          : undefined,
+  };
+}
+
+function buildUpdateDataV2(input: UpdateLInputV2, effectiveType: LType): UpdateLData {
+  return {
+    title: input.title,
+    story: input.story,
+    type: input.type,
+    category: undefined,
+    company: undefined,
+    tags: undefined,
+    eventDate: undefined,
     visibility: input.visibility,
     isAnonymous: input.isAnonymous,
     resolvedAt:
@@ -115,12 +161,37 @@ function journeyCursor(cursor: string | undefined): JourneyPageCursor | undefine
   return { date, id: cursorString(payload.id) };
 }
 
+function createdAtJourneyCursor(
+  cursor: string | undefined,
+): CreatedAtJourneyPageCursor | undefined {
+  if (cursor === undefined) return undefined;
+  const payload = decodeCursor(cursor);
+  const createdAt = cursorString(payload.createdAt);
+  const parsed = new Date(createdAt);
+  if (Number.isNaN(parsed.getTime()) || parsed.toISOString() !== createdAt) {
+    throw AppErrors.badCursor();
+  }
+  return { createdAt, id: cursorString(payload.id) };
+}
+
 function updatePlans(input: UpdateLInput): LUpdatePlans {
   return Object.fromEntries(
     lTypeSchema.options.map((currentType) => [
       currentType,
       {
         data: buildUpdateData(input, input.type ?? currentType),
+        reputation: reputationDeltaForTypeChange(currentType, input.type),
+      },
+    ]),
+  ) as LUpdatePlans;
+}
+
+function updatePlansV2(input: UpdateLInputV2): LUpdatePlans {
+  return Object.fromEntries(
+    lTypeSchema.options.map((currentType) => [
+      currentType,
+      {
+        data: buildUpdateDataV2(input, input.type ?? currentType),
         reputation: reputationDeltaForTypeChange(currentType, input.type),
       },
     ]),
@@ -156,6 +227,21 @@ export class LsService {
     );
   }
 
+  async getDetailV2(id: string, viewerId: string | undefined): Promise<LDetailV2> {
+    const l = await this.repo.findById(id);
+    if (!l) throw AppErrors.lNotFound();
+    await this.assertCanView(l, viewerId);
+    const [collections, reactionMap] = await Promise.all([
+      l.isAnonymous && viewerId !== l.authorId ? Promise.resolve([]) : this.repo.collectionsForL(id),
+      this.reactionMap(viewerId, [id]),
+    ]);
+    return toV2LDetail(
+      l,
+      { reactions: reactionMap.get(id) ?? [], canEdit: viewerId === l.authorId },
+      collections,
+    );
+  }
+
   async getFeed(query: FeedQuery, viewerId: string | undefined): Promise<Paginated<LCard>> {
     const page = await this.repo.feed({
       visibilities: ['PUBLIC'],
@@ -165,6 +251,19 @@ export class LsService {
       cursor: feedCursor(query.sort, query.cursor),
     });
     return { data: await this.toCards(page.rows, viewerId), nextCursor: page.nextCursor };
+  }
+
+  async getFeedV2(
+    query: FeedQueryV2,
+    viewerId: string | undefined,
+  ): Promise<Paginated<LCardV2>> {
+    const page = await this.repo.feed({
+      visibilities: ['PUBLIC'],
+      sort: query.sort,
+      limit: query.limit,
+      cursor: feedCursor(query.sort, query.cursor),
+    });
+    return { data: await this.toV2Cards(page.rows, viewerId), nextCursor: page.nextCursor };
   }
 
   async getFollowingFeed(userId: string, query: FeedQuery): Promise<Paginated<LCard>> {
@@ -177,6 +276,20 @@ export class LsService {
       cursor: feedCursor(query.sort, query.cursor),
     });
     return { data: await this.toCards(page.rows, userId), nextCursor: page.nextCursor };
+  }
+
+  async getFollowingFeedV2(
+    userId: string,
+    query: FeedQueryV2,
+  ): Promise<Paginated<LCardV2>> {
+    const page = await this.repo.feed({
+      visibilities: ['PUBLIC', 'FOLLOWERS'],
+      followedByUserId: userId,
+      sort: query.sort,
+      limit: query.limit,
+      cursor: feedCursor(query.sort, query.cursor),
+    });
+    return { data: await this.toV2Cards(page.rows, userId), nextCursor: page.nextCursor };
   }
 
   async getUserLs(
@@ -196,6 +309,23 @@ export class LsService {
     return { data: await this.toCards(page.rows, viewerId), nextCursor: page.nextCursor };
   }
 
+  async getUserLsV2(
+    authorId: string,
+    query: UserLsQueryV2,
+    viewerId: string | undefined,
+  ): Promise<Paginated<LCardV2>> {
+    const visibilities = await this.allowedVisibilities(viewerId, authorId);
+    const page = await this.repo.byAuthor({
+      authorId,
+      visibilities,
+      includeAnonymous: viewerId === authorId,
+      type: query.type,
+      limit: query.limit,
+      cursorId: cursorField(query.cursor, 'id'),
+    });
+    return { data: await this.toV2Cards(page.rows, viewerId), nextCursor: page.nextCursor };
+  }
+
   async getJourney(
     authorId: string,
     query: JourneyQuery,
@@ -212,9 +342,30 @@ export class LsService {
     return mapPage(page, toJourneyNode);
   }
 
+  async getJourneyV2(
+    authorId: string,
+    query: JourneyQueryV2,
+    viewerId: string | undefined,
+  ): Promise<Paginated<JourneyNodeV2>> {
+    const visibilities = await this.allowedVisibilities(viewerId, authorId);
+    const page = await this.repo.journeyByCreatedAt({
+      authorId,
+      visibilities,
+      includeAnonymous: viewerId === authorId,
+      limit: query.limit,
+      cursor: createdAtJourneyCursor(query.cursor),
+    });
+    return mapPage(page, toV2JourneyNode);
+  }
+
   async getSaved(userId: string, query: PaginationQuery): Promise<Paginated<LCard>> {
     const page = await this.repo.savedByUser(userId, query.limit, cursorField(query.cursor, 'rid'));
     return { data: await this.toCards(page.rows, userId), nextCursor: page.nextCursor };
+  }
+
+  async getSavedV2(userId: string, query: PaginationQuery): Promise<Paginated<LCardV2>> {
+    const page = await this.repo.savedByUser(userId, query.limit, cursorField(query.cursor, 'rid'));
+    return { data: await this.toV2Cards(page.rows, userId), nextCursor: page.nextCursor };
   }
 
   /** For search: hydrate ranked ids into cards, preserving rank order. */
@@ -229,6 +380,14 @@ export class LsService {
     return this.toCards(rows, viewerId);
   }
 
+  async getVisibleCardsByIdsV2(
+    ids: string[],
+    viewerId: string | undefined,
+  ): Promise<LCardV2[]> {
+    const rows = await this.repo.hydrateVisibleOrdered(ids, viewerId);
+    return this.toV2Cards(rows, viewerId);
+  }
+
   /** For collections: hydrate ids in order, keeping only Ls the viewer may see. */
   async getCardsByIdsFiltered(
     ids: string[],
@@ -239,6 +398,20 @@ export class LsService {
     const rows = await this.repo.hydrateOrdered(ids);
     const allowed = new Set<Visibility>(visibilities);
     return this.toCards(
+      rows.filter((row) => allowed.has(row.visibility) && (includeAnonymous || !row.isAnonymous)),
+      viewerId,
+    );
+  }
+
+  async getCardsByIdsFilteredV2(
+    ids: string[],
+    viewerId: string | undefined,
+    visibilities: Visibility[],
+    includeAnonymous = true,
+  ): Promise<LCardV2[]> {
+    const rows = await this.repo.hydrateOrdered(ids);
+    const allowed = new Set<Visibility>(visibilities);
+    return this.toV2Cards(
       rows.filter((row) => allowed.has(row.visibility) && (includeAnonymous || !row.isAnonymous)),
       viewerId,
     );
@@ -258,6 +431,13 @@ export class LsService {
     return toLDetail(l, { reactions: [], canEdit: true }, []);
   }
 
+  async createV2(user: AuthUser, input: CreateLInputV2): Promise<LDetailV2> {
+    if (!user.username) throw AppErrors.onboardingRequired();
+    const data = normalizeCreateV2(input);
+    const l = await this.repo.createL(user.id, data, reputationForType(data.type));
+    return toV2LDetail(l, { reactions: [], canEdit: true }, []);
+  }
+
   async update(user: AuthUser, id: string, input: UpdateLInput): Promise<LDetail> {
     const result = await this.repo.updateOwnedL(
       id,
@@ -272,6 +452,21 @@ export class LsService {
       this.reactionMap(user.id, [id]),
     ]);
     return toLDetail(updated, { reactions: reactionMap.get(id) ?? [], canEdit: true }, collections);
+  }
+
+  async updateV2(user: AuthUser, id: string, input: UpdateLInputV2): Promise<LDetailV2> {
+    const result = await this.repo.updateOwnedL(id, user.id, updatePlansV2(input));
+    if (result.status === 'not_found') throw AppErrors.lNotFound();
+    if (result.status === 'not_owner') throw AppErrors.notLOwner();
+    const [collections, reactionMap] = await Promise.all([
+      this.repo.collectionsForL(id),
+      this.reactionMap(user.id, [id]),
+    ]);
+    return toV2LDetail(
+      result.row,
+      { reactions: reactionMap.get(id) ?? [], canEdit: true },
+      collections,
+    );
   }
 
   async remove(user: AuthUser, id: string): Promise<{ ok: true }> {
@@ -290,6 +485,22 @@ export class LsService {
     );
     return rows.map((row) =>
       toLCard(row, {
+        reactions: reactionMap.get(row.id) ?? [],
+        canEdit: viewerId === row.authorId,
+      }),
+    );
+  }
+
+  private async toV2Cards(
+    rows: LWithAuthor[],
+    viewerId: string | undefined,
+  ): Promise<LCardV2[]> {
+    const reactionMap = await this.reactionMap(
+      viewerId,
+      rows.map((row) => row.id),
+    );
+    return rows.map((row) =>
+      toV2LCard(row, {
         reactions: reactionMap.get(row.id) ?? [],
         canEdit: viewerId === row.authorId,
       }),

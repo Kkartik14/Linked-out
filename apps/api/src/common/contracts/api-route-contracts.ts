@@ -83,13 +83,13 @@ export const API_COMPONENT_SCHEMAS = {
 type ComponentSchemaName = keyof typeof API_COMPONENT_SCHEMAS;
 
 interface ContractSchema<TSchema extends ZodType = ZodType> {
-  readonly name?: ComponentSchemaName;
+  readonly name?: string;
   readonly schema: TSchema;
   readonly description: string;
 }
 
 interface ContractBody<TSchema extends ZodType = ZodType> {
-  readonly name: ComponentSchemaName;
+  readonly name: string;
   readonly schema: TSchema;
   readonly required: boolean;
 }

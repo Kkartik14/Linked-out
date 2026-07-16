@@ -33,6 +33,7 @@ const {
   API_ROUTE_CONTRACT_BY_KEY,
 } = require('../../dist/common/contracts/api-route-contracts');
 const {
+  API_ROUTE_CONTRACTS_V2,
   API_ROUTE_CONTRACT_BY_KEY_V2,
 } = require('../../dist/common/contracts/api-route-contracts-v2');
 const { MetaController } = require('../../dist/modules/meta/meta.controller');
@@ -298,6 +299,14 @@ test('v2 OpenAPI and route contracts cover exactly the registered v2 operations'
     [...API_ROUTE_CONTRACT_BY_KEY_V2.keys()].sort(),
     [...registered.keys()].sort(),
   );
+  assert.deepEqual(
+    [...API_ROUTE_CONTRACT_BY_KEY_V2.keys()].sort(),
+    [
+      ...[...API_ROUTE_CONTRACT_BY_KEY.keys()].filter((key) => key !== 'get /tags/popular'),
+      'get /feed/sidebar',
+    ].sort(),
+    'v2 carries every v1 operation except the explicitly removed popular-tags route',
+  );
 
   for (const operation of registered.values()) {
     const contract = API_ROUTE_CONTRACT_BY_KEY_V2.get(operation.key);
@@ -313,11 +322,50 @@ test('v2 OpenAPI and route contracts cover exactly the registered v2 operations'
       `${operation.key} security`,
     );
     assert.ok(documentedOperation.responses[String(contract.status)]);
+    if (contract.response.name) {
+      assert.equal(
+        documentedOperation.responses[String(contract.status)].content['application/json'].schema.$ref,
+        `#/components/schemas/${contract.response.name}`,
+      );
+    }
+    for (const status of ['400', '401', '404', '429', '500']) {
+      assert.equal(
+        documentedOperation.responses[status].content['application/json'].schema.$ref,
+        '#/components/schemas/ErrorEnvelope',
+        `${operation.key} documents the ${status} error envelope`,
+      );
+    }
+
+    const bodyArguments = Object.entries(
+      Reflect.getMetadata(ROUTE_ARGS_METADATA, operation.Controller, operation.methodName) ?? {},
+    ).filter(([metadataKey]) => metadataKey.startsWith(`${RouteParamtypes.BODY}:`));
+    if (contract.body) {
+      assert.equal(bodyArguments.length, 1, `${operation.key} has one declared v2 request body`);
+      const validationPipes = bodyArguments[0][1].pipes.filter(
+        (pipe) => pipe instanceof ZodValidationPipe,
+      );
+      assert.equal(validationPipes.length, 1);
+      assert.strictEqual(validationPipes[0].contractSchema, contract.body.schema);
+    } else {
+      assert.equal(bodyArguments.length, 0, `${operation.key} has no undocumented v2 body`);
+    }
   }
 
   assert.equal(document.info.version, '2.0.0');
   assert.deepEqual(document.servers, [{ url: '/v2' }]);
   assert.ok(document.components.schemas.FeedSidebarResponse);
+  assert.equal(
+    document.paths['/feed/sidebar'].get.responses['200'].headers['Cache-Control'].schema.const,
+    'private, no-store, max-age=0',
+  );
+  assert.equal(document.paths['/feed'].get.parameters.some((parameter) => parameter.name === 'filter'), false);
+  assert.equal(document.paths['/search'].get.parameters.some((parameter) => parameter.name === 'filter'), false);
+  assert.equal(document.paths['/tags/popular'], undefined);
+  assert.equal(
+    new Set(Object.values(API_ROUTE_CONTRACTS_V2)).size,
+    Object.keys(API_ROUTE_CONTRACTS_V2).length,
+    'v2 route contracts do not alias distinct operations',
+  );
 });
 
 test('OpenAPI is built once and reused across requests', () => {

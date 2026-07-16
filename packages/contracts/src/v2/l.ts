@@ -21,7 +21,7 @@ export type CollectionRef = z.infer<typeof collectionRefSchema>;
 const lViewerSchema = z.object({
   reactions: z.array(reactionTypeSchema),
   canEdit: z.boolean(),
-});
+}).strict();
 
 /** V2 L wire core. Legacy category/company/tags/eventDate fields do not exist in v2. */
 const lCoreSchema = z.object({
@@ -36,7 +36,7 @@ const lCoreSchema = z.object({
   commentCount: z.number().int(),
   viewer: lViewerSchema,
   createdAt: isoTimestampSchema,
-});
+}).strict();
 
 export const lCardSchema = lCoreSchema.extend({
   storyPreview: z.string(),
@@ -59,7 +59,7 @@ export const journeyNodeSchema = z.object({
   resolvedAt: isoTimestampSchema.nullable(),
   reactionTotal: z.number().int(),
   commentCount: z.number().int(),
-});
+}).strict();
 export type JourneyNode = z.infer<typeof journeyNodeSchema>;
 
 export const createLInputSchema = z
