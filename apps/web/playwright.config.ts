@@ -75,7 +75,13 @@ export default defineConfig({
       url: webBaseUrl,
       reuseExistingServer: false,
       timeout: 120_000,
-      env: { NEXT_PUBLIC_API_BASE_URL: apiBaseUrl },
+      // NEXT_PUBLIC_* is inlined at build time, so the `test:e2e` script is what actually
+      // decides these. They are repeated here so a hand-run `playwright test` against an
+      // already-built app agrees with the build rather than silently differing.
+      env: {
+        NEXT_PUBLIC_API_BASE_URL: apiBaseUrl,
+        NEXT_PUBLIC_FEED_SIDEBAR_FIXTURE: "1",
+      },
     },
   ],
   projects: [{ name: "chromium", use: { ...devices["Desktop Chrome"] } }],

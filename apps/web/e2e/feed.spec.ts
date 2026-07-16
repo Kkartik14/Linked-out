@@ -47,13 +47,6 @@ test.describe("feed & L detail", () => {
     await expect(page.getByRole("link", { name: /Nadia Ray/ })).toHaveCount(0);
   });
 
-  test("category filtering narrows the feed", async ({ page }) => {
-    await page.goto("/?filter=startups");
-
-    await expect(page.getByText(world.startup.title)).toBeVisible();
-    await expect(page.getByText(world.google.title)).toHaveCount(0);
-  });
-
   test("sort=popular reorders the feed by the API's lifetime popularityScore", async ({ page }) => {
     await page.goto("/?sort=popular");
 
@@ -71,11 +64,24 @@ test.describe("feed & L detail", () => {
     expect(layoff).toBeGreaterThan(google);
   });
 
-  test("an unknown category filter falls back to the unfiltered feed", async ({ page }) => {
-    await page.goto("/?filter=not-a-category");
+  // v2 has no category filter. A saved v1 URL carrying one must still render the feed
+  // rather than 404 or empty out — the param is simply ignored now.
+  test("a leftover v1 category filter in the URL is ignored, not honoured", async ({ page }) => {
+    await page.goto("/?filter=startups");
 
-    await expect(page.getByText(world.google.title)).toBeVisible();
     await expect(page.getByText(world.startup.title)).toBeVisible();
+    await expect(page.getByText(world.google.title)).toBeVisible();
+  });
+
+  test("cards no longer render the category, company, tags or event date", async ({ page }) => {
+    await page.goto("/");
+
+    // The seeded google L has category INTERVIEWS, company Google, and tags — v1 still
+    // sends all of them, and the card must ignore every one.
+    await expect(page.getByText(world.google.title)).toBeVisible();
+    await expect(page.getByText("Interviews", { exact: true })).toHaveCount(0);
+    await expect(page.getByText("#interview")).toHaveCount(0);
+    await expect(page.getByText("#faang")).toHaveCount(0);
   });
 
   test("the following feed shows only the authors the viewer follows", async ({ page, context }) => {
@@ -107,6 +113,60 @@ test.describe("feed & L detail", () => {
       "href",
       /returnTo=%2Fnew/,
     );
+  });
+
+  // The rails are served from the schema-validated fixture until GET /v2/feed/sidebar
+  // ships (NEXT_PUBLIC_FEED_SIDEBAR_FIXTURE, set for this suite in playwright.config).
+  // What these prove is the wiring either way: that the aggregate reaches the page, both
+  // rails render on the feed route, and the anonymity rule survives the round trip.
+  test("the feed renders both discovery rails", async ({ page }) => {
+    await page.goto("/");
+
+    await expect(page.getByRole("region", { name: /top ls/i })).toBeVisible();
+    await expect(page.getByRole("region", { name: /l of the day/i })).toBeVisible();
+    await expect(page.getByRole("region", { name: /people to follow/i })).toBeVisible();
+  });
+
+  test("an anonymous Top L keeps its author hidden in the rail", async ({ page }) => {
+    await page.goto("/");
+
+    const rail = page.getByRole("region", { name: /top ls/i });
+    const anonymousRow = rail.locator("li", { hasText: "Anonymous builder" });
+    await expect(anonymousRow).toHaveCount(1);
+    // Whatever the row links to, it is never a profile.
+    await expect(anonymousRow.locator('a[href^="/u/"]')).toHaveCount(0);
+  });
+
+  test("L of the day names a real, attributed builder", async ({ page }) => {
+    await page.goto("/");
+
+    const daily = page.getByRole("region", { name: /l of the day/i });
+    // The contract types this author as non-null, so a profile link must always exist.
+    await expect(daily.locator('a[href^="/u/"]').first()).toBeVisible();
+    await expect(daily.getByText(/builders interacted/)).toBeVisible();
+  });
+
+  test("a signed-out visitor is offered login rather than a dead follow button", async ({
+    page,
+  }) => {
+    await page.goto("/");
+
+    const people = page.getByRole("region", { name: /people to follow/i });
+    await expect(people.getByRole("link", { name: /^follow/i }).first()).toHaveAttribute(
+      "href",
+      /\/login\?returnTo=/,
+    );
+  });
+
+  test("the rails are hidden on a narrow viewport, and the feed still works", async ({ page }) => {
+    await page.setViewportSize({ width: 800, height: 900 });
+    await page.goto("/");
+
+    // Below lg the feed is the whole page: the rails would otherwise sit after an
+    // infinite list, where nobody can reach them.
+    await expect(page.getByRole("region", { name: /top ls/i })).toBeHidden();
+    await expect(page.getByRole("region", { name: /people to follow/i })).toBeHidden();
+    await expect(page.getByText(world.google.title)).toBeVisible();
   });
 
   test("login links point at the real API's OAuth start endpoints", async ({ page }) => {
