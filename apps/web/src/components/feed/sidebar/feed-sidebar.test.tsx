@@ -267,6 +267,29 @@ describe("FeedSidebarLeft — people to follow", () => {
   });
 });
 
+describe("rails are hidden on narrow viewports", () => {
+  // Regression guard. `cn` is tailwind-merge, so composing "hidden lg:flex" with a RAIL
+  // string that itself carried `flex` silently deleted the `hidden` — same conflict slot,
+  // later wins — and the rails rendered on mobile, under an infinite feed, where the
+  // layout never intended them. jsdom applies no CSS, so a visibility assertion cannot
+  // see this; the merged class list is the only observable that can.
+  it("keeps `hidden` on the left rail after class merging", () => {
+    renderWithProviders(<FeedSidebarLeft initial={guestSidebar()} />, { session: signedOut });
+
+    const rail = screen.getByRole("complementary", { name: /your profile/i });
+    expect(rail).toHaveClass("hidden");
+    expect(rail).toHaveClass("lg:flex");
+  });
+
+  it("keeps `hidden` on the right rail after class merging", () => {
+    renderWithProviders(<FeedSidebarRight initial={guestSidebar()} />, { session: signedOut });
+
+    const rail = screen.getByRole("complementary", { name: /top ls/i });
+    expect(rail).toHaveClass("hidden");
+    expect(rail).toHaveClass("xl:flex");
+  });
+});
+
 describe("sidebar failure is independent of the feed", () => {
   it("renders nothing at all when the aggregate is unavailable", async () => {
     vi.mocked(getFeedSidebar).mockRejectedValue(new Error("500"));

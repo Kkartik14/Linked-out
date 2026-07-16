@@ -47,7 +47,14 @@ function useFeedSidebar(initial: FeedSidebarResponse | undefined) {
   });
 }
 
-const RAIL = "flex flex-col gap-3 lg:sticky lg:top-[4.5rem] lg:max-h-[calc(100dvh-5.5rem)] lg:overflow-y-auto";
+/**
+ * Deliberately carries no base `display` utility.
+ *
+ * `cn` is tailwind-merge, so a `flex` here would silently cancel the `hidden` each rail
+ * composes it with — they occupy the same conflict slot, and the later one wins. Each rail
+ * owns its display entirely (`hidden` → `lg:flex` / `xl:flex`), so nothing collides.
+ */
+const RAIL = "flex-col gap-3 lg:sticky lg:top-[4.5rem] lg:max-h-[calc(100dvh-5.5rem)] lg:overflow-y-auto";
 
 function RailSkeleton({ blocks }: { blocks: number[] }) {
   return (
@@ -67,7 +74,7 @@ export function FeedSidebarLeft({ initial }: { initial?: FeedSidebarResponse }) 
   if (isError && !data) return null;
 
   return (
-    <aside aria-label="Your profile and suggested builders" className={cn("hidden lg:block", RAIL)}>
+    <aside aria-label="Your profile and suggested builders" className={cn("hidden lg:flex", RAIL)}>
       {data ? (
         <>
           <ViewerCard viewer={data.viewer} />
@@ -86,7 +93,7 @@ export function FeedSidebarRight({ initial }: { initial?: FeedSidebarResponse })
   if (isError && !data) return null;
 
   return (
-    <aside aria-label="Top Ls and L of the day" className={cn("hidden xl:block", RAIL)}>
+    <aside aria-label="Top Ls and L of the day" className={cn("hidden xl:flex", RAIL)}>
       {data ? (
         <>
           <TopLs items={data.topLs.items} window={data.topLs.window} />
