@@ -3,58 +3,25 @@ import type {
   JourneyNode,
   LCard,
   LDetail,
-  ReactionType,
-  ReactionsSummary,
 } from '@linkedout/contracts';
 
-import { toUserSummary } from '../../common/mappers/user-summary.mapper';
 import type { LWithAuthor } from './ls.repository';
+import { cleanLCore, storyPreview, type LViewerContext } from './ls-wire.mapper';
 
-const PREVIEW_LENGTH = 280;
-
-export interface LViewerContext {
-  reactions: ReactionType[];
-  canEdit: boolean;
-}
-
-function truncate(text: string, max: number = PREVIEW_LENGTH): string {
-  if (text.length <= max) return text;
-  return `${text.slice(0, max).trimEnd()}…`;
-}
-
-function reactionsSummary(l: LWithAuthor): ReactionsSummary {
-  return {
-    total: l.reactionCount,
-    beenThere: l.beenThereCount,
-    helpful: l.helpfulCount,
-    respect: l.respectCount,
-    pain: l.painCount,
-    saved: l.savedCount,
-  };
-}
+export type { LViewerContext } from './ls-wire.mapper';
 
 function coreCard(l: LWithAuthor, viewer: LViewerContext) {
   return {
-    id: l.id,
-    title: l.title,
-    type: l.type,
+    ...cleanLCore(l, viewer),
     category: l.category,
     company: l.company,
     tags: l.tags,
     eventDate: l.eventDate ? l.eventDate.toISOString() : null,
-    visibility: l.visibility,
-    isAnonymous: l.isAnonymous,
-    resolvedAt: l.resolvedAt ? l.resolvedAt.toISOString() : null,
-    author: l.isAnonymous ? null : toUserSummary(l.author),
-    reactions: reactionsSummary(l),
-    commentCount: l.commentCount,
-    viewer: { reactions: viewer.reactions, canEdit: viewer.canEdit },
-    createdAt: l.createdAt.toISOString(),
   } as const;
 }
 
 export function toLCard(l: LWithAuthor, viewer: LViewerContext): LCard {
-  return { ...coreCard(l, viewer), storyPreview: truncate(l.story) };
+  return { ...coreCard(l, viewer), storyPreview: storyPreview(l.story) };
 }
 
 export function toLDetail(

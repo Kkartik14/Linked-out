@@ -166,7 +166,7 @@ function expectShape(res, schema, expectedStatus = 200) {
   assert.equal(
     res.status,
     expectedStatus,
-    `expected ${expectedStatus}, got ${res.status}: ${JSON.stringify(res.body)}`,
+    `expected ${expectedStatus}, got ${res.status}: ${JSON.stringify(res.body)}\n${children.map((child) => child.stderrBuf).join('\n')}`,
   );
   const parsed = schema.safeParse(res.body);
   if (!parsed.success) {
@@ -202,6 +202,7 @@ const TABLES = [
   'Follow',
   'Comment',
   'Reaction',
+  'DailyLSelection',
   'L',
   'Session',
   'Account',

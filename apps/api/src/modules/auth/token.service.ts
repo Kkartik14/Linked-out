@@ -5,9 +5,9 @@ import type { CookieOptions, Response } from 'express';
 
 import { AppConfigService } from '../../config/app-config.service';
 import type { AuthUser } from '../../common/types/auth';
+import { ACCESS_COOKIE, REFRESH_COOKIE } from '../../common/http/cookies';
 
-export const ACCESS_COOKIE = 'lo_access';
-export const REFRESH_COOKIE = 'lo_refresh';
+export { ACCESS_COOKIE, REFRESH_COOKIE };
 
 const ACCESS_TTL = '15m';
 const REFRESH_TTL = '30d';

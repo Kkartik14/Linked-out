@@ -44,6 +44,7 @@ const KNOWN_GUARDS = new Set([
   'GoogleAuthGuard',
   'JwtAuthGuard',
   'OptionalAuthGuard',
+  'StrictOptionalAuthGuard',
 ]);
 // Refresh validates this cookie inside the handler rather than through a Nest guard.
 const DIRECT_COOKIE_SECURITY = new Map([
@@ -117,7 +118,9 @@ function guardNames(Controller, handler) {
 
 function expectedSecurity(guards) {
   if (guards.has('JwtAuthGuard')) return [{ accessCookie: [] }];
-  if (guards.has('OptionalAuthGuard')) return [{}, { accessCookie: [] }];
+  if (guards.has('OptionalAuthGuard') || guards.has('StrictOptionalAuthGuard')) {
+    return [{}, { accessCookie: [] }];
+  }
   return [];
 }
 

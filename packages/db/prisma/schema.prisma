@@ -69,17 +69,17 @@ enum NotificationType {
 // ─── User + Auth ──────────────────────────────────────────────────────────────
 
 model User {
-  id            String         @id @default(cuid()) // ULID (overridden by the client extension; default is a type-level fallback)
+  id              String         @id @default(cuid()) // ULID (overridden by the client extension; default is a type-level fallback)
   // Nullable until onboarding completes → `needsOnboarding = username == null`.
-  username      String?        @unique
-  email         String?        @unique
-  emailVerified DateTime?
-  name          String?
-  image         String?
+  username        String?        @unique
+  email           String?        @unique
+  emailVerified   DateTime?
+  name            String?
+  image           String?
   // Stable R2 identity. Public CDN URLs may change; cleanup safety must not.
-  avatarObjectKey String? @unique
-  bio           String?
-  status        JourneyStatus?
+  avatarObjectKey String?        @unique
+  bio             String?
+  status          JourneyStatus?
 
   // Denormalized reputation counters. Updated in the same tx as the triggering write.
   storiesShared      Int @default(0)
@@ -154,12 +154,12 @@ model VerificationToken {
 // Durable two-phase tombstone for avatar deletion. A claimed key can be retried after
 // an object-store failure, but can never be attached to a profile again.
 model AvatarDeletionClaim {
-  key       String   @id
-  claimedAt DateTime @default(now())
+  key       String    @id
+  claimedAt DateTime  @default(now())
   deletedAt DateTime?
-  attempts  Int      @default(0)
+  attempts  Int       @default(0)
   lastError String?
-  updatedAt DateTime @updatedAt
+  updatedAt DateTime  @updatedAt
 }
 
 // ─── L — the core object ──────────────────────────────────────────────────────
@@ -200,10 +200,11 @@ model L {
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 
-  reactions     Reaction[]
-  comments      Comment[]
-  collectionLs  CollectionL[]
-  notifications Notification[]
+  reactions       Reaction[]
+  comments        Comment[]
+  collectionLs    CollectionL[]
+  notifications   Notification[]
+  dailySelections DailyLSelection[]
 
   @@index([visibility, createdAt(sort: Desc)])
   @@index([visibility, id(sort: Desc)])
@@ -216,6 +217,19 @@ model L {
   @@index([authorId, createdAt(sort: Desc)])
   @@index([authorId, type])
   @@index([tags], type: Gin)
+}
+
+/**
+ * Stable winner snapshot for one UTC calendar day.
+ */
+model DailyLSelection {
+  selectedFor      DateTime @id @db.Date
+  lId              String?
+  l                L?       @relation(fields: [lId], references: [id], onDelete: SetNull)
+  interactionCount Int      @default(0)
+  selectedAt       DateTime @default(now())
+
+  @@index([lId])
 }
 
 // ─── Reactions ────────────────────────────────────────────────────────────────
@@ -233,6 +247,7 @@ model Reaction {
   @@unique([userId, lId, type])
   @@index([lId, type])
   @@index([userId, type])
+  @@index([createdAt, lId, userId])
 }
 
 // ─── Comments (threaded) ──────────────────────────────────────────────────────
@@ -256,6 +271,7 @@ model Comment {
   // 20260714100000_comment_pagination_indexes because Prisma cannot express its predicate.
   @@index([lId, createdAt])
   @@index([parentId, id])
+  @@index([createdAt, lId, authorId])
 }
 
 // ─── Follow (social graph) ────────────────────────────────────────────────────
