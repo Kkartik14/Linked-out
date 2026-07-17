@@ -8,7 +8,12 @@ function FeaturedRow({ item, rank }: { item: FeaturedL; rank: number }) {
 
   return (
     <div className="flex gap-2.5 px-4 py-2.5">
-      <span aria-hidden className="text-muted-foreground/70 w-3 pt-0.5 text-xs tabular-nums">
+      {/* Full `--muted-foreground`, not `/70`: at 70% this computed 2.95:1 light / 3.47:1
+          dark, under even the 3:1 non-text floor. `aria-hidden` does not exempt it — 1.4.3's
+          incidental-text exception is for invisible or pictorial text, and a low-vision
+          sighted reader still has to read the rank. Size and position already de-emphasise
+          it without help from the contrast. */}
+      <span aria-hidden className="text-muted-foreground w-3 pt-0.5 text-xs tabular-nums">
         {rank}
       </span>
       <div className="min-w-0">

@@ -135,7 +135,13 @@ export function SettingsForm({ user }: { user: UserProfile }) {
 
       <div className="grid gap-2">
         <Label htmlFor="name">Name</Label>
-        <Input id="name" value={name} onChange={(e) => setName(e.target.value)} maxLength={80} />
+        <Input
+          id="name"
+          value={name}
+          onChange={(e) => setName(e.target.value)}
+          maxLength={80}
+          autoComplete="name"
+        />
       </div>
 
       <div className="grid gap-2">
