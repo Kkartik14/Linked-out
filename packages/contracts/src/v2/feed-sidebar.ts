@@ -40,8 +40,8 @@ export type InteractionWindow = z.infer<typeof interactionWindowSchema>;
 
 export const featuredLSchema = z.object({
   l: lCardSchema,
-  // Positive, not non-negative: a featured L requires at least one eligible interaction
-  // (docs/api-contract-v2.md §2), so 0 is not a quiet edge case — it is a ranking bug.
+  // Positive, not non-negative: the server only features an L after at least one eligible
+  // interaction, so 0 is not a quiet edge case — it is a ranking bug.
   interactionCount: z.number().int().positive(),
   interactionLabel: z.string(),
 }).strict();

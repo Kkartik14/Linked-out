@@ -374,8 +374,8 @@ test('v2 OpenAPI and route contracts cover exactly the registered v2 operations'
   );
 });
 
-// The guard split is the whole of the "invalid credentials are a 401, never a silent guest"
-// rule (docs/api-contract-v2.md §0). It is per-route metadata, so nothing but an explicit
+// The guard split enforces "invalid credentials are a 401, never a silent guest" at the
+// executable v2 route-contract boundary. It is per-route metadata, so nothing but an explicit
 // sweep catches a new v2 read that reaches for the lenient guard out of habit.
 test('every v2 optional-auth read rejects a bad credential; v1 keeps its lenient downgrade', async () => {
   const optionalAuthOperations = (operations) =>

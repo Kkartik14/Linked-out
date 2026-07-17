@@ -2,8 +2,8 @@
 
 Notable changes to the LinkedOut frontend. Newest first.
 
-This file covers `apps/web` only. The API contract it builds against is documented in
-`docs/api-contract-v2.md`.
+This file covers `apps/web` only. Its executable API contract is
+`@linkedout/contracts/v2`, with generated OpenAPI published by the backend at `/v2/openapi.json`.
 
 ## [Unreleased]
 

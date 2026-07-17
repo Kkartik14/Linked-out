@@ -10,6 +10,8 @@ and their CI/test boundaries. Newest first.
 - Added this backend-specific changelog. Internal design and contract narratives now live in the
   ignored local documentation set; shared Zod contracts and generated v1/v2 OpenAPI remain the
   tracked executable API references.
+- Removed the obsolete public-doc sync command and its prose-only CI test after the canonical
+  narrative moved local; credential behavior remains gated at the executable route/OpenAPI seam.
 
 ## [1.1.0] — 2026-07-17
 
@@ -38,7 +40,7 @@ v1 API remains available during migration.
 - Database support for sidebar interaction windows and daily selection, including covering/
   partial indexes and deterministic selection storage.
 - Backend and CI gates for v2 route/OpenAPI parity, contract timestamp validation, sidebar ranking
-  invariants, SQL-only database objects, test inventory, and documentation drift.
+  invariants, SQL-only database objects, test inventory, and executable contract drift.
 
 ### Changed
 

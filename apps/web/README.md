@@ -45,7 +45,8 @@ Point `NEXT_PUBLIC_API_BASE_URL` (in `.env.local`) at your API — default `http
 
 ## The contract
 
-The app speaks **v2 only** — `@linkedout/contracts/v2`, documented in `docs/api-contract-v2.md`.
+The app speaks **v2 only**. Runtime types and validation come from
+`@linkedout/contracts/v2`; the backend publishes generated OpenAPI at `/v2/openapi.json`.
 `NEXT_PUBLIC_API_BASE_URL` carries the `/v2` prefix and there is no second base URL.
 
 The v2 L has **no `category`, `company`, `tags`, or `eventDate`**, there is no category
