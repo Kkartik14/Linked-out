@@ -7,6 +7,11 @@ Two layers, deliberately separate.
 | **Unit** (`test/unit/`) | `pnpm --filter @linkedout/api test:unit` | Rebuilds first so imports from `dist/` cannot be stale, then tests services, guards, pipes, mappers and cursor helpers in isolation with fake repositories. No database or network I/O. |
 | **Integration** (`test/integration/`) | `pnpm --filter @linkedout/api test:integration` | The **real** NestJS server over HTTP against a **real** Postgres. Nothing is mocked. |
 
+`test:unit:built` is the same unit suite without the rebuild, for when `dist/` is already current
+— CI uses it because the workflow builds once and shares the artifact. Both run
+`scripts/check-unit-test-inventory.cjs` first: `node --test` exits 0 when its glob matches
+nothing, so without that check a renamed or moved file would leave the suite green and empty.
+
 ## Running the integration suite
 
 The one-shot command from the repo root sets everything up, including the mandatory guard env:
@@ -74,9 +79,10 @@ the single verified URL for both datasource variables. Guard coverage lives in
 
 ## How it is organised
 
-`index.test.cjs` boots the server once, then requires each file under `subparts/`. One
-process, one server, serial execution — so the database can be truncated deterministically
-between tests.
+`index.test.cjs` boots the server once, then requires every file under `subparts/` — discovered
+by glob and sorted, so the numeric prefix still fixes the order and a new subpart cannot be
+forgotten. One process, one server, serial execution — so the database can be truncated
+deterministically between tests.
 
 | Subpart | Covers |
 |---|---|
@@ -99,6 +105,8 @@ between tests.
 | `18-contract-invariants` | Envelopes, cursors, ULIDs, ISO timestamps, CORS, error codes |
 | `19-rate-limit` | 120 reads/min, 30 writes/min, `Retry-After`, per-identity buckets |
 | `20-concurrency-edges` | Counter integrity under concurrent writes; coercion edges |
+| `21-feed-sidebar-v2` | `GET /v2/feed/sidebar`: viewer states, ranking, windows, daily selection |
+| `22-clean-l-v2` | The v2 clean L shape, strict bodies, and the v2 OpenAPI surface |
 
 ## The contract is the oracle
 

@@ -10,6 +10,8 @@
  * Run with:  pnpm --filter @linkedout/api test:integration
  */
 
+const { globSync } = require('node:fs');
+const assert = require('node:assert/strict');
 const { before, after } = require('node:test');
 const h = require('./_harness.cjs');
 
@@ -21,24 +23,15 @@ after(async () => {
   await h.stop();
 });
 
-require('./subparts/01-meta.cjs');
-require('./subparts/02-auth.cjs');
-require('./subparts/03-ls-create.cjs');
-require('./subparts/04-ls-visibility.cjs');
-require('./subparts/05-ls-update-delete.cjs');
-require('./subparts/06-feed.cjs');
-require('./subparts/07-reactions.cjs');
-require('./subparts/08-comments.cjs');
-require('./subparts/09-follows.cjs');
-require('./subparts/10-collections.cjs');
-require('./subparts/11-notifications.cjs');
-require('./subparts/12-search.cjs');
-require('./subparts/13-users-profile.cjs');
-require('./subparts/14-journey-saved.cjs');
-require('./subparts/16-uploads.cjs');
-require('./subparts/17-anonymity.cjs');
-require('./subparts/18-contract-invariants.cjs');
-require('./subparts/19-rate-limit.cjs');
-require('./subparts/20-concurrency-edges.cjs');
-require('./subparts/21-feed-sidebar-v2.cjs');
-require('./subparts/22-clean-l-v2.cjs');
+// Discovered, not hand-listed: a subpart that nobody remembered to require would otherwise sit
+// silently unrun while the suite reported green. Sorted so the numeric prefixes still fix the
+// order (subparts share one server and truncate between tests, so order stays deterministic).
+const subparts = globSync('subparts/*.cjs', { cwd: __dirname }).sort();
+
+// A glob that matches nothing makes every assertion below vacuous, and node --test exits 0 on an
+// empty run — so the floor is asserted rather than assumed.
+assert.ok(subparts.length >= 22, `expected >= 22 integration subparts, found ${subparts.length}`);
+
+for (const subpart of subparts) {
+  require(`./${subpart}`);
+}
