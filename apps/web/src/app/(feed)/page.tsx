@@ -1,13 +1,11 @@
 import { feedSortSchema } from "@linkedout/contracts/v2";
 
-import { getFeed, getFeedSidebar, type FeedScope, type FeedSort } from "@/lib/api";
+import { getFeed, getFeedSidebar, type FeedScope } from "@/lib/api";
 import { getSession } from "@/lib/session";
 import { publicReadFailure } from "@/lib/public-read";
 import { FeedControls } from "@/components/feed/feed-controls";
 import { FeedList } from "@/components/feed/feed-list";
 import { FeedSidebarLeft, FeedSidebarRight } from "@/components/feed/sidebar/feed-sidebar";
-
-const SORTS = new Set<FeedSort>(feedSortSchema.options);
 
 export default async function HomePage({
   searchParams,
@@ -19,7 +17,10 @@ export default async function HomePage({
   const loggedIn = session.user !== null;
 
   const scope: FeedScope = sp.scope === "following" && loggedIn ? "following" : "global";
-  const sort: FeedSort = SORTS.has(sp.sort as FeedSort) ? (sp.sort as FeedSort) : "latest";
+  // A URL param is external input: let the contract's own schema validate it and fall back,
+  // rather than asserting `as FeedSort` to make a hand-rolled membership check compile. A
+  // sort added to the contract is picked up here with no edit.
+  const sort = feedSortSchema.catch("latest").parse(sp.sort);
 
   const [initial, sidebar] = await Promise.all([
     getFeed({ scope, sort, limit: 20 }),
@@ -57,7 +58,7 @@ export default async function HomePage({
           </p>
         </div>
 
-        <FeedControls scope={scope} sort={sort} canFollow={loggedIn} />
+        <FeedControls scope={scope} sort={sort} canUseFollowingFeed={loggedIn} />
         <FeedList key={`${scope}:${sort}`} initial={initial} scope={scope} sort={sort} />
       </section>
 

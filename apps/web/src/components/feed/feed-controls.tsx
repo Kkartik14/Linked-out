@@ -13,11 +13,14 @@ import { cn } from "@/lib/utils";
 export function FeedControls({
   scope,
   sort,
-  canFollow,
+  // Deliberately not `canFollow`: that name belongs to `SuggestedUser.viewer.canFollow`
+  // (contract v2 §2) — a per-user permission the backend owns and §2 says not to recreate.
+  // This is only "is there a Following tab to offer", which is a session fact.
+  canUseFollowingFeed,
 }: {
   scope: FeedScope;
   sort: FeedSort;
-  canFollow: boolean;
+  canUseFollowingFeed: boolean;
 }) {
   const router = useRouter();
   const pathname = usePathname();
@@ -36,8 +39,13 @@ export function FeedControls({
   return (
     // Logged out there is no scope switch, so sort sits at the start rather than floating
     // alone against the right edge.
-    <div className={cn("mb-5 flex flex-wrap items-center gap-2", canFollow && "justify-between")}>
-      {canFollow ? (
+    <div
+      className={cn(
+        "mb-5 flex flex-wrap items-center gap-2",
+        canUseFollowingFeed && "justify-between",
+      )}
+    >
+      {canUseFollowingFeed ? (
         <Tabs value={scope} onValueChange={(v) => update({ scope: v === "global" ? null : v })}>
           <TabsList>
             <TabsTrigger value="global">Global</TabsTrigger>
