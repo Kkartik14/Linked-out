@@ -5,8 +5,23 @@ import { ApiError } from "./errors";
 export interface ApiFetchInit extends RequestInit {
   /** Internal: prevents an infinite refresh loop on repeated 401s. */
   skipRefresh?: boolean;
-  /** Internal: server-side retry cookie after a refresh response sets cookies. */
-  cookieHeader?: string;
+  /** Overrides {@link DEFAULT_TIMEOUT_MS}. Use for a request the page can live without. */
+  timeoutMs?: number;
+}
+
+/**
+ * No request may hang forever. A Server Component render blocks on its fetches, so an
+ * unresponsive backend would hold the whole page open until the platform kills it — and
+ * anything relying on a rejection to degrade (contract v2 §2: the sidebar "fails
+ * independently of the center feed") never degrades, because a request that never settles
+ * never fails.
+ */
+const DEFAULT_TIMEOUT_MS = 10_000;
+
+/** Honour a caller's signal *and* the timeout — whichever aborts first wins. */
+function withTimeout(signal: AbortSignal | null | undefined, ms: number): AbortSignal {
+  const timeout = AbortSignal.timeout(ms);
+  return signal ? AbortSignal.any([signal, timeout]) : timeout;
 }
 
 /**
@@ -52,52 +67,16 @@ function toApiError(status: number, body: unknown, headers?: Headers): ApiError 
   );
 }
 
-function splitSetCookie(value: string): string[] {
-  return value.split(/,(?=\s*[^;,=\s]+=[^;,]+)/g).map((part) => part.trim()).filter(Boolean);
-}
-
-function mergeCookieHeader(current: string | null, setCookies: string[]): string | null {
-  if (setCookies.length === 0) return current;
-
-  const cookies = new Map<string, string>();
-  for (const part of current?.split(";") ?? []) {
-    const trimmed = part.trim();
-    if (!trimmed) continue;
-    const eq = trimmed.indexOf("=");
-    if (eq > 0) cookies.set(trimmed.slice(0, eq), trimmed.slice(eq + 1));
-  }
-
-  for (const setCookie of setCookies) {
-    const pair = setCookie.split(";", 1)[0]?.trim();
-    if (!pair) continue;
-    const eq = pair.indexOf("=");
-    if (eq > 0) cookies.set(pair.slice(0, eq), pair.slice(eq + 1));
-  }
-
-  const merged = [...cookies.entries()].map(([key, value]) => `${key}=${value}`).join("; ");
-  return merged || null;
-}
-
-function setCookiesFrom(headers: Headers): string[] {
-  const withGetSetCookie = headers as Headers & { getSetCookie?: () => string[] };
-  const setCookies = withGetSetCookie.getSetCookie?.();
-  if (setCookies?.length) return setCookies;
-  const joined = headers.get("set-cookie");
-  return joined ? splitSetCookie(joined) : [];
-}
-
 /**
  * The single seam through which all backend traffic flows. Returns parsed JSON
  * typed as `T`, or throws `ApiError`.
  */
 export async function apiFetch<T>(path: string, init: ApiFetchInit = {}): Promise<T> {
-  const { skipRefresh, cookieHeader, ...rest } = init;
+  const { skipRefresh, timeoutMs = DEFAULT_TIMEOUT_MS, ...rest } = init;
   const headers = new Headers(rest.headers);
   const forwardsCredentials = rest.credentials !== "omit";
   if (!forwardsCredentials) headers.delete("cookie");
-  const cookie = forwardsCredentials
-    ? cookieHeader ?? await serverCookieHeader()
-    : null;
+  const cookie = forwardsCredentials ? await serverCookieHeader() : null;
   if (cookie) headers.set("cookie", cookie);
   if (rest.body && !headers.has("content-type")) {
     headers.set("content-type", "application/json");
@@ -109,6 +88,7 @@ export async function apiFetch<T>(path: string, init: ApiFetchInit = {}): Promis
     credentials: rest.credentials ?? "include",
     // Per-user/authenticated data must never be statically cached.
     cache: rest.cache ?? "no-store",
+    signal: withTimeout(rest.signal, timeoutMs),
   });
 
   if (res.status === 401) {
@@ -120,12 +100,8 @@ export async function apiFetch<T>(path: string, init: ApiFetchInit = {}): Promis
       forwardsCredentials &&
       typeof window !== "undefined"
     ) {
-      const refreshedCookie = await refreshSessionSingleFlight(headers.get("cookie"));
-      return apiFetch<T>(path, {
-        ...init,
-        skipRefresh: true,
-        cookieHeader: refreshedCookie ?? cookieHeader,
-      });
+      await refreshSessionSingleFlight();
+      return apiFetch<T>(path, { ...init, skipRefresh: true });
     }
     throw toApiError(401, body, res.headers);
   }
@@ -135,29 +111,38 @@ export async function apiFetch<T>(path: string, init: ApiFetchInit = {}): Promis
   return (await res.json()) as T;
 }
 
-/** Rotate the access cookie (contract §1.1). */
-async function refreshSession(cookie: string | null): Promise<string | null> {
+/**
+ * Rotate the access cookie (contract §1.1).
+ *
+ * Nothing is read off the response, and nothing needs to be: this only ever runs in the
+ * browser (see the `typeof window` guard above), where `Set-Cookie` is a forbidden response
+ * header — it is stripped before JS can see it — and `Cookie` is a forbidden request header,
+ * so the retry could not attach one either. The browser applies the rotated cookie to its
+ * own jar, and `credentials: "include"` puts it on the retry. Any attempt to carry cookies
+ * across in userland here is dead code that only appears to work under a mocked `Response`.
+ */
+async function refreshSession(): Promise<void> {
   try {
-    const res = await fetch(`${API_BASE_URL}/auth/refresh`, {
+    await fetch(`${API_BASE_URL}/auth/refresh`, {
       method: "POST",
       credentials: "include",
-      headers: cookie ? { cookie } : undefined,
       cache: "no-store",
     });
-    return mergeCookieHeader(cookie, setCookiesFrom(res.headers));
   } catch {
     // The retried request will surface a fresh 401 if refresh failed.
-    return null;
   }
 }
 
-let refreshInFlight: Promise<string | null> | null = null;
+/**
+ * A burst of expired requests must rotate once, not once each — a second rotation would
+ * race the first and could revoke the token it just issued. Module-level state is safe
+ * only because refresh is browser-gated; a server-side caller would share it across users.
+ */
+let refreshInFlight: Promise<void> | null = null;
 
-function refreshSessionSingleFlight(cookie: string | null): Promise<string | null> {
-  if (!refreshInFlight) {
-    refreshInFlight = refreshSession(cookie).finally(() => {
-      refreshInFlight = null;
-    });
-  }
+function refreshSessionSingleFlight(): Promise<void> {
+  refreshInFlight ??= refreshSession().finally(() => {
+    refreshInFlight = null;
+  });
   return refreshInFlight;
 }
