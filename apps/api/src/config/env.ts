@@ -1,4 +1,5 @@
 import { z } from 'zod';
+import { Buffer } from 'node:buffer';
 import { BlockList, isIP } from 'node:net';
 
 const localAddressBlockList = new BlockList();
@@ -109,6 +110,10 @@ export const envSchema = z
 
     JWT_ACCESS_SECRET: z.string().min(16),
     JWT_REFRESH_SECRET: z.string().min(16),
+    INTERNAL_API_SECRET: z.string().default('').refine(
+      (value) => value.length === 0 || Buffer.byteLength(value, 'utf8') >= 32,
+      { message: 'INTERNAL_API_SECRET must contain at least 32 bytes.' },
+    ),
     COOKIE_DOMAIN: z.string().default(''),
 
     GOOGLE_CLIENT_ID: z.string().default(''),
@@ -124,6 +129,17 @@ export const envSchema = z
     R2_ENDPOINT: optionalUrl,
   })
   .superRefine((env, ctx) => {
+    if (
+      env.INTERNAL_API_SECRET.length > 0 &&
+      (env.INTERNAL_API_SECRET === env.JWT_ACCESS_SECRET ||
+        env.INTERNAL_API_SECRET === env.JWT_REFRESH_SECRET)
+    ) {
+      ctx.addIssue({
+        code: 'custom',
+        path: ['INTERNAL_API_SECRET'],
+        message: 'INTERNAL_API_SECRET must be distinct from legacy JWT secrets.',
+      });
+    }
     if (env.NODE_ENV !== 'production') return;
 
     const requiredProductionFields = [
@@ -137,6 +153,7 @@ export const envSchema = z
       'R2_PUBLIC_BASE_URL',
       'R2_ENDPOINT',
       'COOKIE_DOMAIN',
+      'INTERNAL_API_SECRET',
     ] as const;
 
     for (const field of requiredProductionFields) {

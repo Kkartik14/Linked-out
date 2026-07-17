@@ -32,6 +32,9 @@ importers:
       '@linkedout/db':
         specifier: workspace:*
         version: link:../../packages/db
+      '@linkedout/internal-auth':
+        specifier: workspace:*
+        version: link:../../packages/internal-auth
       '@linkedout/session-authority':
         specifier: workspace:*
         version: link:../../packages/session-authority
@@ -131,6 +134,22 @@ importers:
       prisma:
         specifier: ^6.2.1
         version: 6.19.3(typescript@5.9.3)
+      typescript:
+        specifier: ^5.7.3
+        version: 5.9.3
+
+  packages/internal-auth:
+    dependencies:
+      jsonwebtoken:
+        specifier: ^9.0.3
+        version: 9.0.3
+    devDependencies:
+      '@types/jsonwebtoken':
+        specifier: ^9.0.10
+        version: 9.0.10
+      '@types/node':
+        specifier: ^22.10.7
+        version: 22.20.0
       typescript:
         specifier: ^5.7.3
         version: 5.9.3

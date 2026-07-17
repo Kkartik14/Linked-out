@@ -61,6 +61,7 @@ export default tseslint.config(
       "apps/api/src/**/*.ts",
       "packages/contracts/src/**/*.ts",
       "packages/db/src/**/*.ts",
+      "packages/internal-auth/src/**/*.ts",
       "packages/session-authority/src/**/*.ts",
     ],
     rules: {

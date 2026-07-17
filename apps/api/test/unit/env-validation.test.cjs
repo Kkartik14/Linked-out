@@ -13,6 +13,7 @@ const productionEnv = {
   DATABASE_URL: 'postgresql://user:pass@db.example/linkedout',
   JWT_ACCESS_SECRET: 'access-secret-long-enough',
   JWT_REFRESH_SECRET: 'refresh-secret-long-enough',
+  INTERNAL_API_SECRET: 'internal-api-secret-at-least-32-bytes',
   COOKIE_DOMAIN: '.linkedout.example',
   GOOGLE_CLIENT_ID: 'google-client',
   GOOGLE_CLIENT_SECRET: 'google-secret',
@@ -37,4 +38,21 @@ test('missing production R2 URL returns the intended validation issue, never a T
         issue.message === 'R2_PUBLIC_BASE_URL is required in production.',
     ),
   );
+});
+
+test('the internal assertion key cannot reuse either browser-token secret', () => {
+  for (const reused of [productionEnv.JWT_ACCESS_SECRET, productionEnv.JWT_REFRESH_SECRET]) {
+    const result = envSchema.safeParse({
+      ...productionEnv,
+      INTERNAL_API_SECRET: reused,
+    });
+    assert.equal(result.success, false);
+    assert.ok(
+      result.error.issues.some(
+        (issue) =>
+          issue.path.join('.') === 'INTERNAL_API_SECRET' &&
+          issue.message.includes('distinct from legacy JWT secrets'),
+      ),
+    );
+  }
 });

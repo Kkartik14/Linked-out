@@ -59,6 +59,10 @@ export class AppConfigService {
     return this.env.JWT_REFRESH_SECRET;
   }
 
+  get internalApiSecret(): string | undefined {
+    return this.env.INTERNAL_API_SECRET.length > 0 ? this.env.INTERNAL_API_SECRET : undefined;
+  }
+
   /** Empty in dev (host-only cookie on localhost); e.g. ".linkedout.app" in prod. */
   get cookieDomain(): string | undefined {
     return this.env.COOKIE_DOMAIN.length > 0 ? this.env.COOKIE_DOMAIN : undefined;

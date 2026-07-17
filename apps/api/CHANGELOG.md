@@ -29,6 +29,9 @@ v1 API remains available during migration.
 
 ### Added
 
+- Added the private BFF-to-Nest assertion path with a dedicated secret, strict HS256
+  issuer/audience/purpose validation, a 60-second maximum lifetime, authoritative-header
+  precedence, and explicit invalid/expired/infrastructure outcomes during legacy coexistence.
 - Added the durable browser-session authority for the one-origin BFF: 256-bit opaque cookies are
   stored only by hash, live sessions slide monotonically for 30 idle days with a 90-day cap, and
   logout revokes a persistent tombstone idempotently.

@@ -3,7 +3,7 @@ const test = require('node:test');
 
 require('reflect-metadata');
 
-const { BadRequestException } = require('@nestjs/common');
+const { BadRequestException, UnauthorizedException } = require('@nestjs/common');
 const {
   createLInputSchema,
   paginationQuerySchema,
@@ -178,6 +178,43 @@ test('OptionalAuthGuard never blocks anonymous reads', () => {
 
   assert.equal(guard.handleRequest(null, false), undefined);
   assert.equal(guard.handleRequest(null, user), user);
+  assert.equal(guard.handleRequest(new UnauthorizedException(), false), undefined);
+
+  const outage = new Error('principal store unavailable');
+  assert.throws(() => guard.handleRequest(outage, false), outage);
+});
+
+test('internal assertions are authoritative in every guard and infrastructure failures surface', async () => {
+  const user = { id: 'user_1', username: 'kartik' };
+  const request = { headers: { 'x-internal-auth': 'assertion' } };
+  const context = {
+    switchToHttp: () => ({ getRequest: () => request }),
+  };
+  const guard = new JwtAuthGuard({
+    async authenticateInternal() {
+      return { kind: 'authenticated', user, sid: 'session_1' };
+    },
+  });
+  assert.equal(await guard.canActivate(context), true);
+  assert.equal(request.user, user);
+
+  const invalid = new OptionalAuthGuard({
+    async authenticateInternal() {
+      return { kind: 'invalid' };
+    },
+  });
+  await assert.rejects(
+    () => invalid.canActivate(context),
+    (error) => assertAppError(error, 401, 'UNAUTHENTICATED'),
+  );
+
+  const outage = new Error('session dependency unavailable');
+  const unavailable = new OptionalAuthGuard({
+    async authenticateInternal() {
+      throw outage;
+    },
+  });
+  await assert.rejects(() => unavailable.canActivate(context), outage);
 });
 
 test('AllExceptionsFilter always renders the standard error envelope', () => {

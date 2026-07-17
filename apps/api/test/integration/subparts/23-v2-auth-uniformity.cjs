@@ -73,6 +73,16 @@ describe('23 · v2 authentication uniformity (contract §0)', () => {
     }
   });
 
+  test('a presented invalid internal assertion is never downgraded on optional-auth v2 reads', async () => {
+    for (const pathname of routes) {
+      const res = await h.request('GET', pathname, {
+        baseUrl: h.ctx.v2BaseUrl,
+        headers: { 'x-internal-auth': 'not-an-assertion' },
+      });
+      h.expectError(res, 401, 'UNAUTHENTICATED');
+    }
+  });
+
   test('an absent credential is still served as a guest on every optional-auth v2 read', async () => {
     for (const pathname of routes) {
       const res = await v2(pathname);
