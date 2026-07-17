@@ -6,6 +6,7 @@ const test = require('node:test');
 require('reflect-metadata');
 
 const { RequestMethod } = require('@nestjs/common');
+const { z } = require('zod');
 const {
   GUARDS_METADATA,
   HEADERS_METADATA,
@@ -24,6 +25,7 @@ const {
   reactionTypeSchema,
   searchTypeSchema,
 } = require('@linkedout/contracts');
+const contractsV2 = require('@linkedout/contracts/v2');
 
 const { AppModule } = require('../../dist/app.module');
 const { ZodValidationPipe } = require('../../dist/common/pipes/zod-validation.pipe');
@@ -433,4 +435,35 @@ test('OpenAPI query and path parameters stay aligned with shared contracts', () 
       if (cursor) assert.equal(cursor.schema.minLength, 1, `${method} ${path} cursor minLength`);
     }
   }
+});
+
+test('v2 OpenAPI derives query and path constraints from runtime Zod schemas', () => {
+  const document = new MetaService({}).getV2OpenApi();
+  const feedQueryJson = z.toJSONSchema(contractsV2.feedQuerySchema, {
+    unrepresentable: 'any',
+    io: 'input',
+  });
+  const searchQueryJson = z.toJSONSchema(contractsV2.searchQuerySchema, {
+    unrepresentable: 'any',
+    io: 'input',
+  });
+
+  for (const name of ['limit', 'cursor', 'sort']) {
+    const parameter = getParameter(document, '/feed', 'get', name);
+    assert.deepEqual(parameter.schema, feedQueryJson.properties[name]);
+    assert.equal(parameter.required, false);
+  }
+  for (const name of ['limit', 'cursor', 'q', 'type']) {
+    const parameter = getParameter(document, '/search', 'get', name);
+    assert.deepEqual(parameter.schema, searchQueryJson.properties[name]);
+    assert.equal(parameter.required, name === 'q');
+  }
+  assert.deepEqual(
+    getParameter(document, '/ls/{id}', 'get', 'id').schema,
+    z.toJSONSchema(contractsV2.ulidSchema, { unrepresentable: 'any' }),
+  );
+  assert.deepEqual(
+    getParameter(document, '/users/{username}/ls', 'get', 'username').schema,
+    z.toJSONSchema(contractsV2.usernameInputSchema, { unrepresentable: 'any' }),
+  );
 });

@@ -12,20 +12,23 @@ import {
   API_ROUTE_CONTRACT_BY_KEY,
 } from '../../common/contracts/api-route-contracts';
 
-export type OpenApiDocument = Record<string, unknown>;
+export type JsonPrimitive = string | number | boolean | null;
+export type JsonValue = JsonPrimitive | JsonObject | JsonValue[];
+export type JsonObject = { [key: string]: JsonValue };
+export type OpenApiDocument = JsonObject;
 
 function schemaRef(name: string): { $ref: string } {
   return { $ref: `#/components/schemas/${name}` };
 }
 
-function jsonResponse(schemaName: string, description = 'OK'): Record<string, unknown> {
+function jsonResponse(schemaName: string, description = 'OK'): JsonObject {
   return {
     description,
     content: { 'application/json': { schema: schemaRef(schemaName) } },
   };
 }
 
-function jsonBody(schemaName: string, required = true): Record<string, unknown> {
+function jsonBody(schemaName: string, required = true): JsonObject {
   return {
     required,
     content: { 'application/json': { schema: schemaRef(schemaName) } },
@@ -34,20 +37,20 @@ function jsonBody(schemaName: string, required = true): Record<string, unknown> 
 
 function pathParam(
   name: string,
-  schema: Record<string, unknown> = { type: 'string' },
-): Record<string, unknown> {
+  schema: JsonObject = { type: 'string' },
+): JsonObject {
   return { name, in: 'path', required: true, schema };
 }
 
 function queryParam(
   name: string,
-  schema: Record<string, unknown> = { type: 'string' },
+  schema: JsonObject = { type: 'string' },
   required = false,
 ) {
   return { name, in: 'query', required, schema };
 }
 
-function jsonSchemas(): Record<string, unknown> {
+function jsonSchemas(): Record<string, JsonObject> {
   return Object.fromEntries(
     Object.entries(API_COMPONENT_SCHEMAS).map(([name, schema]) => {
       const jsonSchema = z.toJSONSchema(schema, { unrepresentable: 'any' });
@@ -56,14 +59,14 @@ function jsonSchemas(): Record<string, unknown> {
       if (name === 'UpdateLInput' || name === 'UpdateUserInput') {
         Object.assign(jsonSchema, { minProperties: 1 });
       }
-      return [name, jsonSchema];
+      return [name, jsonSchema as JsonObject];
     }),
   );
 }
 
-type OpenApiOperation = Record<string, unknown> & {
-  requestBody?: Record<string, unknown>;
-  responses?: Record<string, unknown>;
+type OpenApiOperation = JsonObject & {
+  requestBody?: JsonObject;
+  responses?: Record<string, JsonObject>;
 };
 
 function applyRouteContracts(

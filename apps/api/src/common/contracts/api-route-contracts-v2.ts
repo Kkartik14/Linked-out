@@ -28,7 +28,7 @@ import {
 } from '@linkedout/contracts/v2';
 import { z, type ZodType } from 'zod';
 
-import { API_ROUTE_CONTRACTS, type ApiRouteContract } from './api-route-contracts';
+import { API_ROUTE_CONTRACTS, type NamedApiRouteContract } from './api-route-contracts';
 
 const okSchema = z.object({ ok: z.literal(true) });
 const paginatedLCardSchema = paginatedSchema(lCardSchema);
@@ -72,6 +72,7 @@ export const API_COMPONENT_SCHEMAS_V2 = {
 } as const satisfies Record<string, ZodType>;
 
 type ComponentName = keyof typeof API_COMPONENT_SCHEMAS_V2;
+type ApiRouteContractV2 = NamedApiRouteContract<ComponentName>;
 
 function response<const TName extends ComponentName>(name: TName, description = 'OK') {
   return { name, schema: API_COMPONENT_SCHEMAS_V2[name], description } as const;
@@ -81,8 +82,8 @@ function body<const TName extends ComponentName>(name: TName, required = true) {
   return { name, schema: API_COMPONENT_SCHEMAS_V2[name], required } as const;
 }
 
-type RouteResponse = ApiRouteContract['response'];
-type RouteBody = NonNullable<ApiRouteContract['body']>;
+type RouteResponse = ApiRouteContractV2['response'];
+type RouteBody = NonNullable<ApiRouteContractV2['body']>;
 
 function route<const TKey extends string, const TStatus extends number, TResponse extends RouteResponse>(
   key: TKey,
@@ -105,7 +106,7 @@ function route(
   status: number,
   routeResponse: RouteResponse,
   routeBody?: RouteBody,
-): ApiRouteContract {
+): ApiRouteContractV2 {
   return { key, status, response: routeResponse, body: routeBody };
 }
 
@@ -168,12 +169,12 @@ export const API_ROUTE_CONTRACTS_V2 = {
   notificationsReadAll: API_ROUTE_CONTRACTS.notificationsReadAll,
   metaEnums: route('get /meta/enums', 200, response('MetaEnumsResponse')),
   openApi: route('get /openapi.json', 200, {
-    schema: z.record(z.string(), z.unknown()),
+    schema: z.record(z.string(), z.json()),
     description: 'OpenAPI 3.1 document',
   }),
-} as const satisfies Record<string, ApiRouteContract>;
+} as const satisfies Record<string, ApiRouteContractV2>;
 
-export const API_ROUTE_CONTRACT_BY_KEY_V2 = new Map<string, ApiRouteContract>(
+export const API_ROUTE_CONTRACT_BY_KEY_V2 = new Map<string, ApiRouteContractV2>(
   Object.values(API_ROUTE_CONTRACTS_V2).map((contract) => [contract.key, contract]),
 );
 
