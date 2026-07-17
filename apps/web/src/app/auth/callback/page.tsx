@@ -3,20 +3,9 @@
 import * as React from "react";
 import Link from "next/link";
 import { useRouter, useSearchParams } from "next/navigation";
-import { isSafeReturnTo } from "@linkedout/contracts/v2";
-
 import { getMe } from "@/lib/api";
+import { oauthErrorMessage, safeReturnTo } from "@/lib/auth-entry";
 import { Button } from "@/components/ui/button";
-
-const ERROR_MESSAGES: Record<string, string> = {
-  access_denied: "You cancelled the sign-in.",
-  oauth_failed: "Something went wrong with the provider.",
-  email_taken: "That email is already linked to a different login method.",
-};
-
-function safeReturnTo(value: string | null): string {
-  return value && isSafeReturnTo(value) ? value : "/";
-}
 
 function Centered({ children }: { children: React.ReactNode }) {
   return (
@@ -32,12 +21,12 @@ function CallbackInner() {
   const [fetchFailed, setFetchFailed] = React.useState(false);
 
   const returnTo = safeReturnTo(params.get("returnTo"));
+  // Kept separate from `error`: the effect below skips the session fetch on any OAuth error,
+  // and it must key off the raw code, not the composed message.
   const errorCode = params.get("error");
-  const error = errorCode
-    ? (ERROR_MESSAGES[errorCode] ?? "Sign-in failed. Please try again.")
-    : fetchFailed
-      ? "We couldn't complete sign-in. Please try again."
-      : null;
+  const error =
+    oauthErrorMessage(errorCode) ??
+    (fetchFailed ? "We couldn't complete sign-in. Please try again." : null);
 
   React.useEffect(() => {
     if (errorCode) return;

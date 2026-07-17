@@ -1,20 +1,10 @@
 import type { Metadata } from "next";
-import { isSafeReturnTo } from "@linkedout/contracts/v2";
 
 import { oauthLoginUrl } from "@/lib/api";
+import { oauthErrorMessage, safeReturnTo } from "@/lib/auth-entry";
 import { Button } from "@/components/ui/button";
 
 export const metadata: Metadata = { title: "Log in" };
-
-const ERROR_MESSAGES: Record<string, string> = {
-  access_denied: "You cancelled the sign-in. Try again whenever you're ready.",
-  oauth_failed: "Something went wrong with the provider. Please try again.",
-  email_taken: "That email is already linked to a different login method.",
-};
-
-function safeReturnTo(value: string | undefined): string {
-  return value && isSafeReturnTo(value) ? value : "/";
-}
 
 export default async function LoginPage({
   searchParams,
@@ -23,7 +13,7 @@ export default async function LoginPage({
 }) {
   const sp = await searchParams;
   const returnTo = safeReturnTo(sp.returnTo);
-  const error = sp.error ? (ERROR_MESSAGES[sp.error] ?? "Sign-in failed. Please try again.") : null;
+  const error = oauthErrorMessage(sp.error);
 
   return (
     <div className="mx-auto flex min-h-[70vh] w-full max-w-sm flex-col justify-center px-4 py-10">
