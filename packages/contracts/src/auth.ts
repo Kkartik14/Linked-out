@@ -19,6 +19,11 @@ export const returnToSchema = z.string().refine(isSafeReturnTo, {
 });
 export type ReturnTo = z.infer<typeof returnToSchema>;
 
+/** Render-time identity echoed by authenticated mutations to prevent stale-principal writes. */
+export const PRINCIPAL_BINDING_HEADER = 'X-LinkedOut-Principal';
+export const principalBindingHeaderSchema = ulidSchema;
+export type PrincipalBindingHeader = z.infer<typeof principalBindingHeaderSchema>;
+
 export const authMeResponseSchema = z.object({
   user: userProfileSchema.nullable(),
   needsOnboarding: z.boolean(),

@@ -3,6 +3,7 @@ import {
   feedQuerySchema,
   journeyQuerySchema,
   paginationQuerySchema,
+  PRINCIPAL_BINDING_HEADER,
   reactionTypeSchema,
   searchQuerySchema,
   ulidSchema,
@@ -26,7 +27,7 @@ function jsonResponse(name: string, description = 'OK'): JsonObject {
 
 function parameter(
   name: string,
-  location: 'path' | 'query',
+  location: 'header' | 'path' | 'query',
   schema: JsonObject = { type: 'string' },
   required = location === 'path',
 ) {
@@ -82,10 +83,28 @@ function applyContracts(paths: Record<string, Record<string, Operation>>) {
         content: { 'application/json': { schema: ref(contract.body.name) } },
       };
     }
+    const security = operation.security ?? [{ accessCookie: [] }];
+    const bindsPrincipal =
+      ['delete', 'patch', 'post', 'put'].includes(method) &&
+      security.some((requirement) => 'accessCookie' in requirement);
+    if (bindsPrincipal) {
+      operation.parameters = [
+        ...(operation.parameters ?? []),
+        parameter(
+          PRINCIPAL_BINDING_HEADER,
+          'header',
+          schemaObject(ulidSchema),
+          true,
+        ),
+      ];
+    }
     operation.responses = {
       400: jsonResponse('ErrorEnvelope', 'Invalid request'),
       401: jsonResponse('ErrorEnvelope', 'Authentication failed'),
       404: jsonResponse('ErrorEnvelope', 'Resource not found'),
+      ...(bindsPrincipal
+        ? { 409: jsonResponse('ErrorEnvelope', 'Authenticated principal changed') }
+        : {}),
       429: {
         ...jsonResponse('ErrorEnvelope', 'Rate limited'),
         headers: { 'Retry-After': { schema: { type: 'integer', minimum: 1 } } },

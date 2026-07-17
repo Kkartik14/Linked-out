@@ -20,6 +20,7 @@ const assert = require('node:assert/strict');
 const { ulid } = require('ulid');
 const { createPrismaClient } = require('@linkedout/db');
 const { InternalAssertionSigner } = require('@linkedout/internal-auth');
+const { PRINCIPAL_BINDING_HEADER } = require('@linkedout/contracts');
 
 const { guardedReset } = require('../../../../scripts/db-safety-guard.cjs');
 
@@ -147,6 +148,28 @@ async function request(method, pathname, options = {}) {
   if (options.cookie) headers.cookie = options.cookie;
   if (options.body !== undefined) headers['content-type'] = 'application/json';
   Object.assign(headers, options.headers ?? {});
+  const hasPrincipalBinding = Object.keys(headers).some(
+    (name) => name.toLowerCase() === PRINCIPAL_BINDING_HEADER.toLowerCase(),
+  );
+  if (options.bindPrincipal !== false && !hasPrincipalBinding) {
+    const internalHeader = Object.entries(headers).find(
+      ([name]) => name.toLowerCase() === 'x-internal-auth',
+    )?.[1];
+    const accessToken = options.cookie
+      ?.split(';')
+      .map((part) => part.trim())
+      .find((part) => part.startsWith('lo_access='))
+      ?.slice('lo_access='.length);
+    const token = typeof internalHeader === 'string' ? internalHeader : accessToken;
+    if (token) {
+      try {
+        const payload = JSON.parse(Buffer.from(token.split('.')[1], 'base64url').toString('utf8'));
+        if (typeof payload.sub === 'string') headers[PRINCIPAL_BINDING_HEADER] = payload.sub;
+      } catch {
+        // Malformed credentials are intentionally sent unchanged so auth owns their rejection.
+      }
+    }
+  }
 
   const res = await fetch(`${base}${pathname}`, {
     method,

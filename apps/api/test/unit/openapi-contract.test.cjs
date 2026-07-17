@@ -23,6 +23,7 @@ const {
   feedSortSchema,
   lTypeSchema,
   reactionTypeSchema,
+  PRINCIPAL_BINDING_HEADER,
   searchTypeSchema,
 } = require('@linkedout/contracts');
 const contractsV2 = require('@linkedout/contracts/v2');
@@ -236,6 +237,42 @@ test('OpenAPI security and success statuses match registered guards and Nest han
       name: 'X-Internal-Auth',
     },
   });
+});
+
+test('OpenAPI requires principal binding on every authenticated mutation', () => {
+  const service = new MetaService({});
+  for (const document of [service.getOpenApi(), service.getV2OpenApi()]) {
+    for (const [path, pathItem] of Object.entries(document.paths)) {
+      for (const [method, operation] of Object.entries(pathItem)) {
+        if (!HTTP_METHODS.has(method)) continue;
+        const security = operation.security ?? document.security ?? [];
+        const authenticated = security.some((requirement) => 'accessCookie' in requirement);
+        const unsafe = ['delete', 'patch', 'post', 'put'].includes(method);
+        const binding = operation.parameters?.find(
+          (parameter) =>
+            parameter.in === 'header' &&
+            parameter.name.toLowerCase() === PRINCIPAL_BINDING_HEADER.toLowerCase(),
+        );
+        assert.equal(
+          binding !== undefined,
+          authenticated && unsafe,
+          `${method} ${path} principal binding`,
+        );
+        if (binding) {
+          assert.equal(binding.required, true);
+          assert.equal(
+            binding.schema.pattern,
+            '^[0-9A-HJKMNP-TV-Za-hjkmnp-tv-z]{26}$',
+          );
+          assert.ok(operation.responses['409']);
+          assert.equal(
+            operation.responses['409'].content['application/json'].schema.$ref,
+            '#/components/schemas/ErrorEnvelope',
+          );
+        }
+      }
+    }
+  }
 });
 
 test('one route contract drives each handler body pipe and OpenAPI success response', async () => {

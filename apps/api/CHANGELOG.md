@@ -26,6 +26,11 @@ and their CI/test boundaries. Newest first.
   callback remains the default until `OAUTH_SESSION_MODE=handoff` is enabled for the cutover.
 - Extended bounded maintenance cleanup to delete OAuth handoffs only after expiry, retaining
   consumed rows as replay tombstones for the full lifetime of any issued code.
+- Bound every authenticated mutation to the principal that composed it. Unsafe requests now
+  require `X-LinkedOut-Principal`; missing, malformed, duplicate, or stale identities fail with
+  `409 PRINCIPAL_MISMATCH` before business logic, covering both legacy cookies and BFF assertions.
+  This is a strict coordinated cutover: callers must forward the composition-time value unchanged
+  and must never replace it with the identity resolved when the request executes.
 
 ### Documentation
 
