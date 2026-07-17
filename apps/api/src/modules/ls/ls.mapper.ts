@@ -5,10 +5,9 @@ import type {
   LDetail,
 } from '@linkedout/contracts';
 
+import type { LViewerContext } from '../../common/read-models/l-read-model';
 import type { LWithAuthor } from './ls.repository';
-import { cleanLCore, storyPreview, type LViewerContext } from './ls-wire.mapper';
-
-export type { LViewerContext } from './ls-wire.mapper';
+import { cleanLCore, storyPreview } from './ls-wire.mapper';
 
 function coreCard(l: LWithAuthor, viewer: LViewerContext) {
   return {
