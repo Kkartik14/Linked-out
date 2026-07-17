@@ -20,6 +20,8 @@ export function InfiniteList<T>({
   empty,
   skeleton,
   className,
+  errorFallback,
+  endNote,
 }: {
   queryKey: QueryKey;
   queryFn: (cursor: string | undefined) => Promise<Paginated<T>>;
@@ -29,6 +31,10 @@ export function InfiniteList<T>({
   empty?: React.ReactNode;
   skeleton?: React.ReactNode;
   className?: string;
+  /** Shown when the list fails to load, in place of the generic message. */
+  errorFallback?: string;
+  /** Shown once every page has arrived and the list is non-empty. */
+  endNote?: React.ReactNode;
 }) {
   const query = useInfiniteQuery({
     queryKey,
@@ -73,7 +79,7 @@ export function InfiniteList<T>({
 
       {query.isError ? (
         <div className="flex flex-col items-center gap-2 py-6">
-          <p className="text-muted-foreground text-sm">{errorMessage(query.error)}</p>
+          <p className="text-muted-foreground text-sm">{errorMessage(query.error, errorFallback)}</p>
           <Button variant="outline" size="sm" onClick={() => query.refetch()} disabled={query.isRefetching}>
             Try again
           </Button>
@@ -82,6 +88,10 @@ export function InfiniteList<T>({
 
       <div ref={sentinelRef} aria-hidden className="h-px" />
       {query.isFetchingNextPage ? skeleton : null}
+
+      {/* Only once the list is genuinely exhausted — never while a page is still coming, and
+          never as a consolation for a list that failed to load. */}
+      {endNote && !hasNextPage && !query.isError && items.length > 0 ? endNote : null}
     </div>
   );
 }
