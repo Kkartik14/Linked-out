@@ -288,39 +288,6 @@ export class LsRepository {
     return ordered;
   }
 
-  /** Fetch visible Ls by id in the requested order, with visibility enforced in SQL. */
-  async hydrateVisibleOrdered(
-    ids: string[],
-    viewerId: string | undefined,
-  ): Promise<LWithAuthor[]> {
-    if (ids.length === 0) return [];
-    const rows = await this.prisma.db.l.findMany({
-      where: {
-        id: { in: ids },
-        OR: [
-          { visibility: 'PUBLIC' },
-          ...(viewerId
-            ? [
-                { authorId: viewerId },
-                {
-                  visibility: 'FOLLOWERS' as const,
-                  author: { followers: { some: { followerId: viewerId } } },
-                },
-              ]
-            : []),
-        ],
-      },
-      include: L_AUTHOR_INCLUDE,
-    });
-    const byId = new Map(rows.map((row) => [row.id, row]));
-    const ordered: LWithAuthor[] = [];
-    for (const id of ids) {
-      const row = byId.get(id);
-      if (row) ordered.push(row);
-    }
-    return ordered;
-  }
-
   /** Does the viewer follow the author? Used for FOLLOWERS-visibility checks. */
   async viewerFollows(viewerId: string, authorId: string): Promise<boolean> {
     const follow = await this.prisma.db.follow.findUnique({

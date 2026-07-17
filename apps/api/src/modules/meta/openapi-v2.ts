@@ -164,7 +164,7 @@ export function buildOpenApiV2Document(): OpenApiDocument {
       '/users/{username}': {
         get: {
           security: optionalAuth,
-          parameters: [parameter('username', 'path', schemaObject(usernameInputSchema))],
+          parameters: [parameter('username', 'path')],
         },
       },
       '/ls': { post: {} },
@@ -209,7 +209,7 @@ export function buildOpenApiV2Document(): OpenApiDocument {
         get: {
           security: optionalAuth,
           parameters: [
-            parameter('username', 'path', schemaObject(usernameInputSchema)),
+            parameter('username', 'path'),
             ...pagination,
           ],
         },
@@ -218,7 +218,7 @@ export function buildOpenApiV2Document(): OpenApiDocument {
         get: {
           security: optionalAuth,
           parameters: [
-            parameter('username', 'path', schemaObject(usernameInputSchema)),
+            parameter('username', 'path'),
             ...pagination,
           ],
         },
@@ -227,25 +227,25 @@ export function buildOpenApiV2Document(): OpenApiDocument {
         get: {
           security: optionalAuth,
           parameters: [
-            parameter('username', 'path', schemaObject(usernameInputSchema)),
+            parameter('username', 'path'),
             ...pagination,
           ],
         },
       },
       '/users/{username}/follow': {
-        put: { parameters: [parameter('username', 'path', schemaObject(usernameInputSchema))] },
-        delete: { parameters: [parameter('username', 'path', schemaObject(usernameInputSchema))] },
+        put: { parameters: [parameter('username', 'path')] },
+        delete: { parameters: [parameter('username', 'path')] },
       },
       '/ls/{id}/reactions/{type}': {
         put: {
           parameters: [
-            parameter('id', 'path', schemaObject(ulidSchema)),
+            parameter('id', 'path'),
             parameter('type', 'path', schemaObject(reactionTypeSchema)),
           ],
         },
         delete: {
           parameters: [
-            parameter('id', 'path', schemaObject(ulidSchema)),
+            parameter('id', 'path'),
             parameter('type', 'path', schemaObject(reactionTypeSchema)),
           ],
         },
@@ -253,19 +253,19 @@ export function buildOpenApiV2Document(): OpenApiDocument {
       '/ls/{id}/comments': {
         get: {
           security: optionalAuth,
-          parameters: [parameter('id', 'path', schemaObject(ulidSchema)), ...pagination],
+          parameters: [parameter('id', 'path'), ...pagination],
         },
-        post: { parameters: [parameter('id', 'path', schemaObject(ulidSchema))] },
+        post: { parameters: [parameter('id', 'path')] },
       },
       '/comments/{id}/replies': {
         get: {
           security: optionalAuth,
-          parameters: [parameter('id', 'path', schemaObject(ulidSchema)), ...pagination],
+          parameters: [parameter('id', 'path'), ...pagination],
         },
-        post: { parameters: [parameter('id', 'path', schemaObject(ulidSchema))] },
+        post: { parameters: [parameter('id', 'path')] },
       },
       '/comments/{id}': {
-        delete: { parameters: [parameter('id', 'path', schemaObject(ulidSchema))] },
+        delete: { parameters: [parameter('id', 'path')] },
       },
       '/collections': { post: {} },
       '/collections/{id}': {
@@ -273,8 +273,8 @@ export function buildOpenApiV2Document(): OpenApiDocument {
           security: optionalAuth,
           parameters: [parameter('id', 'path', schemaObject(ulidSchema))],
         },
-        patch: { parameters: [parameter('id', 'path', schemaObject(ulidSchema))] },
-        delete: { parameters: [parameter('id', 'path', schemaObject(ulidSchema))] },
+        patch: { parameters: [parameter('id', 'path')] },
+        delete: { parameters: [parameter('id', 'path')] },
       },
       '/collections/{id}/ls/{lId}': {
         put: {
@@ -304,7 +304,7 @@ export function buildOpenApiV2Document(): OpenApiDocument {
       '/notifications': { get: { parameters: pagination } },
       '/notifications/unread-count': { get: {} },
       '/notifications/{id}/read': {
-        post: { parameters: [parameter('id', 'path', schemaObject(ulidSchema))] },
+        post: { parameters: [parameter('id', 'path')] },
       },
       '/notifications/read-all': { post: {} },
       '/meta/enums': { get: { security: [] } },

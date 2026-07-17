@@ -466,4 +466,18 @@ test('v2 OpenAPI derives query and path constraints from runtime Zod schemas', (
     getParameter(document, '/users/{username}/ls', 'get', 'username').schema,
     z.toJSONSchema(contractsV2.usernameInputSchema, { unrepresentable: 'any' }),
   );
+
+  for (const [path, method, name] of [
+    ['/users/{username}', 'get', 'username'],
+    ['/users/{username}/follow', 'put', 'username'],
+    ['/collections/{id}', 'patch', 'id'],
+    ['/ls/{id}/comments', 'get', 'id'],
+    ['/notifications/{id}/read', 'post', 'id'],
+  ]) {
+    assert.deepEqual(
+      getParameter(document, path, method, name).schema,
+      { type: 'string' },
+      `${method} ${path} does not overstate validation on its shared v1/v2 handler`,
+    );
+  }
 });
