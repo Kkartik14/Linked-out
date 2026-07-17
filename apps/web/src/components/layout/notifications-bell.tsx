@@ -19,6 +19,7 @@ import { Button } from "@/components/ui/button";
 import {
   DropdownMenu,
   DropdownMenuContent,
+  DropdownMenuItem,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
 
@@ -34,7 +35,7 @@ export function NotificationsBell() {
   const unread = useQuery({
     queryKey: queryKeys.notifications.unreadCount(principal),
     queryFn: getUnreadCount,
-    // Spread clients across the allowed 30–60s window instead of creating a 45s herd.
+    // Spread clients across a 40–50s window instead of creating a 45s herd.
     refetchInterval: () => notificationPollIntervalMs(),
   });
 
@@ -78,16 +79,26 @@ export function NotificationsBell() {
         <div className="flex items-center justify-between border-b px-3 py-2">
           <span className="text-sm font-medium">Notifications</span>
           {count > 0 ? (
-            <Button
-              variant="ghost"
-              size="sm"
-              className="h-7 gap-1.5 px-2 text-xs"
-              onClick={() => markAll.mutate()}
+            // Keep the menu open so the rows visibly turn read, as before.
+            <DropdownMenuItem
+              asChild
               disabled={markAll.isPending}
+              onSelect={(e) => e.preventDefault()}
+              className="rounded-md p-0"
             >
-              <CheckCheck className="size-3.5" />
-              Mark all read
-            </Button>
+              <Button
+                variant="ghost"
+                size="sm"
+                className="h-7 gap-1.5 px-2 text-xs"
+                onClick={() => markAll.mutate()}
+                disabled={markAll.isPending}
+              >
+                {/* `text-current` opts out of the menu item's
+                    `[&_svg:not([class*='text-'])]:text-muted-foreground`. */}
+                <CheckCheck className="size-3.5 text-current" />
+                Mark all read
+              </Button>
+            </DropdownMenuItem>
           ) : null}
         </div>
         <div className="max-h-96 overflow-y-auto py-1">
@@ -115,33 +126,38 @@ export function NotificationsBell() {
                   />
                   <span className="min-w-0">
                     <span className="block leading-snug">{n.message}</span>
-                    <time className="text-muted-foreground text-xs">{timeAgo(n.createdAt)}</time>
+                    <time dateTime={n.createdAt} className="text-muted-foreground text-xs">
+                      {timeAgo(n.createdAt)}
+                    </time>
                   </span>
                 </div>
               );
               return n.target ? (
-                <Link
-                  key={n.id}
-                  href={`/ls/${n.target.lId}`}
-                  className="hover:bg-accent block"
-                  onClick={() => {
-                    if (n.readAt === null) markOne.mutate(n.id);
-                  }}
-                >
-                  {body}
-                </Link>
+                // `className` rides on the item, not the Link: next/link concatenates
+                // classNames verbatim, while DropdownMenuItem's cn() resolves the
+                // conflicts with the item's default flex/padding/radius.
+                <DropdownMenuItem key={n.id} asChild className="hover:bg-accent block rounded-none p-0">
+                  <Link
+                    href={`/ls/${n.target.lId}`}
+                    onClick={() => {
+                      if (n.readAt === null) markOne.mutate(n.id);
+                    }}
+                  >
+                    {body}
+                  </Link>
+                </DropdownMenuItem>
               ) : (
                 <div key={n.id}>{body}</div>
               );
             })
           )}
         </div>
-        <Link
-          href="/notifications"
-          className="text-muted-foreground hover:text-foreground block border-t px-3 py-2 text-center text-xs"
+        <DropdownMenuItem
+          asChild
+          className="text-muted-foreground hover:text-foreground focus:text-foreground block rounded-none border-t px-3 py-2 text-center text-xs"
         >
-          View all
-        </Link>
+          <Link href="/notifications">View all</Link>
+        </DropdownMenuItem>
       </DropdownMenuContent>
     </DropdownMenu>
   );

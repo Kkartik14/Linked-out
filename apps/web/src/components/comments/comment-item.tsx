@@ -80,11 +80,15 @@ function CommentBody({
     },
   });
 
+  // Hoisted: TS drops property-access narrowing inside the closures below, so
+  // branching on `comment.parentId` there would need a non-null assertion.
+  const parentId = comment.parentId;
+
   const del = useMutation({
     mutationFn: () => deleteComment(comment.id),
     onMutate: async () => {
-      const affectedRepliesKey = comment.parentId
-        ? queryKeys.comments.replies(principal, comment.parentId)
+      const affectedRepliesKey = parentId
+        ? queryKeys.comments.replies(principal, parentId)
         : repliesKey;
       await Promise.all([
         queryClient.cancelQueries({ queryKey: commentsKey, exact: true }),
@@ -95,13 +99,13 @@ function CommentBody({
       setConfirmDelete(false);
       toast.success("Comment deleted.");
 
-      if (comment.parentId) {
-        const parentRepliesKey = queryKeys.comments.replies(principal, comment.parentId);
+      if (parentId) {
+        const parentRepliesKey = queryKeys.comments.replies(principal, parentId);
         queryClient.setQueryData<CommentPages>(parentRepliesKey, (current) =>
           removeComment(current, comment.id),
         );
         queryClient.setQueryData<CommentPages>(commentsKey, (current) =>
-          updateComment(current, comment.parentId!, (parent) => ({
+          updateComment(current, parentId, (parent) => ({
             ...parent,
             replyCount: Math.max(0, parent.replyCount - 1),
           })),
@@ -158,7 +162,12 @@ function CommentBody({
 
         <div className="text-muted-foreground mt-1.5 flex items-center gap-3 text-xs">
           {user && depth === 0 ? (
-            <button type="button" className="hover:text-foreground" onClick={() => setReplying((v) => !v)}>
+            <button
+              type="button"
+              className="hover:text-foreground"
+              aria-expanded={replying}
+              onClick={() => setReplying((v) => !v)}
+            >
               Reply
             </button>
           ) : null}
@@ -176,6 +185,7 @@ function CommentBody({
             <button
               type="button"
               className="hover:text-foreground inline-flex items-center gap-1"
+              aria-expanded={showReplies}
               onClick={() => setShowReplies((v) => !v)}
             >
               {showReplies ? <ChevronUp className="size-3.5" /> : <ChevronDown className="size-3.5" />}
