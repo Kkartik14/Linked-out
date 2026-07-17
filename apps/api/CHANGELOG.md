@@ -31,6 +31,9 @@ and their CI/test boundaries. Newest first.
   `409 PRINCIPAL_MISMATCH` before business logic, covering both legacy cookies and BFF assertions.
   This is a strict coordinated cutover: callers must forward the composition-time value unchanged
   and must never replace it with the identity resolved when the request executes.
+- Made `@linkedout/session-authority` consumable from the deliberately separate web workspace by
+  replacing its workspace-only database edge with the same local file-link topology used by the
+  shared contracts package. This preserves the ADR's direct BFF-to-session-store authority.
 
 ### Documentation
 

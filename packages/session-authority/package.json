@@ -16,7 +16,7 @@
     "typecheck": "tsc -p tsconfig.json --noEmit"
   },
   "dependencies": {
-    "@linkedout/db": "workspace:*"
+    "@linkedout/db": "file:../db"
   },
   "devDependencies": {
     "@types/node": "^22.10.7",

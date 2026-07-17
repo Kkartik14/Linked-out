@@ -157,7 +157,7 @@ importers:
   packages/session-authority:
     dependencies:
       '@linkedout/db':
-        specifier: workspace:*
+        specifier: file:../db
         version: link:../db
     devDependencies:
       '@types/node':
