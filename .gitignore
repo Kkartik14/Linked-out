@@ -18,6 +18,7 @@ packages/db/generated/
 
 # turbo / caches
 .turbo/
+.pnpm-store/
 *.tsbuildinfo
 
 local/

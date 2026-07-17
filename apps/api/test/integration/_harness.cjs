@@ -204,6 +204,7 @@ const TABLES = [
   'Reaction',
   'DailyLSelection',
   'L',
+  'BrowserSession',
   'Session',
   'Account',
   'VerificationToken',
