@@ -34,7 +34,8 @@ pnpm build                                  # regenerate the Prisma client + con
 pnpm dev
 ```
 
-The API runs on `http://localhost:4000/v1` by default.
+The API serves both `http://localhost:4000/v1` and `http://localhost:4000/v2`. The current web
+application uses v2; v1 remains available for legacy consumers during migration.
 
 `pnpm db:up` only works if the Docker **engine** is running — an open Docker Desktop window is
 not enough. Confirm with `docker info`; if that errors, start Docker and retry. A stale
@@ -89,6 +90,7 @@ workflow artifact.
 
 For more frontend details, see `apps/web/README.md`.
 
-Production retention work is exposed as an external job; see
-[`docs/operations/maintenance-cleanup.md`](docs/operations/maintenance-cleanup.md) for its
-dry-run/apply safety model and scheduling runbook.
+Production retention work is exposed as the external `pnpm maintenance:cleanup` job. Database
+expiry cleanup runs by default, while avatar deletion is dry-run unless `--apply-assets` is passed.
+Use `pnpm maintenance:cleanup --help` for the bounded scan/apply options; operational design notes
+are kept in the ignored local documentation set.

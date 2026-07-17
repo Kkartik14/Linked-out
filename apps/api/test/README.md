@@ -86,20 +86,20 @@ deterministically between tests.
 
 | Subpart | Covers |
 |---|---|
-| `01-meta` | `/meta/enums`, `/openapi.json`, `/tags/popular` |
+| `01-meta` | v1/v2 enum metadata and OpenAPI; v1-only `/tags/popular` |
 | `02-auth` | `/auth/me`, refresh rotation, logout, OAuth redirects, expired/forged cookies |
-| `03-ls-create` | `POST /ls` — defaults, limits, reputation, onboarding gate |
+| `03-ls-create` | v1 `POST /ls` — defaults, limits, reputation, onboarding gate |
 | `04-ls-visibility` | The full PUBLIC / FOLLOWERS / PRIVATE viewer matrix |
-| `05-ls-update-delete` | Ownership, battle `resolvedAt` rules, reputation withdrawal, cascades |
-| `06-feed` | `/feed` + `/feed/following`: sorts, filters, keyset pagination |
+| `05-ls-update-delete` | v1 ownership, battle `resolvedAt` rules, reputation withdrawal, cascades |
+| `06-feed` | v1/v2 global + following feeds: sorts, versioned filters, keyset pagination |
 | `07-reactions` | Idempotency, counters, popularity weights, `buildersHelped` |
 | `08-comments` | One-level threading, `commentCount`, cascade delete |
 | `09-follows` | Idempotency, self-follow, counts, notification once |
-| `10-collections` | CRUD, ordering/position, viewer-aware `lCount` |
+| `10-collections` | v1/v2 CRUD/detail, ordering/position, viewer-aware `lCount` |
 | `11-notifications` | Folding via `dedupeKey`, server-composed copy, read state |
-| `12-search` | Postgres FTS ranking, visibility, hostile queries |
+| `12-search` | v1/v2 Postgres FTS/user ranking, visibility, versioned filters, hostile queries |
 | `13-users-profile` | Profile, `PATCH /users/me`, username rules, avatar-URL ownership |
-| `14-journey-saved` | Journey ordering by `eventDate ?? createdAt`; `/me/saved` |
+| `14-journey-saved` | v1 effective-date and v2 created-at journeys; v1/v2 `/me/saved` |
 | `16-uploads` | Presign shape, size/type limits, `UPLOADS_DISABLED` |
 | `17-anonymity` | Strong anonymity: no author, profile/journey, or collection attribution path |
 | `18-contract-invariants` | Envelopes, cursors, ULIDs, ISO timestamps, CORS, error codes |
