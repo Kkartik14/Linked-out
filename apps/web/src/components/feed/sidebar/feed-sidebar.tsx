@@ -56,13 +56,15 @@ function useFeedSidebar(initial: FeedSidebarResponse | undefined) {
  */
 const RAIL = "flex-col gap-3 lg:sticky lg:top-[4.5rem] lg:max-h-[calc(100dvh-5.5rem)] lg:overflow-y-auto";
 
-function RailSkeleton({ blocks }: { blocks: number[] }) {
+/** `label` is per rail: only the left one is suggestions, and a screen reader is told
+ * what is actually arriving rather than what the other rail happens to hold. */
+function RailSkeleton({ blocks, label }: { blocks: number[]; label: string }) {
   return (
     <div aria-busy className="flex flex-col gap-3">
       {blocks.map((height, index) => (
         <Skeleton key={index} className="rounded-xl" style={{ height }} />
       ))}
-      <span className="sr-only">Loading suggestions…</span>
+      <span className="sr-only">{label}</span>
     </div>
   );
 }
@@ -78,10 +80,10 @@ export function FeedSidebarLeft({ initial }: { initial?: FeedSidebarResponse }) 
       {data ? (
         <>
           <ViewerCard viewer={data.viewer} />
-          <PeopleToFollow items={data.peopleToFollow.items} />
+          <PeopleToFollow items={data.peopleToFollow.items} viewer={data.viewer} />
         </>
       ) : (
-        <RailSkeleton blocks={[210, 260]} />
+        <RailSkeleton blocks={[210, 260]} label="Loading your profile and suggested builders…" />
       )}
     </aside>
   );
@@ -100,7 +102,7 @@ export function FeedSidebarRight({ initial }: { initial?: FeedSidebarResponse })
           <LOfTheDay daily={data.lOfTheDay} />
         </>
       ) : (
-        <RailSkeleton blocks={[280, 190]} />
+        <RailSkeleton blocks={[280, 190]} label="Loading top Ls and L of the day…" />
       )}
     </aside>
   );

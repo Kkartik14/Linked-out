@@ -97,28 +97,39 @@ function SignedInCard({ profile }: { profile: UserProfile }) {
   );
 }
 
+/**
+ * One card per viewer state, chosen exhaustively.
+ *
+ * `switch` rather than a pair of `if`s with a trailing fallback: the fallback made
+ * `SignedInCard` the answer to "anything else", so a fourth state added to the contract's
+ * union would have rendered a profile card for a viewer who has no profile. The `never`
+ * assignment below turns that into a compile error instead.
+ */
 export function ViewerCard({ viewer }: { viewer: FeedSidebarViewer }) {
-  if (viewer.state === "SIGNED_OUT") {
-    return (
-      <Prompt
-        title="Join LinkedOut"
-        body="LinkedIn for your Ls. Share the rejections, the layoffs, the pivots — and what they taught you."
-        action="Log in"
-        href="/login"
-      />
-    );
+  switch (viewer.state) {
+    case "SIGNED_OUT":
+      return (
+        <Prompt
+          title="Join LinkedOut"
+          body="LinkedIn for your Ls. Share the rejections, the layoffs, the pivots — and what they taught you."
+          action="Log in"
+          href="/login"
+        />
+      );
+    case "ONBOARDING_REQUIRED":
+      return (
+        <Prompt
+          title="Finish your profile"
+          body="Pick a username so other builders can find your journey."
+          action="Finish setup"
+          href="/onboarding"
+        />
+      );
+    case "READY":
+      return <SignedInCard profile={viewer.profile} />;
+    default: {
+      const _exhaustive: never = viewer;
+      return _exhaustive;
+    }
   }
-
-  if (viewer.state === "ONBOARDING_REQUIRED") {
-    return (
-      <Prompt
-        title="Finish your profile"
-        body="Pick a username so other builders can find your journey."
-        action="Finish setup"
-        href="/onboarding"
-      />
-    );
-  }
-
-  return <SignedInCard profile={viewer.profile} />;
 }
