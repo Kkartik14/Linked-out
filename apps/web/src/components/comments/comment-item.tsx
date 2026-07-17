@@ -131,7 +131,9 @@ function CommentBody({
   return (
     <div className="flex gap-3">
       {comment.author ? (
-        <Link href={`/u/${comment.author.username}`} aria-label={comment.author.name ?? comment.author.username}>
+        // Decorative: the name below links to the same profile. Two identical stops per
+        // comment adds up fast in a long thread.
+        <Link href={`/u/${comment.author.username}`} tabIndex={-1} aria-hidden>
           <UserAvatar
             name={comment.author.name}
             username={comment.author.username}
