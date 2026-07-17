@@ -138,19 +138,17 @@ describe('02 · auth & sessions (contract §1.1, §4.1)', () => {
     assert.equal(remaining, null, 'refresh session row must be deleted');
   });
 
-  test('POST /auth/logout requires authentication', async () => {
-    // NOTE: this encodes CURRENT behavior. ADR 0001 changes it — see the AUTH-02 red test
-    // below, which must pass once logout becomes refresh-cookie-driven.
-    h.expectError(await h.post('/auth/logout'), 401, 'UNAUTHENTICATED');
+  test('POST /auth/logout without any cookie is an idempotent 200 and clears legacy cookies', async () => {
+    const res = await h.post('/auth/logout');
+    assert.equal(res.status, 200);
+    assert.deepEqual(res.body, { ok: true });
+    const cookies = setCookies(res.headers);
+    assert.equal(cookies.lo_access.value, '');
+    assert.equal(cookies.lo_refresh.value, '');
   });
-
-  // ── Pending acceptance criteria for ADR 0001 (auth session topology). ──────────
-  // These encode DESIRED post-epic behavior. They run as `todo`, so a current failure is
-  // reported but does not fail CI. Remove `todo` as each is delivered.
 
   test(
     'AUTH-02: logout succeeds with only a refresh cookie (the real state after 15-min expiry)',
-    { todo: 'ADR 0001 §6 — logout must be refresh-driven, idempotent, and revoke the session' },
     async () => {
       const user = await h.createUser();
       const { cookie, token } = await h.issueRefreshSession(user.id);
@@ -172,7 +170,6 @@ describe('02 · auth & sessions (contract §1.1, §4.1)', () => {
 
   test(
     'AUTH-02: logout is idempotent — a second logout AFTER revocation is still 200',
-    { todo: 'ADR 0001 §6 — logout is idempotent' },
     async () => {
       const user = await h.createUser();
       const { cookie, token } = await h.issueRefreshSession(user.id);
@@ -219,6 +216,12 @@ describe('02 · auth & sessions (contract §1.1, §4.1)', () => {
     assert.ok(res.headers.get('location').includes('state='));
   });
 
+  test('GET /auth/google rejects undocumented navigation parameters', async () => {
+    const res = await h.get('/auth/google?utm_source=mail');
+    const error = h.expectError(res, 400, 'VALIDATION_ERROR');
+    assert.equal(error.details[0].field, 'utm_source');
+  });
+
   test('GET /auth/google rejects open-redirect returnTo values', async () => {
     const hostile = [
       'https://evil.example.com',
@@ -236,21 +239,20 @@ describe('02 · auth & sessions (contract §1.1, §4.1)', () => {
   test('OAuth callback without valid state redirects to the web app with ?error=', async () => {
     const res = await h.get('/auth/google/callback?code=abc&state=tampered');
     assert.equal(res.status, 302);
-    const location = res.headers.get('location');
-    assert.ok(
-      location.startsWith(`${h.WEB_URL}/auth/callback?error=`),
-      `expected an error redirect to the web app, got ${location}`,
-    );
-    assert.ok(location.endsWith('=oauth_failed'));
+    const location = new URL(res.headers.get('location'));
+    assert.equal(location.origin + location.pathname, `${h.WEB_URL}/auth/callback`);
+    assert.equal(location.searchParams.get('error'), 'oauth_failed');
+    assert.equal(location.searchParams.get('message'), null);
+    assert.deepEqual([...location.searchParams.keys()], ['error']);
   });
 
   test('OAuth callback surfaces a user cancellation as ?error=access_denied', async () => {
     const res = await h.get('/auth/google/callback?error=access_denied');
     assert.equal(res.status, 302);
-    assert.equal(
-      res.headers.get('location'),
-      `${h.WEB_URL}/auth/callback?error=access_denied`,
-    );
+    const location = new URL(res.headers.get('location'));
+    assert.equal(location.searchParams.get('error'), 'access_denied');
+    assert.equal(location.searchParams.get('message'), null);
+    assert.deepEqual([...location.searchParams.keys()], ['error']);
   });
 
   test('every mutating route rejects an anonymous caller with 401', async () => {

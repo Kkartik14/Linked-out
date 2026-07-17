@@ -133,6 +133,12 @@ function FormMessage({ className, ...props }: React.ComponentProps<"p">) {
     <p
       data-slot="form-message"
       id={formMessageId}
+      // Without this only the focused field's message is read, via `aria-describedby`.
+      // RHF focuses the first invalid field on a client-side submit, so the rest are
+      // silent — and a server-mapped field error focuses nothing at all, leaving the
+      // message visible and entirely unannounced. Set before the spread so a caller can
+      // still override it.
+      role="alert"
       className={cn("text-destructive text-sm", className)}
       {...props}
     >

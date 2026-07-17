@@ -17,6 +17,7 @@ test('the DB runtime API cannot bypass the ULID-extended client factory', () => 
   assert.equal(dbPublicApi.modelUsesUlid('RateLimitBucket'), false);
   assert.equal(dbPublicApi.modelUsesUlid('DailyLSelection'), false);
   assert.equal(dbPublicApi.modelUsesUlid('User'), true);
+  assert.equal(dbPublicApi.modelUsesUlid('BrowserSession'), true);
 });
 
 // The extension only sees top-level writes, so a nested relation create would keep the
@@ -64,6 +65,7 @@ test('the deterministic seed wipe includes every standalone lifecycle table', ()
   for (const delegate of [
     'verificationToken',
     'rateLimitBucket',
+    'browserSession',
     'avatarDeletionClaim',
     'dailyLSelection',
   ]) {

@@ -2,6 +2,12 @@ import type { Type } from '@nestjs/common';
 import {
   addLToCollectionInputSchema,
   authMeResponseSchema,
+  oauthHandoffExchangeInputSchema,
+  oauthHandoffExchangeResponseSchema,
+  sessionResolveInputSchema,
+  sessionResolveResponseSchema,
+  sessionRevokeInputSchema,
+  sessionRevokeResponseSchema,
   avatarUploadRequestSchema,
   avatarUploadResponseSchema,
   collectionDetailSchema,
@@ -49,6 +55,12 @@ const searchResultSchema = z.union([paginatedLCardSchema, paginatedUserSummarySc
 export const API_COMPONENT_SCHEMAS = {
   AddLToCollectionInput: addLToCollectionInputSchema,
   AuthMeResponse: authMeResponseSchema,
+  OAuthHandoffExchangeInput: oauthHandoffExchangeInputSchema,
+  OAuthHandoffExchangeResponse: oauthHandoffExchangeResponseSchema,
+  SessionResolveInput: sessionResolveInputSchema,
+  SessionResolveResponse: sessionResolveResponseSchema,
+  SessionRevokeInput: sessionRevokeInputSchema,
+  SessionRevokeResponse: sessionRevokeResponseSchema,
   AvatarUploadRequest: avatarUploadRequestSchema,
   AvatarUploadResponse: avatarUploadResponseSchema,
   Collection: collectionSchema,
@@ -202,6 +214,24 @@ export const API_ROUTE_CONTRACTS = {
   authMe: route('get /auth/me', 200, jsonResponse('AuthMeResponse')),
   authRefresh: route('post /auth/refresh', 200, jsonResponse('OkResponse')),
   authLogout: route('post /auth/logout', 200, jsonResponse('OkResponse')),
+  authOAuthHandoffExchange: route(
+    'post /auth/oauth/handoff/exchange',
+    200,
+    jsonResponse('OAuthHandoffExchangeResponse'),
+    jsonBody('OAuthHandoffExchangeInput'),
+  ),
+  authSessionsResolve: route(
+    'post /auth/sessions/resolve',
+    200,
+    jsonResponse('SessionResolveResponse'),
+    jsonBody('SessionResolveInput'),
+  ),
+  authSessionsRevoke: route(
+    'post /auth/sessions/revoke',
+    200,
+    jsonResponse('SessionRevokeResponse'),
+    jsonBody('SessionRevokeInput'),
+  ),
 
   userUpdateMe: route(
     'patch /users/me',

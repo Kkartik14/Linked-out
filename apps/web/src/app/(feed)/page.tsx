@@ -13,8 +13,9 @@ export default async function HomePage({
   searchParams: Promise<{ scope?: string; sort?: string }>;
 }) {
   const sp = await searchParams;
-  const session = await getSession();
-  const loggedIn = session.user !== null;
+  // The feed is public and never gates: `unavailable` renders as a guest view (no viewer
+  // context), not an error, so a sick `/auth/me` cannot take down public browsing.
+  const loggedIn = (await getSession()).status === "authenticated";
 
   const scope: FeedScope = sp.scope === "following" && loggedIn ? "following" : "global";
   // A URL param is external input: let the contract's own schema validate it and fall back,

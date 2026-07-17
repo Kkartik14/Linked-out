@@ -22,7 +22,9 @@ export function LCard({ l }: { l: LCardType }) {
       <div className="flex items-center gap-2.5 px-5 pt-4">
         {l.author ? (
           <>
-            <Link href={`/u/${l.author.username}`} aria-label={l.author.name ?? l.author.username}>
+            {/* Decorative: the name beside it links to the same profile, so naming this
+                too would put two identical tab stops on every card in the feed. */}
+            <Link href={`/u/${l.author.username}`} tabIndex={-1} aria-hidden>
               <UserAvatar
                 name={l.author.name}
                 username={l.author.username}

@@ -15,12 +15,14 @@ import { ReactionBar } from "@/components/l/reaction-bar";
 import { SaveToCollectionButton } from "@/components/collections/save-to-collection-button";
 import { ConfirmDialog } from "@/components/confirm-dialog";
 import { Badge } from "@/components/ui/badge";
+import { useComposedPrincipal } from "@/components/session-provider";
 import { Button } from "@/components/ui/button";
 import { timeAgo } from "@/lib/format";
 
 export function LDetailView({ l }: { l: LDetail }) {
   const meta = useMeta();
   const router = useRouter();
+  const composedAs = useComposedPrincipal();
 
   const [resolvedAt, setResolvedAt] = React.useState(l.resolvedAt);
   const [confirmDelete, setConfirmDelete] = React.useState(false);
@@ -29,7 +31,7 @@ export function LDetailView({ l }: { l: LDetail }) {
   const isBattle = l.type === "BATTLE";
 
   const del = useMutation({
-    mutationFn: () => deleteL(l.id),
+    mutationFn: () => deleteL(composedAs, l.id),
     onSuccess: () => {
       toast.success("Your L was deleted.");
       router.push("/");
@@ -39,7 +41,7 @@ export function LDetailView({ l }: { l: LDetail }) {
   });
 
   const resolve = useMutation({
-    mutationFn: (on: boolean) => patchL(l.id, { resolvedAt: on ? new Date() : null }),
+    mutationFn: (on: boolean) => patchL(composedAs, l.id, { resolvedAt: on ? new Date() : null }),
     onSuccess: (updated) => {
       setResolvedAt(updated.resolvedAt);
       toast.success(updated.resolvedAt ? "Marked as resolved." : "Reopened.");
@@ -55,7 +57,11 @@ export function LDetailView({ l }: { l: LDetail }) {
 
       <div className="mt-4 flex items-start gap-3">
         {l.author ? (
-          <Link href={`/u/${l.author.username}`}>
+          // Decorative: the name below links to the same profile. Naming this one instead
+          // would leave two identical tab stops; hiding it also fixes an empty accessible
+          // name, since the avatar's `alt` is "" and the initials fallback unmounts once
+          // the image loads — leaving the link with no content to name it at all.
+          <Link href={`/u/${l.author.username}`} tabIndex={-1} aria-hidden>
             <UserAvatar
               name={l.author.name}
               username={l.author.username}

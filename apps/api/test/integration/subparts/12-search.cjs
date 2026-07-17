@@ -108,9 +108,10 @@ describe('12 · search (contract §4.10)', () => {
     h.expectError(await h.get('/search?q=x&type=posts'), 400, 'VALIDATION_ERROR');
   });
 
-  test('a filter passed alongside type=users is ignored, not an error', async () => {
+  test('rejects misspelled and incompatible discriminators instead of changing search kind', async () => {
+    h.expectError(await h.get('/search?q=kartik&tyep=users'), 400, 'VALIDATION_ERROR');
     const res = await h.get('/search?q=kartik&type=users&filter=interviews');
-    h.expectShape(res, usersSchema);
+    h.expectError(res, 400, 'VALIDATION_ERROR');
   });
 
   test('type=users searches username and display name', async () => {

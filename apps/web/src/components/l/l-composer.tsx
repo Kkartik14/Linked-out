@@ -25,6 +25,7 @@ import {
 } from "@/components/ui/form";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
+import { useComposedPrincipal } from "@/components/session-provider";
 import { Button } from "@/components/ui/button";
 import { Switch } from "@/components/ui/switch";
 import {
@@ -77,6 +78,7 @@ const WIRE_DEFAULTS = createLInputSchema.parse({ title: "_", story: "_" });
 export function LComposer({ initial }: { initial?: LDetail }) {
   const meta = useMeta();
   const router = useRouter();
+  const composedAs = useComposedPrincipal();
 
   const form = useForm<FormValues>({
     resolver: zodResolver(formSchema),
@@ -99,7 +101,7 @@ export function LComposer({ initial }: { initial?: LDetail }) {
 
   async function onSubmit(values: FormValues) {
     try {
-      const saved = initial ? await patchL(initial.id, values) : await createL(values);
+      const saved = initial ? await patchL(composedAs, initial.id, values) : await createL(composedAs, values);
       toast.success(initial ? "Changes saved." : "Your L is live.");
       router.push(`/ls/${saved.id}`);
       router.refresh();

@@ -5,7 +5,7 @@ import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
 import { PenLine, Search } from "lucide-react";
 
-import { useSession } from "@/components/session-provider";
+import { useViewer } from "@/components/session-provider";
 import { Button } from "@/components/ui/button";
 import { ThemeToggle } from "@/components/layout/theme-toggle";
 import { NotificationsBell } from "@/components/layout/notifications-bell";
@@ -40,7 +40,7 @@ function HeaderSearch() {
 }
 
 export function Header() {
-  const { user } = useSession();
+  const user = useViewer();
   const pathname = usePathname();
   const isFeed = pathname === "/";
 
@@ -78,7 +78,11 @@ export function Header() {
           <Button asChild size="sm" className="gap-1.5">
             <Link href="/new">
               <PenLine className="size-4" />
-              <span className="hidden sm:inline">Share an L</span>
+              {/* `sr-only`, not `hidden`: below `sm` the label was display:none and the icon
+                  is auto-`aria-hidden` by lucide, which left the primary CTA with no
+                  accessible name at all. Staying in the tree keeps the name at every width
+                  without an aria-label duplicating text that is visible anyway. */}
+              <span className="sr-only sm:not-sr-only">Share an L</span>
             </Link>
           </Button>
 

@@ -22,6 +22,7 @@ export function InfiniteList<T>({
   className,
   errorFallback,
   endNote,
+  loadingLabel = "Loading…",
 }: {
   queryKey: QueryKey;
   queryFn: (cursor: string | undefined) => Promise<Paginated<T>>;
@@ -35,6 +36,11 @@ export function InfiniteList<T>({
   errorFallback?: string;
   /** Shown once every page has arrived and the list is non-empty. */
   endNote?: React.ReactNode;
+  /**
+   * What a screen reader is told is arriving, since a skeleton is silent. Mirrors the
+   * sidebar rails, which name what is loading rather than saying "loading" generically.
+   */
+  loadingLabel?: string;
 }) {
   const query = useInfiniteQuery({
     queryKey,
@@ -64,7 +70,12 @@ export function InfiniteList<T>({
   }, [hasNextPage, isFetchingNextPage, fetchNextPage]);
 
   if (query.isLoading) {
-    return <div className={className}>{skeleton}</div>;
+    return (
+      <div className={className} aria-busy>
+        {skeleton}
+        <span className="sr-only">{loadingLabel}</span>
+      </div>
+    );
   }
 
   if (items.length === 0 && !query.isError) {
@@ -77,8 +88,11 @@ export function InfiniteList<T>({
         <React.Fragment key={getItemKey(item)}>{renderItem(item)}</React.Fragment>
       ))}
 
+      {/* `alert`: this appears below content the reader has already passed, so nothing
+          would draw them back to it — they would be left waiting on a page that has
+          silently stopped loading, unaware a retry now exists. */}
       {query.isError ? (
-        <div className="flex flex-col items-center gap-2 py-6">
+        <div role="alert" className="flex flex-col items-center gap-2 py-6">
           <p className="text-muted-foreground text-sm">{errorMessage(query.error, errorFallback)}</p>
           <Button variant="outline" size="sm" onClick={() => query.refetch()} disabled={query.isRefetching}>
             Try again
@@ -87,7 +101,12 @@ export function InfiniteList<T>({
       ) : null}
 
       <div ref={sentinelRef} aria-hidden className="h-px" />
-      {query.isFetchingNextPage ? skeleton : null}
+      {query.isFetchingNextPage ? (
+        <div aria-busy>
+          {skeleton}
+          <span className="sr-only">Loading more…</span>
+        </div>
+      ) : null}
 
       {/* Only once the list is genuinely exhausted — never while a page is still coming, and
           never as a consolation for a list that failed to load. */}

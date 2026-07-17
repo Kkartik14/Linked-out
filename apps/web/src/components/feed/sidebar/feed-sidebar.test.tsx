@@ -26,9 +26,9 @@ vi.mock("@/lib/api", async (importOriginal) => {
 import { FeedSidebarLeft, FeedSidebarRight } from "@/components/feed/sidebar/feed-sidebar";
 import { follow, getFeedSidebar } from "@/lib/api";
 
-const loggedIn: Session = { user: mockUser, needsOnboarding: false };
-const signedOut: Session = { user: null, needsOnboarding: false };
-const onboarding: Session = { user: mockUser, needsOnboarding: true };
+const loggedIn: Session = { status: "authenticated", user: mockUser, needsOnboarding: false };
+const signedOut: Session = { status: "guest" };
+const onboarding: Session = { status: "authenticated", user: mockUser, needsOnboarding: true };
 
 /**
  * The clock every test runs at, and the response's own freshness window.
@@ -108,8 +108,8 @@ function sidebar(me: AuthMeResponse): FeedSidebarResponse {
     },
     topLs: {
       basis: "MOST_INTERACTED",
-      // Exactly seven days, so the derived caption is assertable.
       window: { startsAt: "2026-07-10T02:00:00.000Z", endsAt: "2026-07-17T02:00:00.000Z" },
+      windowLabel: "Past 7 days",
       items: [
         {
           l: card({
@@ -291,22 +291,15 @@ describe("FeedSidebarRight — Top Ls", () => {
     );
   });
 
-  // Derived from window.startsAt/endsAt, not hardcoded — if the backend widens the window,
-  // the caption follows it. Asserted over several windows because the fixture's is always
-  // seven days, so a single case was equally passed by `return "Past 7 days"`.
-  it.each([
-    { days: 1, startsAt: "2026-07-16T02:00:00.000Z", caption: "Past 24 hours" },
-    { days: 7, startsAt: "2026-07-10T02:00:00.000Z", caption: "Past 7 days" },
-    { days: 14, startsAt: "2026-07-03T02:00:00.000Z", caption: "Past 14 days" },
-  ])("captions a $days-day window as $caption", ({ startsAt, caption }) => {
+  it("renders the server's window caption verbatim rather than deriving one", () => {
     const base = guestSidebar();
-    const data = {
-      ...base,
-      topLs: { ...base.topLs, window: { ...base.topLs.window, startsAt } },
-    };
+    // Deliberately not derivable from the window bounds. The frontend used to compute this
+    // caption from `endsAt - startsAt`; a label the arithmetic could never produce is what
+    // separates "renders what it was given" from "happens to agree today".
+    const data = { ...base, topLs: { ...base.topLs, windowLabel: "While you were away" } };
     renderWithProviders(<FeedSidebarRight initial={data} />, { session: signedOut });
 
-    expect(screen.getByText(caption)).toBeInTheDocument();
+    expect(screen.getByText("While you were away")).toBeInTheDocument();
   });
 
   it("exposes the backend's ranking as an ordered list, not just a visual number", () => {
@@ -373,7 +366,7 @@ describe("FeedSidebarLeft — viewer card", () => {
 
   it("sends a half-onboarded viewer to finish onboarding", () => {
     renderWithProviders(<FeedSidebarLeft initial={sidebar({ user: mockUser, needsOnboarding: true })} />, {
-      session: { user: mockUser, needsOnboarding: true },
+      session: { status: "authenticated", user: mockUser, needsOnboarding: true },
     });
 
     expect(screen.getByRole("link", { name: /finish/i })).toHaveAttribute("href", "/onboarding");
@@ -499,7 +492,7 @@ describe("FeedSidebarLeft — people to follow", () => {
       screen.getByRole("button", { name: new RegExp(`follow ${target.user.name}`, "i") }),
     );
 
-    expect(follow).toHaveBeenCalledWith(target.user.username);
+    expect(follow).toHaveBeenCalledWith(mockUser.id, target.user.username);
     await waitFor(() => expect(screen.queryByText(target.user.name!)).not.toBeInTheDocument());
   });
 
@@ -552,7 +545,7 @@ describe("FeedSidebarLeft — people to follow", () => {
     const succeeding = data.peopleToFollow.items[1]!;
 
     let rejectFailing: ((reason: Error) => void) | undefined;
-    vi.mocked(follow).mockImplementation((username) => {
+    vi.mocked(follow).mockImplementation((_principal, username) => {
       if (username === failing.user.username) {
         return new Promise((_resolve, reject) => {
           rejectFailing = reject;

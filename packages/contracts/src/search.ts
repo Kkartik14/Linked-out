@@ -11,5 +11,13 @@ export const searchQuerySchema = paginationQuerySchema().extend({
   type: searchTypeSchema.default('ls'),
   /** Category filter — only applies when type=ls. */
   filter: feedFilterSchema.optional(),
+}).superRefine((query, ctx) => {
+  if (query.type === 'users' && query.filter !== undefined) {
+    ctx.addIssue({
+      code: 'custom',
+      path: ['filter'],
+      message: 'filter is only valid when type=ls',
+    });
+  }
 });
 export type SearchQuery = z.infer<typeof searchQuerySchema>;

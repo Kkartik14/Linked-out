@@ -1,23 +1,48 @@
-import { Controller, Get, HttpCode, Post, Req, Res, UseGuards, Version } from '@nestjs/common';
-import type { AuthMeResponse } from '@linkedout/contracts';
+import {
+  Body,
+  Controller,
+  Get,
+  HttpCode,
+  Post,
+  Req,
+  Res,
+  UseGuards,
+  Version,
+} from '@nestjs/common';
+import {
+  oauthHandoffExchangeInputSchema,
+  sessionResolveInputSchema,
+  sessionRevokeInputSchema,
+  type AuthMeResponse,
+  type OAuthFailureCode,
+  type OAuthHandoffExchangeInput,
+  type OAuthHandoffExchangeResponse,
+  type SessionResolveInput,
+  type SessionResolveResponse,
+  type SessionRevokeInput,
+  type SessionRevokeResponse,
+} from '@linkedout/contracts';
 import type { Request, Response } from 'express';
 
 import { OptionalUser } from '../../common/decorators/current-user.decorator';
 import { ApiContract, API_ROUTE_CONTRACTS } from '../../common/contracts/api-route-contracts';
 import { API_ROUTE_CONTRACTS_V2 } from '../../common/contracts/api-route-contracts-v2';
-import { JwtAuthGuard } from '../../common/guards/jwt-auth.guard';
 import { OptionalAuthGuard } from '../../common/guards/optional-auth.guard';
 import { StrictOptionalAuthGuard } from '../../common/guards/strict-optional-auth.guard';
 import { AppErrors } from '../../common/errors/app-exception';
 import { getCookie } from '../../common/http/cookies';
+import { ZodValidationPipe } from '../../common/pipes/zod-validation.pipe';
 import type { AuthUser } from '../../common/types/auth';
 import { AppConfigService } from '../../config/app-config.service';
 import { UsersService } from '../users/users.service';
 import { AuthService } from './auth.service';
+import { BffCallerGuard, RequireBffCaller } from './bff-caller.guard';
 import { GithubAuthGuard, GoogleAuthGuard } from './oauth.guards';
 import { REFRESH_COOKIE, TokenService } from './token.service';
-import { decodeOAuthState, OAUTH_STATE_COOKIE } from './oauth-state';
+import { OAUTH_STATE_COOKIE } from './oauth-state';
 import type { OAuthRequest } from './oauth.guards';
+import { OAuthHandoffService } from './oauth-handoff.service';
+import { BffSessionService } from './bff-session.service';
 
 @Controller({ path: 'auth', version: ['1', '2'] })
 export class AuthController {
@@ -26,6 +51,8 @@ export class AuthController {
     private readonly tokens: TokenService,
     private readonly users: UsersService,
     private readonly config: AppConfigService,
+    private readonly handoffs: OAuthHandoffService,
+    private readonly bffSessions: BffSessionService,
   ) {}
 
   @Get('google')
@@ -112,7 +139,6 @@ export class AuthController {
 
   @Post('logout')
   @HttpCode(200)
-  @UseGuards(JwtAuthGuard)
   @ApiContract(API_ROUTE_CONTRACTS.authLogout)
   async logout(
     @Req() req: Request,
@@ -124,13 +150,70 @@ export class AuthController {
     return { ok: true };
   }
 
+  @Post('oauth/handoff/exchange')
+  @Version('1')
+  @HttpCode(200)
+  @UseGuards(BffCallerGuard)
+  @RequireBffCaller('auth-exchange')
+  @ApiContract(API_ROUTE_CONTRACTS.authOAuthHandoffExchange)
+  async exchangeOAuthHandoff(
+    @Res({ passthrough: true }) res: Response,
+    @Body(new ZodValidationPipe(oauthHandoffExchangeInputSchema))
+    input: OAuthHandoffExchangeInput,
+  ): Promise<OAuthHandoffExchangeResponse> {
+    res.setHeader('Cache-Control', 'no-store');
+    const handoff = await this.bffSessions.exchangeOAuthHandoff(input.code);
+    if (!handoff) throw AppErrors.invalidHandoff();
+    return handoff;
+  }
+
+  /**
+   * Private session introspection for the one-origin BFF (ADR 0001 §4.2).
+   *
+   * Always answers `200` for a valid resolve request: liveness is the body, while transport or
+   * infrastructure failure remains non-2xx. A dedicated BFF capability guards the call, and Nest
+   * issues the user assertion so the web tier never owns identity-signing authority. Deployment
+   * must additionally keep this internal route off the public ingress.
+   */
+  @Post('sessions/resolve')
+  @Version('1')
+  @HttpCode(200)
+  @UseGuards(BffCallerGuard)
+  @RequireBffCaller('session-resolve')
+  @ApiContract(API_ROUTE_CONTRACTS.authSessionsResolve)
+  async resolveSession(
+    @Res({ passthrough: true }) res: Response,
+    @Body(new ZodValidationPipe(sessionResolveInputSchema))
+    input: SessionResolveInput,
+  ): Promise<SessionResolveResponse> {
+    res.setHeader('Cache-Control', 'no-store');
+    return this.bffSessions.resolve(input.cookie);
+  }
+
+  /** Tombstones a browser session before the BFF clears its host-only cookie. */
+  @Post('sessions/revoke')
+  @Version('1')
+  @HttpCode(200)
+  @UseGuards(BffCallerGuard)
+  @RequireBffCaller('session-revoke')
+  @ApiContract(API_ROUTE_CONTRACTS.authSessionsRevoke)
+  async revokeSession(
+    @Res({ passthrough: true }) res: Response,
+    @Body(new ZodValidationPipe(sessionRevokeInputSchema))
+    input: SessionRevokeInput,
+  ): Promise<SessionRevokeResponse> {
+    res.setHeader('Cache-Control', 'no-store');
+    return this.bffSessions.revoke(input.cookie);
+  }
+
   private async completeOAuth(
     user: AuthUser | undefined,
     req: Request,
     res: Response,
   ): Promise<void> {
+    res.setHeader('Cache-Control', 'no-store');
     res.clearCookie(OAUTH_STATE_COOKIE, {
-      domain: this.config.cookieDomain,
+      domain: this.config.oauthStateCookieDomain,
       path: '/v1/auth',
     });
     if (!user) {
@@ -138,20 +221,28 @@ export class AuthController {
       const error =
         oauthReq.oauthError ??
         (req.query.error === 'access_denied' ? 'access_denied' : 'oauth_failed');
-      res.redirect(`${this.config.webUrl}/auth/callback?error=${error}`);
+      res.redirect(this.oauthFailureRedirect(error));
       return;
     }
-    const returnTo = decodeOAuthState(
-      req.query.state,
-      getCookie(req, OAUTH_STATE_COOKIE),
-      this.config.jwtAccessSecret,
-    );
+    const returnTo = (req as OAuthRequest).oauthReturnTo;
     if (!returnTo) {
-      res.redirect(`${this.config.webUrl}/auth/callback?error=oauth_failed`);
+      res.redirect(this.oauthFailureRedirect('oauth_failed'));
       return;
     }
+    if (this.config.oauthSessionMode === 'handoff') {
+      const code = await this.handoffs.issue(user.id, returnTo);
+      this.tokens.clearAuthCookies(res);
+      res.redirect(`${this.config.webUrl}/auth/callback?code=${encodeURIComponent(code)}`);
+      return;
+    }
+
     const { refreshToken } = await this.auth.startSession(user);
     this.tokens.setAuthCookies(res, user, refreshToken);
     res.redirect(`${this.config.webUrl}/auth/callback?returnTo=${encodeURIComponent(returnTo)}`);
+  }
+
+  private oauthFailureRedirect(code: OAuthFailureCode): string {
+    const query = new URLSearchParams({ error: code });
+    return `${this.config.webUrl}/auth/callback?${query.toString()}`;
   }
 }

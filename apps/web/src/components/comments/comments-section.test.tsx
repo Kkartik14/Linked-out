@@ -23,7 +23,7 @@ import { ReactionBar } from "@/components/l/reaction-bar";
 import { addComment, addReply, deleteComment, getComments, getReplies } from "@/lib/api";
 import { appendComment, flattenComments, type CommentPages } from "@/lib/comment-cache";
 
-const loggedIn: Session = { user: mockUser, needsOnboarding: false };
+const loggedIn: Session = { status: "authenticated", user: mockUser, needsOnboarding: false };
 const author = {
   id: mockUser.id,
   username: mockUser.username,
@@ -118,7 +118,7 @@ describe("CommentsSection canonical cache", () => {
     const dialog = await screen.findByRole("dialog", { name: "Delete this comment?" });
     await user.click(within(dialog).getByRole("button", { name: "Delete" }));
 
-    await waitFor(() => expect(deleteComment).toHaveBeenCalledWith(original.id));
+    await waitFor(() => expect(deleteComment).toHaveBeenCalledWith(mockUser.id, original.id));
     await waitFor(() => expect(screen.queryByText(original.body)).not.toBeInTheDocument());
     expect(screen.getByRole("heading", { name: "Comments" })).toBeInTheDocument();
     expect(screen.getByRole("link", { name: "0 comments" })).toBeInTheDocument();

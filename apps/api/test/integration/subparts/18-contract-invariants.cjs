@@ -2,7 +2,11 @@
 
 const assert = require('node:assert/strict');
 const { describe, test, beforeEach } = require('node:test');
-const { errorEnvelopeSchema, fieldErrorCodeSchema } = require('@linkedout/contracts');
+const {
+  errorEnvelopeSchema,
+  fieldErrorCodeSchema,
+  PRINCIPAL_BINDING_HEADER,
+} = require('@linkedout/contracts');
 
 const h = require('../_harness.cjs');
 
@@ -61,6 +65,16 @@ describe('18 · cross-cutting contract invariants (§1.5–§1.7)', () => {
       h.expectError(await h.get(url(endpoint, `limit=${max + 1}`), { cookie }), 400, 'VALIDATION_ERROR');
       h.expectError(await h.get(url(endpoint, 'limit=0'), { cookie }), 400, 'VALIDATION_ERROR');
       h.expectError(await h.get(url(endpoint, 'limit=nope'), { cookie }), 400, 'VALIDATION_ERROR');
+    }
+  });
+
+  test('every list endpoint rejects unknown query parameters', async () => {
+    for (const endpoint of LIST_ENDPOINTS) {
+      const res = await h.get(url(endpoint, 'limti=5'), {
+        cookie: endpoint.auth ? user.cookie : undefined,
+      });
+      const error = h.expectError(res, 400, 'VALIDATION_ERROR');
+      assert.equal(error.details[0].field, 'limti', endpoint.path);
     }
   });
 
@@ -134,7 +148,11 @@ describe('18 · cross-cutting contract invariants (§1.5–§1.7)', () => {
   test('a malformed JSON body is a 400, never a 500', async () => {
     const res = await fetch(`${h.ctx.baseUrl}/ls`, {
       method: 'POST',
-      headers: { 'content-type': 'application/json', cookie: user.cookie },
+      headers: {
+        'content-type': 'application/json',
+        cookie: user.cookie,
+        [PRINCIPAL_BINDING_HEADER]: user.id,
+      },
       body: '{ this is not json',
     });
     assert.equal(res.status, 400);

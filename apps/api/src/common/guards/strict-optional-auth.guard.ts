@@ -12,7 +12,9 @@ import { JwtAuthGuard } from './jwt-auth.guard';
 export class StrictOptionalAuthGuard extends JwtAuthGuard {
   override canActivate(context: ExecutionContext) {
     const request = context.switchToHttp().getRequest<AuthedRequest>();
-    if (getCookie(request, ACCESS_COOKIE) === null) return true;
+    if (!this.hasInternalCredential(context) && getCookie(request, ACCESS_COOKIE) === null) {
+      return true;
+    }
     return super.canActivate(context);
   }
 }

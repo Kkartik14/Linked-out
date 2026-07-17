@@ -12,6 +12,7 @@ import {
 import { errorMessage, patchMe, presignAvatar } from "@/lib/api";
 import { useMeta } from "@/components/meta-provider";
 import { UserAvatar } from "@/components/user-avatar";
+import { useComposedPrincipal } from "@/components/session-provider";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -30,6 +31,7 @@ const MAX_BYTES = 5 * 1024 * 1024;
 export function SettingsForm({ user }: { user: UserProfile }) {
   const meta = useMeta();
   const router = useRouter();
+  const composedAs = useComposedPrincipal();
 
   const [name, setName] = React.useState(user.name ?? "");
   const [bio, setBio] = React.useState(user.bio ?? "");
@@ -43,7 +45,7 @@ export function SettingsForm({ user }: { user: UserProfile }) {
     e.preventDefault();
     setSaving(true);
     try {
-      await patchMe({
+      await patchMe(composedAs, {
         name: name.trim() || null,
         bio: bio.trim() || null,
         status: status === NO_STATUS ? null : journeyStatusSchema.parse(status),
@@ -70,7 +72,7 @@ export function SettingsForm({ user }: { user: UserProfile }) {
     }
     setUploading(true);
     try {
-      const presign = await presignAvatar({
+      const presign = await presignAvatar(composedAs, {
         contentType: contentType.data,
         contentLength: file.size,
       });
@@ -80,7 +82,7 @@ export function SettingsForm({ user }: { user: UserProfile }) {
         body: file,
       });
       if (!put.ok) throw new Error("Upload failed. Please try again.");
-      const updated = await patchMe({ image: presign.publicUrl });
+      const updated = await patchMe(composedAs, { image: presign.publicUrl });
       setImage(updated.image ?? presign.publicUrl);
       toast.success("Avatar updated.");
       router.refresh();
@@ -133,7 +135,13 @@ export function SettingsForm({ user }: { user: UserProfile }) {
 
       <div className="grid gap-2">
         <Label htmlFor="name">Name</Label>
-        <Input id="name" value={name} onChange={(e) => setName(e.target.value)} maxLength={80} />
+        <Input
+          id="name"
+          value={name}
+          onChange={(e) => setName(e.target.value)}
+          maxLength={80}
+          autoComplete="name"
+        />
       </div>
 
       <div className="grid gap-2">

@@ -19,6 +19,11 @@ const assert = require('node:assert/strict');
 
 const { ulid } = require('ulid');
 const { createPrismaClient } = require('@linkedout/db');
+const {
+  ApiAssertionSigner,
+  BffCallerAssertionSigner,
+} = require('@linkedout/internal-auth');
+const { PRINCIPAL_BINDING_HEADER } = require('@linkedout/contracts');
 
 const { guardedReset } = require('../../../../scripts/db-safety-guard.cjs');
 
@@ -31,6 +36,8 @@ const DATABASE_URL =
 
 const ACCESS_SECRET = 'test-access-secret-0123456789abcdefghij';
 const REFRESH_SECRET = 'test-refresh-secret-0123456789abcdefghij';
+const INTERNAL_API_SECRET = 'test-internal-secret-0123456789abcdefgh';
+const BFF_CALLER_SECRET = 'test-bff-caller-secret-0123456789abcdef';
 
 const PORT = Number(process.env.TEST_API_PORT ?? 4010);
 const NO_UPLOADS_PORT = PORT + 1;
@@ -97,6 +104,38 @@ function forgedAccessCookie(user) {
   return `lo_access=${token}`;
 }
 
+function internalAssertion(user, options = {}) {
+  const signer = new ApiAssertionSigner(
+    options.secret ?? INTERNAL_API_SECRET,
+    options.now ? { now: () => options.now } : undefined,
+  );
+  return signer.sign({ sub: user.id, sid: options.sid ?? ulid() }).assertion;
+}
+
+function authExchangeAssertion(options = {}) {
+  const signer = new BffCallerAssertionSigner(
+    options.secret ?? BFF_CALLER_SECRET,
+    options.now ? { now: () => options.now } : undefined,
+  );
+  return signer.signAuthExchange();
+}
+
+function sessionResolveAssertion(options = {}) {
+  const signer = new BffCallerAssertionSigner(
+    options.secret ?? BFF_CALLER_SECRET,
+    options.now ? { now: () => options.now } : undefined,
+  );
+  return signer.signSessionResolve();
+}
+
+function sessionRevokeAssertion(options = {}) {
+  const signer = new BffCallerAssertionSigner(
+    options.secret ?? BFF_CALLER_SECRET,
+    options.now ? { now: () => options.now } : undefined,
+  );
+  return signer.signSessionRevoke();
+}
+
 function hashRefresh(token) {
   return createHash('sha256').update(token).digest('hex');
 }
@@ -129,6 +168,28 @@ async function request(method, pathname, options = {}) {
   if (options.cookie) headers.cookie = options.cookie;
   if (options.body !== undefined) headers['content-type'] = 'application/json';
   Object.assign(headers, options.headers ?? {});
+  const hasPrincipalBinding = Object.keys(headers).some(
+    (name) => name.toLowerCase() === PRINCIPAL_BINDING_HEADER.toLowerCase(),
+  );
+  if (options.bindPrincipal !== false && !hasPrincipalBinding) {
+    const internalHeader = Object.entries(headers).find(
+      ([name]) => name.toLowerCase() === 'x-internal-auth',
+    )?.[1];
+    const accessToken = options.cookie
+      ?.split(';')
+      .map((part) => part.trim())
+      .find((part) => part.startsWith('lo_access='))
+      ?.slice('lo_access='.length);
+    const token = typeof internalHeader === 'string' ? internalHeader : accessToken;
+    if (token) {
+      try {
+        const payload = JSON.parse(Buffer.from(token.split('.')[1], 'base64url').toString('utf8'));
+        if (typeof payload.sub === 'string') headers[PRINCIPAL_BINDING_HEADER] = payload.sub;
+      } catch {
+        // Malformed credentials are intentionally sent unchanged so auth owns their rejection.
+      }
+    }
+  }
 
   const res = await fetch(`${base}${pathname}`, {
     method,
@@ -204,6 +265,8 @@ const TABLES = [
   'Reaction',
   'DailyLSelection',
   'L',
+  'OAuthHandoff',
+  'BrowserSession',
   'Session',
   'Account',
   'VerificationToken',
@@ -297,6 +360,8 @@ function baseEnv(port, extra) {
     DIRECT_URL: DATABASE_URL,
     JWT_ACCESS_SECRET: ACCESS_SECRET,
     JWT_REFRESH_SECRET: REFRESH_SECRET,
+    INTERNAL_API_SECRET,
+    BFF_CALLER_SECRET,
     COOKIE_DOMAIN: '',
     GOOGLE_CLIENT_ID: 'test-google-client-id',
     GOOGLE_CLIENT_SECRET: 'test-google-client-secret',
@@ -400,11 +465,17 @@ module.exports = {
   accessCookie,
   expiredAccessCookie,
   forgedAccessCookie,
+  internalAssertion,
+  authExchangeAssertion,
+  sessionResolveAssertion,
+  sessionRevokeAssertion,
   issueRefreshSession,
   hashRefresh,
   signJwt,
   ACCESS_SECRET,
   REFRESH_SECRET,
+  INTERNAL_API_SECRET,
+  BFF_CALLER_SECRET,
   WEB_URL,
   R2_PUBLIC_BASE_URL: R2_PUBLIC_BASE_URL(),
 };

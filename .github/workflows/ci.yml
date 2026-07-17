@@ -42,24 +42,25 @@ jobs:
       - name: Install backend workspace
         run: pnpm install --frozen-lockfile
 
-      # apps/web consumes @linkedout/contracts as a file: dependency, which pnpm
-      # materialises at install time. If contracts/dist doesn't exist yet, that copy has
-      # no types and every web import fails to resolve — so this build must precede any
-      # web install. web-checks and e2e-tests both wait on this job for that reason.
+      # apps/web consumes shared packages as file: dependencies, which pnpm materialises at
+      # install time. Their dist/ directories must exist before any web install, so web-checks
+      # and e2e-tests both wait on this job.
       - name: Build packages + API
         run: pnpm build
 
-      # Build the backend workspace once per workflow. Database/e2e/web jobs download these
-      # exact outputs instead of compiling the same commit again (no Turbo required).
+      # Discover every shared package with a runtime dist/ entrypoint and stage one verified
+      # directory. Uploading that directory as a unit prevents the producer manifest from
+      # drifting when a new shared package becomes a runtime dependency.
+      - name: Stage and verify backend build artifact
+        run: node scripts/backend-build-artifact.cjs stage "${RUNNER_TEMP}/backend-build"
+
+      # Build the backend workspace once per workflow. Database/e2e/web jobs download this exact
+      # verified output instead of compiling the same commit again (no Turbo required).
       - name: Upload backend build
         uses: actions/upload-artifact@v4
         with:
           name: backend-build
-          path: |
-            packages/contracts/dist
-            packages/db/dist
-            packages/db/generated
-            apps/api/dist
+          path: ${{ runner.temp }}/backend-build
           if-no-files-found: error
           retention-days: 1
 
@@ -72,8 +73,8 @@ jobs:
   # ── Web static checks + unit tests. No database needed. ──────────────────────
   # A separate job from `checks` on purpose: apps/web and the backend are owned by
   # different teams (local/claude.md §0), and when they shared a job a backend lint error
-  # meant the frontend got no signal at all. This only needs contracts/dist, which is why
-  # it can start as soon as `checks` has uploaded the artifact.
+  # meant the frontend got no signal at all. It can start as soon as `checks` has uploaded
+  # the shared-package build artifact.
   web-checks:
     name: web-checks
     needs: checks
@@ -90,8 +91,8 @@ jobs:
           cache: pnpm
           cache-dependency-path: apps/web/pnpm-lock.yaml
 
-      # Download BEFORE installing web: contracts/dist must exist when pnpm materialises
-      # the file: dependency.
+      # Download BEFORE installing web: shared-package dist/ directories must exist when pnpm
+      # materialises file: dependencies.
       - name: Download backend build
         uses: actions/download-artifact@v4
         with:
@@ -250,9 +251,9 @@ jobs:
       - name: Install backend workspace
         run: pnpm install --frozen-lockfile
 
-      # Download BEFORE installing web: apps/web consumes contracts as a file dependency, so
-      # contracts/dist must exist when pnpm materialises that package. The artifact also carries
-      # the API executable and generated Prisma client used by Playwright's backend process.
+      # Download BEFORE installing web: apps/web consumes shared packages as file dependencies,
+      # so their dist/ directories must exist when pnpm materialises them. The artifact also
+      # carries the API executable and generated Prisma client used by Playwright's backend.
       - name: Download backend build
         uses: actions/download-artifact@v4
         with:

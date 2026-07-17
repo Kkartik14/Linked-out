@@ -2,8 +2,10 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 
 import type { CreateLInput } from "@linkedout/contracts/v2";
 
+import type { ComposedPrincipal } from "@/lib/principal";
 import { apiFetch } from "./client";
 import {
+  addReaction,
   createL,
   getComments,
   getFeed,
@@ -12,10 +14,18 @@ import {
   getNotifications,
   getReplies,
   getSaved,
+  logout,
   oauthLoginUrl,
   searchLs,
   searchUsers,
 } from "./endpoints";
+
+/**
+ * Only tests mint one of these outside `useComposedPrincipal`. Production code cannot: the
+ * brand is what stops a caller reaching for the live principal, which would look identical
+ * and quietly defeat the whole check.
+ */
+const COMPOSED = "01ARZ3NDEKTSV4RRFFQ69G5FAV" as string as ComposedPrincipal;
 
 vi.mock("./client", () => ({
   apiFetch: vi.fn(),
@@ -58,12 +68,38 @@ describe("API endpoint helpers", () => {
       isAnonymous: false,
     };
 
-    void createL(body);
+    void createL(COMPOSED, body);
 
     expect(apiFetch).toHaveBeenCalledWith("/ls", {
       method: "POST",
       body: JSON.stringify(body),
+      principal: COMPOSED,
     });
+  });
+
+  it("declares the composing principal on every authenticated mutation", () => {
+    // A missing declaration is a 409, not an exemption, so this is the difference between a
+    // working write and a dead one. Asserted across three shapes — body, no body, and no
+    // arguments at all — because those are the three ways an endpoint could forget it.
+    void createL(COMPOSED, { title: "t", story: "s" });
+    void addReaction(COMPOSED, "01HZY", "HELPFUL");
+    void logout(COMPOSED);
+
+    for (const call of vi.mocked(apiFetch).mock.calls) {
+      expect(call[1]).toMatchObject({ principal: COMPOSED });
+    }
+  });
+
+  it("never declares a principal on a read", () => {
+    // The API only compares the declaration on unsafe methods, but sending render-time
+    // identity on reads would put a user id on cacheable requests for nothing.
+    void getFeed({ sort: "popular" });
+    void getSaved();
+    void getFeedSidebar();
+
+    for (const call of vi.mocked(apiFetch).mock.calls) {
+      expect(call[1] ?? {}).not.toHaveProperty("principal");
+    }
   });
 
   it("builds saved, notifications, and search URLs without a category filter", () => {

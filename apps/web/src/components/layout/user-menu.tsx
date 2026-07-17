@@ -7,7 +7,8 @@ import { useMutation } from "@tanstack/react-query";
 import { toast } from "sonner";
 
 import { logout } from "@/lib/api";
-import { useSession } from "@/components/session-provider";
+import { publishSessionChanged } from "@/lib/session-channel";
+import { useComposedPrincipal, useSession } from "@/components/session-provider";
 import { useMeta, statusOption } from "@/components/meta-provider";
 import { UserAvatar } from "@/components/user-avatar";
 import { Button } from "@/components/ui/button";
@@ -22,27 +23,34 @@ import {
 } from "@/components/ui/dropdown-menu";
 
 export function UserMenu() {
-  const { user } = useSession();
+  const session = useSession();
   const meta = useMeta();
   const router = useRouter();
+  const composedAs = useComposedPrincipal();
 
   const signOut = useMutation({
-    mutationFn: logout,
+    mutationFn: () => logout(composedAs),
     onSuccess: () => {
       toast.success("Signed out.");
+      // The session cookies are gone for every tab, not just this one.
+      publishSessionChanged();
       router.refresh();
     },
     onError: () => toast.error("Could not sign out. Try again."),
   });
 
-  if (!user) {
-    return (
+  if (session.status !== "authenticated") {
+    // A guest is offered sign-in. An `unavailable` session renders nothing at all — showing
+    // "Log in" would claim they are signed out when the truth is only that we could not
+    // confirm the session, and a bare header is the honest way to say "we don't know yet".
+    return session.status === "guest" ? (
       <Button asChild size="sm">
         <Link href="/login">Log in</Link>
       </Button>
-    );
+    ) : null;
   }
 
+  const user = session.user;
   const status = statusOption(meta, user.status);
 
   return (

@@ -28,10 +28,12 @@ export const metaEnumsResponseSchema = z.object({
 });
 export type MetaEnumsResponse = z.infer<typeof metaEnumsResponseSchema>;
 
-export const popularTagsQuerySchema = z.object({
-  q: z.string().max(30).optional(),
-  limit: z.coerce.number().int().min(1).max(20).default(10),
-});
+export const popularTagsQuerySchema = z
+  .object({
+    q: z.string().max(30).optional(),
+    limit: z.coerce.number().int().min(1).max(20).default(10),
+  })
+  .strict();
 export type PopularTagsQuery = z.infer<typeof popularTagsQuerySchema>;
 
 export const popularTagsResponseSchema = z.object({

@@ -8,7 +8,12 @@ export {
 const ORPHAN_SAMPLE_LIMIT = 100;
 const IDENTITY_DRIFT_SAMPLE_LIMIT = 100;
 
-export type ExpiredEntity = 'sessions' | 'verificationTokens' | 'rateLimitBuckets';
+export type ExpiredEntity =
+  | 'sessions'
+  | 'browserSessions'
+  | 'oauthHandoffs'
+  | 'verificationTokens'
+  | 'rateLimitBuckets';
 export type AvatarCleanupMode = 'dry-run' | 'apply' | 'skip';
 
 export interface CleanupPersistence {
@@ -170,6 +175,8 @@ export class CleanupJob {
     // while its key held `undefined` at runtime. As a literal, a missing key is a compile error.
     const database: Record<ExpiredEntity, DatabaseEntityResult> = {
       sessions: await this.cleanupExpiredEntity('sessions', options),
+      browserSessions: await this.cleanupExpiredEntity('browserSessions', options),
+      oauthHandoffs: await this.cleanupExpiredEntity('oauthHandoffs', options),
       verificationTokens: await this.cleanupExpiredEntity('verificationTokens', options),
       rateLimitBuckets: await this.cleanupExpiredEntity('rateLimitBuckets', options),
     };

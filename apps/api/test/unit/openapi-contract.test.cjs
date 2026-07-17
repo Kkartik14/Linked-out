@@ -23,6 +23,7 @@ const {
   feedSortSchema,
   lTypeSchema,
   reactionTypeSchema,
+  PRINCIPAL_BINDING_HEADER,
   searchTypeSchema,
 } = require('@linkedout/contracts');
 const contractsV2 = require('@linkedout/contracts/v2');
@@ -45,6 +46,7 @@ const HTTP_METHODS = new Set(['delete', 'get', 'head', 'options', 'patch', 'post
 const KNOWN_GUARDS = new Set([
   'GithubAuthGuard',
   'GoogleAuthGuard',
+  'BffCallerGuard',
   'JwtAuthGuard',
   'OptionalAuthGuard',
   'StrictOptionalAuthGuard',
@@ -123,6 +125,7 @@ function guardNames(Controller, handler) {
 // they share one OpenAPI security block. They differ in what a *bad* cookie does, which OpenAPI
 // cannot express; that difference is pinned by the guard-policy test instead.
 function expectedSecurity(guards) {
+  if (guards.has('BffCallerGuard')) return [{ bffCallerAssertion: [] }];
   if (guards.has('JwtAuthGuard')) return [{ accessCookie: [] }];
   if (guards.has('OptionalAuthGuard') || guards.has('StrictOptionalAuthGuard')) {
     return [{}, { accessCookie: [] }];
@@ -228,7 +231,48 @@ test('OpenAPI security and success statuses match registered guards and Nest han
   assert.deepEqual(document.components.securitySchemes, {
     accessCookie: { type: 'apiKey', in: 'cookie', name: 'lo_access' },
     refreshCookie: { type: 'apiKey', in: 'cookie', name: 'lo_refresh' },
+    bffCallerAssertion: {
+      type: 'apiKey',
+      in: 'header',
+      name: 'X-Internal-Auth',
+    },
   });
+});
+
+test('OpenAPI requires principal binding on every authenticated mutation', () => {
+  const service = new MetaService({});
+  for (const document of [service.getOpenApi(), service.getV2OpenApi()]) {
+    for (const [path, pathItem] of Object.entries(document.paths)) {
+      for (const [method, operation] of Object.entries(pathItem)) {
+        if (!HTTP_METHODS.has(method)) continue;
+        const security = operation.security ?? document.security ?? [];
+        const authenticated = security.some((requirement) => 'accessCookie' in requirement);
+        const unsafe = ['delete', 'patch', 'post', 'put'].includes(method);
+        const binding = operation.parameters?.find(
+          (parameter) =>
+            parameter.in === 'header' &&
+            parameter.name.toLowerCase() === PRINCIPAL_BINDING_HEADER.toLowerCase(),
+        );
+        assert.equal(
+          binding !== undefined,
+          authenticated && unsafe,
+          `${method} ${path} principal binding`,
+        );
+        if (binding) {
+          assert.equal(binding.required, true);
+          assert.equal(
+            binding.schema.pattern,
+            '^[0-9A-HJKMNP-TV-Za-hjkmnp-tv-z]{26}$',
+          );
+          assert.ok(operation.responses['409']);
+          assert.equal(
+            operation.responses['409'].content['application/json'].schema.$ref,
+            '#/components/schemas/ErrorEnvelope',
+          );
+        }
+      }
+    }
+  }
 });
 
 test('one route contract drives each handler body pipe and OpenAPI success response', async () => {
@@ -308,10 +352,16 @@ test('v2 OpenAPI and route contracts cover exactly the registered v2 operations'
   assert.deepEqual(
     [...API_ROUTE_CONTRACT_BY_KEY_V2.keys()].sort(),
     [
-      ...[...API_ROUTE_CONTRACT_BY_KEY.keys()].filter((key) => key !== 'get /tags/popular'),
+      ...[...API_ROUTE_CONTRACT_BY_KEY.keys()].filter(
+        (key) =>
+          key !== 'get /tags/popular' &&
+          key !== 'post /auth/oauth/handoff/exchange' &&
+          key !== 'post /auth/sessions/resolve' &&
+          key !== 'post /auth/sessions/revoke',
+      ),
       'get /feed/sidebar',
     ].sort(),
-    'v2 carries every v1 operation except the explicitly removed popular-tags route',
+    'v2 carries v1 except explicitly version-bound and removed operations',
   );
 
   for (const operation of registered.values()) {

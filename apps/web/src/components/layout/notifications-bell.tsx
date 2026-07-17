@@ -14,7 +14,7 @@ import {
 import { timeAgo } from "@/lib/format";
 import { cn } from "@/lib/utils";
 import { queryKeys } from "@/lib/query-keys";
-import { usePrincipal } from "@/components/session-provider";
+import { useComposedPrincipal, usePrincipal } from "@/components/session-provider";
 import { Button } from "@/components/ui/button";
 import {
   DropdownMenu,
@@ -30,6 +30,7 @@ export function notificationPollIntervalMs(random = Math.random): number {
 export function NotificationsBell() {
   const queryClient = useQueryClient();
   const principal = usePrincipal();
+  const composedAs = useComposedPrincipal();
   const [open, setOpen] = useState(false);
 
   const unread = useQuery({
@@ -51,12 +52,12 @@ export function NotificationsBell() {
     queryClient.invalidateQueries({ queryKey: queryKeys.notifications.all(principal) });
 
   const markAll = useMutation({
-    mutationFn: markAllNotificationsRead,
+    mutationFn: () => markAllNotificationsRead(composedAs),
     onSuccess: () => void invalidateAll(),
   });
 
   const markOne = useMutation({
-    mutationFn: markNotificationRead,
+    mutationFn: (id: string) => markNotificationRead(composedAs, id),
     onSuccess: () => void invalidateAll(),
   });
 

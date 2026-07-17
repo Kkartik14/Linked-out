@@ -3,9 +3,11 @@ const test = require('node:test');
 
 require('reflect-metadata');
 
-const { BadRequestException } = require('@nestjs/common');
+const { BadRequestException, UnauthorizedException } = require('@nestjs/common');
 const {
   createLInputSchema,
+  oauthHandoffExchangeInputSchema,
+  oauthHandoffExchangeResponseSchema,
   paginationQuerySchema,
   searchQuerySchema,
 } = require('@linkedout/contracts');
@@ -103,6 +105,15 @@ test('query validation rejects impossible pagination and search values', () => {
   assert.equal(paginationPipe.transform({ limit: '5' }).limit, 5);
 
   assert.throws(
+    () => paginationPipe.transform({ limti: '5' }),
+    (error) => {
+      assertAppError(error, 400, 'VALIDATION_ERROR');
+      assert.equal(errorBody(error).details[0].field, 'limti');
+      return true;
+    },
+  );
+
+  assert.throws(
     () => paginationPipe.transform({ limit: '0' }),
     (error) => {
       assertAppError(error, 400, 'VALIDATION_ERROR');
@@ -120,6 +131,16 @@ test('query validation rejects impossible pagination and search values', () => {
     },
   );
 
+  for (const query of [
+    { q: 'builder', tyep: 'users' },
+    { q: 'builder', type: 'users', filter: 'career' },
+  ]) {
+    assert.throws(
+      () => searchPipe.transform(query),
+      (error) => assertAppError(error, 400, 'VALIDATION_ERROR'),
+    );
+  }
+
   assert.throws(
     () => new ZodValidationPipe(createLInputSchema).transform({
       title: 'Rejected after the final round',
@@ -131,6 +152,26 @@ test('query validation rejects impossible pagination and search values', () => {
       assert.equal(errorBody(error).details[0].field, 'eventDate');
       return true;
     },
+  );
+});
+
+test('OAuth handoff contracts keep identity and navigation server-bound', () => {
+  const code = 'A'.repeat(43);
+  assert.deepEqual(oauthHandoffExchangeInputSchema.parse({ code }), { code });
+  assert.throws(() => oauthHandoffExchangeInputSchema.parse({ code, sub: 'attacker' }));
+  assert.throws(() => oauthHandoffExchangeInputSchema.parse({ code: 'short' }));
+
+  const response = {
+    cookie: 'A'.repeat(43),
+    expiresAt: '2026-07-18T12:00:00.000Z',
+    returnTo: '/journey?view=recent',
+  };
+  assert.deepEqual(oauthHandoffExchangeResponseSchema.parse(response), response);
+  assert.throws(() =>
+    oauthHandoffExchangeResponseSchema.parse({ ...response, returnTo: 'https://evil.example' }),
+  );
+  assert.throws(() =>
+    oauthHandoffExchangeResponseSchema.parse({ ...response, sub: '01ARZ3NDEKTSV4RRFFQ69G5FAV' }),
   );
 });
 
@@ -159,6 +200,43 @@ test('OptionalAuthGuard never blocks anonymous reads', () => {
 
   assert.equal(guard.handleRequest(null, false), undefined);
   assert.equal(guard.handleRequest(null, user), user);
+  assert.equal(guard.handleRequest(new UnauthorizedException(), false), undefined);
+
+  const outage = new Error('principal store unavailable');
+  assert.throws(() => guard.handleRequest(outage, false), outage);
+});
+
+test('internal assertions are authoritative in every guard and infrastructure failures surface', async () => {
+  const user = { id: 'user_1', username: 'kartik' };
+  const request = { headers: { 'x-internal-auth': 'assertion' } };
+  const context = {
+    switchToHttp: () => ({ getRequest: () => request }),
+  };
+  const guard = new JwtAuthGuard({
+    async authenticateInternal() {
+      return { kind: 'authenticated', user, sid: 'session_1' };
+    },
+  });
+  assert.equal(await guard.canActivate(context), true);
+  assert.equal(request.user, user);
+
+  const invalid = new OptionalAuthGuard({
+    async authenticateInternal() {
+      return { kind: 'invalid' };
+    },
+  });
+  await assert.rejects(
+    () => invalid.canActivate(context),
+    (error) => assertAppError(error, 401, 'UNAUTHENTICATED'),
+  );
+
+  const outage = new Error('session dependency unavailable');
+  const unavailable = new OptionalAuthGuard({
+    async authenticateInternal() {
+      throw outage;
+    },
+  });
+  await assert.rejects(() => unavailable.canActivate(context), outage);
 });
 
 test('AllExceptionsFilter always renders the standard error envelope', () => {

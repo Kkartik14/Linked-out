@@ -56,6 +56,8 @@ function persistenceWithBatches(batches = {}) {
 test('cleanup job removes expired database rows in bounded, repeatable batches', async () => {
   const persistence = persistenceWithBatches({
     sessions: [2, 1],
+    browserSessions: [2, 0],
+    oauthHandoffs: [2, 1],
     verificationTokens: [2, 0],
     rateLimitBuckets: [0],
   });
@@ -71,6 +73,8 @@ test('cleanup job removes expired database rows in bounded, repeatable batches',
 
   assert.deepEqual(result.database, {
     sessions: { deleted: 3, limitReached: false },
+    browserSessions: { deleted: 2, limitReached: false },
+    oauthHandoffs: { deleted: 3, limitReached: false },
     verificationTokens: { deleted: 2, limitReached: false },
     rateLimitBuckets: { deleted: 0, limitReached: false },
   });
@@ -79,6 +83,10 @@ test('cleanup job removes expired database rows in bounded, repeatable batches',
     [
       { entity: 'sessions', limit: 2 },
       { entity: 'sessions', limit: 2 },
+      { entity: 'browserSessions', limit: 2 },
+      { entity: 'browserSessions', limit: 2 },
+      { entity: 'oauthHandoffs', limit: 2 },
+      { entity: 'oauthHandoffs', limit: 2 },
       { entity: 'verificationTokens', limit: 2 },
       { entity: 'verificationTokens', limit: 2 },
       { entity: 'rateLimitBuckets', limit: 2 },

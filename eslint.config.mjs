@@ -57,7 +57,13 @@ export default tseslint.config(
   eslint.configs.recommended,
   ...tseslint.configs.recommended,
   {
-    files: ["apps/api/src/**/*.ts", "packages/contracts/src/**/*.ts", "packages/db/src/**/*.ts"],
+    files: [
+      "apps/api/src/**/*.ts",
+      "packages/contracts/src/**/*.ts",
+      "packages/db/src/**/*.ts",
+      "packages/internal-auth/src/**/*.ts",
+      "packages/session-authority/src/**/*.ts",
+    ],
     rules: {
       // Security validators intentionally match ASCII control ranges (for URLs/headers).
       "no-control-regex": "off",

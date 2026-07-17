@@ -16,7 +16,7 @@ import {
   type CommentPages,
 } from "@/lib/comment-cache";
 import { queryKeys } from "@/lib/query-keys";
-import { usePrincipal, useSession } from "@/components/session-provider";
+import { useComposedPrincipal, usePrincipal, useViewer } from "@/components/session-provider";
 import { statusOption, useMeta } from "@/components/meta-provider";
 import { UserAvatar } from "@/components/user-avatar";
 import { ConfirmDialog } from "@/components/confirm-dialog";
@@ -33,8 +33,9 @@ function CommentBody({
   lId: string;
   depth: number;
 }) {
-  const { user } = useSession();
+  const user = useViewer();
   const principal = usePrincipal();
+  const composedAs = useComposedPrincipal();
   const meta = useMeta();
   const queryClient = useQueryClient();
   const [replying, setReplying] = React.useState(false);
@@ -56,7 +57,7 @@ function CommentBody({
   });
 
   const reply = useMutation({
-    mutationFn: (body: string) => addReply(comment.id, { body }),
+    mutationFn: (body: string) => addReply(composedAs, comment.id, { body }),
     onMutate: async () => {
       await Promise.all([
         queryClient.cancelQueries({ queryKey: repliesKey, exact: true }),
@@ -85,7 +86,7 @@ function CommentBody({
   const parentId = comment.parentId;
 
   const del = useMutation({
-    mutationFn: () => deleteComment(comment.id),
+    mutationFn: () => deleteComment(composedAs, comment.id),
     onMutate: async () => {
       const affectedRepliesKey = parentId
         ? queryKeys.comments.replies(principal, parentId)
@@ -131,7 +132,9 @@ function CommentBody({
   return (
     <div className="flex gap-3">
       {comment.author ? (
-        <Link href={`/u/${comment.author.username}`} aria-label={comment.author.name ?? comment.author.username}>
+        // Decorative: the name below links to the same profile. Two identical stops per
+        // comment adds up fast in a long thread.
+        <Link href={`/u/${comment.author.username}`} tabIndex={-1} aria-hidden>
           <UserAvatar
             name={comment.author.name}
             username={comment.author.username}

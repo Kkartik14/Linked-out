@@ -96,16 +96,18 @@ model User {
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 
-  ls            L[]
-  reactions     Reaction[]
-  comments      Comment[]
-  collections   Collection[]
-  following     Follow[]       @relation("follower")
-  followers     Follow[]       @relation("following")
-  notifications Notification[] @relation("recipient")
-  actorEvents   Notification[] @relation("actor")
-  accounts      Account[]
-  sessions      Session[]
+  ls              L[]
+  reactions       Reaction[]
+  comments        Comment[]
+  collections     Collection[]
+  following       Follow[]         @relation("follower")
+  followers       Follow[]         @relation("following")
+  notifications   Notification[]   @relation("recipient")
+  actorEvents     Notification[]   @relation("actor")
+  accounts        Account[]
+  sessions        Session[]
+  browserSessions BrowserSession[]
+  oauthHandoffs   OAuthHandoff[]
 
   @@index([status])
 }
@@ -140,6 +142,43 @@ model Session {
 
   @@index([userId])
   @@index([expires, id])
+}
+
+// Authoritative browser session for the one-origin BFF. The browser holds only the
+// random opaque cookie; cookieHash is its one-way lookup identity. The database column
+// is named `sid` because that stable identifier is carried by internal API assertions.
+model BrowserSession {
+  id         String    @id @default(cuid()) @map("sid") // ULID assigned by the client extension
+  cookieHash String    @unique @db.Char(64)
+  sub        String
+  createdAt  DateTime  @default(now())
+  lastUsedAt DateTime  @default(now())
+  revokedAt  DateTime?
+
+  user User @relation(fields: [sub], references: [id], onDelete: Cascade)
+
+  @@index([sub])
+  @@index([createdAt, id])
+  @@index([lastUsedAt, id])
+  @@index([revokedAt, id])
+}
+
+// One-time OAuth callback result. Only its hash is persisted; sub and returnTo are
+// bound by the server after OAuth state validation and cannot be supplied at exchange.
+model OAuthHandoff {
+  id         String    @id @default(cuid()) // ULID assigned by the client extension
+  codeHash   String    @unique @db.Char(64)
+  sub        String
+  returnTo   String    @db.VarChar(512)
+  createdAt  DateTime  @default(now())
+  expiresAt  DateTime
+  consumedAt DateTime?
+
+  user User @relation(fields: [sub], references: [id], onDelete: Cascade)
+
+  @@index([sub])
+  @@index([expiresAt, id])
+  @@index([consumedAt, id])
 }
 
 model VerificationToken {

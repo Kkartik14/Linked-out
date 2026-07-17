@@ -203,7 +203,13 @@ describe('22 · clean category-free v2 L surfaces', () => {
     assert.deepEqual(
       operations(v2Document.body).sort(),
       [
-        ...operations(v1Document.body).filter((operation) => operation !== 'get /tags/popular'),
+        ...operations(v1Document.body).filter(
+          (operation) =>
+            operation !== 'get /tags/popular' &&
+            operation !== 'post /auth/oauth/handoff/exchange' &&
+            operation !== 'post /auth/sessions/resolve' &&
+            operation !== 'post /auth/sessions/revoke',
+        ),
         'get /feed/sidebar',
       ].sort(),
     );

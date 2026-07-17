@@ -44,6 +44,16 @@ export const AppErrors = {
       code: 'TOKEN_EXPIRED',
       message: 'Your session expired. Refresh and retry.',
     }),
+  invalidHandoff: (): AppException =>
+    new AppException(400, {
+      code: 'INVALID_HANDOFF',
+      message: 'The sign-in handoff is invalid or expired.',
+    }),
+  principalMismatch: (): AppException =>
+    new AppException(409, {
+      code: 'PRINCIPAL_MISMATCH',
+      message: 'Your signed-in identity changed. Refresh this view before retrying.',
+    }),
   forbidden: (message = 'You do not have access to this.'): AppException =>
     new AppException(403, { code: 'FORBIDDEN', message }),
   onboardingRequired: (): AppException =>

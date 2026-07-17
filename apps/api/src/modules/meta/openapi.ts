@@ -3,6 +3,7 @@ import {
   feedFilterSchema,
   feedSortSchema,
   lTypeSchema,
+  PRINCIPAL_BINDING_HEADER,
   reactionTypeSchema,
   searchTypeSchema,
 } from '@linkedout/contracts';
@@ -65,6 +66,8 @@ function jsonSchemas(): Record<string, JsonObject> {
 }
 
 type OpenApiOperation = JsonObject & {
+  parameters?: JsonObject[];
+  security?: JsonObject[];
   requestBody?: JsonObject;
   responses?: Record<string, JsonObject>;
 };
@@ -84,8 +87,18 @@ function applyRouteContracts(
     if (contract.body) {
       operation.requestBody = jsonBody(contract.body.name, contract.body.required);
     }
+    const security = operation.security ?? [{ accessCookie: [] }];
+    const bindsPrincipal =
+      ['delete', 'patch', 'post', 'put'].includes(method) &&
+      security.some((requirement) => 'accessCookie' in requirement);
+    if (bindsPrincipal) {
+      operation.parameters = [...(operation.parameters ?? []), principalBindingParam];
+    }
 
     const responses = operation.responses ?? {};
+    if (bindsPrincipal && responses['409'] === undefined) {
+      responses['409'] = jsonResponse('ErrorEnvelope', 'Authenticated principal changed');
+    }
     const status = String(contract.status);
     if (responses[status] !== undefined) {
       throw new Error(`OpenAPI success response must come from the route contract: ${contract.key}`);
@@ -111,6 +124,13 @@ const oauthReturnToParam = queryParam('returnTo', {
   maxLength: 512,
   pattern: '^/(?!/)(?!.*\\\\)(?!.*[\\x00-\\x1f\\x7f]).*',
 });
+const principalBindingParam = {
+  name: PRINCIPAL_BINDING_HEADER,
+  in: 'header',
+  required: true,
+  description: 'Principal that rendered or composed this mutation.',
+  schema: { type: 'string', pattern: '^[0-9A-HJKMNP-TV-Za-hjkmnp-tv-z]{26}$' },
+};
 const feedSortParam = queryParam('sort', {
   type: 'string',
   enum: feedSortSchema.options,
@@ -158,7 +178,34 @@ export function buildOpenApiDocument(): OpenApiDocument {
           security: [{ refreshCookie: [] }],
         },
       },
-      '/auth/logout': { post: {} },
+      '/auth/logout': { post: { security: [] } },
+      '/auth/oauth/handoff/exchange': {
+        post: {
+          security: [{ bffCallerAssertion: [] }],
+          tags: ['internal-auth'],
+          'x-internal': true,
+          description:
+            'Private BFF exchange; requires network isolation in addition to the assertion.',
+        },
+      },
+      '/auth/sessions/resolve': {
+        post: {
+          security: [{ bffCallerAssertion: [] }],
+          tags: ['internal-auth'],
+          'x-internal': true,
+          description:
+            'Private BFF session resolution and API-assertion issuance; deployment requires network isolation.',
+        },
+      },
+      '/auth/sessions/revoke': {
+        post: {
+          security: [{ bffCallerAssertion: [] }],
+          tags: ['internal-auth'],
+          'x-internal': true,
+          description:
+            'Private idempotent BFF session revocation; deployment requires network isolation.',
+        },
+      },
 
       '/users/me': {
         patch: {
@@ -377,6 +424,11 @@ export function buildOpenApiDocument(): OpenApiDocument {
       securitySchemes: {
         accessCookie: { type: 'apiKey', in: 'cookie', name: 'lo_access' },
         refreshCookie: { type: 'apiKey', in: 'cookie', name: 'lo_refresh' },
+        bffCallerAssertion: {
+          type: 'apiKey',
+          in: 'header',
+          name: 'X-Internal-Auth',
+        },
       },
       schemas: jsonSchemas(),
       responses: {

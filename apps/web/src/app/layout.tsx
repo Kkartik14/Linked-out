@@ -32,7 +32,13 @@ export default async function RootLayout({
             <MetaProvider meta={meta}>
               <div className="flex min-h-dvh flex-col">
                 <Header />
-                <main id="main-content" className="flex-1">{children}</main>
+                {/* `tabIndex={-1}`: a fragment jump sets the sequential-focus starting point
+                    but does not focus the element itself, so VoiceOver/Safari's virtual
+                    cursor does not reliably follow the skip link. This makes the target
+                    programmatically focusable, which is what actually moves it. */}
+                <main id="main-content" tabIndex={-1} className="flex-1 outline-none">
+                  {children}
+                </main>
               </div>
             </MetaProvider>
           </SessionProvider>

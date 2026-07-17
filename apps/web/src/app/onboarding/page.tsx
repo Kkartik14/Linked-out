@@ -1,7 +1,7 @@
 import type { Metadata } from "next";
 import { redirect } from "next/navigation";
 
-import { getSession } from "@/lib/session";
+import { getSession, requireViewer } from "@/lib/session";
 import { safeReturnTo } from "@/lib/auth-entry";
 import { OnboardingForm } from "@/components/onboarding-form";
 
@@ -13,11 +13,10 @@ export default async function OnboardingPage({
   searchParams: Promise<{ returnTo?: string }>;
 }) {
   const sp = await searchParams;
-  const session = await getSession();
-  if (!session.user) redirect("/login");
+  const { user, needsOnboarding } = requireViewer(await getSession(), "/onboarding");
   // The backend decides who still needs onboarding; without this an already-onboarded user
   // who navigates here is handed the setup form and invited to re-pick a username.
-  if (!session.needsOnboarding) redirect(safeReturnTo(sp.returnTo));
+  if (!needsOnboarding) redirect(safeReturnTo(sp.returnTo));
 
   return (
     <div className="mx-auto w-full max-w-md px-4 py-10">
@@ -25,7 +24,7 @@ export default async function OnboardingPage({
       <p className="text-muted-foreground mt-1 text-sm">
         Pick a username so builders can find your journey.
       </p>
-      <OnboardingForm returnTo={safeReturnTo(sp.returnTo)} defaultName={session.user.name ?? ""} />
+      <OnboardingForm returnTo={safeReturnTo(sp.returnTo)} defaultName={user.name ?? ""} />
     </div>
   );
 }

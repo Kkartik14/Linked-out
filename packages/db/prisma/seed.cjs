@@ -46,6 +46,8 @@ async function wipe(tx) {
   await tx.dailyLSelection.deleteMany();
   await tx.l.deleteMany();
   await tx.account.deleteMany();
+  await tx.oauthHandoff.deleteMany();
+  await tx.browserSession.deleteMany();
   await tx.session.deleteMany();
   await tx.verificationToken.deleteMany();
   await tx.rateLimitBucket.deleteMany();

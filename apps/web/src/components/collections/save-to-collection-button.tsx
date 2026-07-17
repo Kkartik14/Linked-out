@@ -13,7 +13,7 @@ import {
   errorMessage,
   getUserCollections,
 } from "@/lib/api";
-import { usePrincipal, useSession } from "@/components/session-provider";
+import { useComposedPrincipal, usePrincipal, useViewer } from "@/components/session-provider";
 import { queryKeys } from "@/lib/query-keys";
 import { Button } from "@/components/ui/button";
 import {
@@ -22,6 +22,7 @@ import {
   DialogFooter,
   DialogHeader,
   DialogTitle,
+  DialogTrigger,
 } from "@/components/ui/dialog";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -34,7 +35,7 @@ type SaveToCollectionProps = {
 
 /** Resolves the viewer before any hook runs, so the inner component always has one. */
 export function SaveToCollectionButton(props: SaveToCollectionProps) {
-  const { user } = useSession();
+  const user = useViewer();
   if (!user) return null;
   return <SaveToCollection {...props} user={user} />;
 }
@@ -46,6 +47,7 @@ function SaveToCollection({
   user,
 }: SaveToCollectionProps & { user: UserProfile }) {
   const principal = usePrincipal();
+  const composedAs = useComposedPrincipal();
   const router = useRouter();
   const queryClient = useQueryClient();
   const [open, setOpen] = React.useState(false);
@@ -69,7 +71,7 @@ function SaveToCollection({
   };
 
   const addExisting = useMutation({
-    mutationFn: (collectionId: string) => addLToCollection(collectionId, lId),
+    mutationFn: (collectionId: string) => addLToCollection(composedAs, collectionId, lId),
     onSuccess: () => {
       toast.success("Added to collection.");
       afterChange();
@@ -79,8 +81,8 @@ function SaveToCollection({
 
   const createAndAdd = useMutation({
     mutationFn: async (nextTitle: string) => {
-      const collection = await createCollection(nextTitle);
-      await addLToCollection(collection.id, lId);
+      const collection = await createCollection(composedAs, nextTitle);
+      await addLToCollection(composedAs, collection.id, lId);
       return collection;
     },
     onSuccess: () => {
@@ -95,12 +97,16 @@ function SaveToCollection({
 
   return (
     <div className={className}>
-      <Button variant="outline" size="sm" onClick={() => setOpen(true)}>
-        <FolderPlus className="size-4" />
-        Add to collection
-      </Button>
       <Dialog open={open} onOpenChange={setOpen}>
-        <DialogContent className="sm:max-w-md">
+        {/* A real trigger: it is what populates the `triggerRef` Radix restores focus to on
+            close. A sibling button leaves that ref null, so focus falls to `<body>`. */}
+        <DialogTrigger asChild>
+          <Button variant="outline" size="sm">
+            <FolderPlus className="size-4" />
+            Add to collection
+          </Button>
+        </DialogTrigger>
+        <DialogContent className="sm:max-w-md" aria-describedby={undefined}>
           <DialogHeader>
             <DialogTitle>Add to collection</DialogTitle>
           </DialogHeader>

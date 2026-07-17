@@ -6,6 +6,7 @@ import { toast } from "sonner";
 import { usernameInputSchema } from "@linkedout/contracts/v2";
 
 import { errorMessage, isApiError, patchMe } from "@/lib/api";
+import { useComposedPrincipal } from "@/components/session-provider";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -18,6 +19,7 @@ export function OnboardingForm({
   defaultName: string;
 }) {
   const router = useRouter();
+  const composedAs = useComposedPrincipal();
   const [username, setUsername] = React.useState("");
   const [name, setName] = React.useState(defaultName);
   const [error, setError] = React.useState<string | null>(null);
@@ -34,7 +36,7 @@ export function OnboardingForm({
     setBusy(true);
     setError(null);
     try {
-      await patchMe({ username, name: name.trim() || null });
+      await patchMe(composedAs, { username, name: name.trim() || null });
       toast.success("You're all set.");
       router.replace(returnTo);
       router.refresh();
@@ -60,18 +62,28 @@ export function OnboardingForm({
           <Input
             id="username"
             value={username}
-            onChange={(e) => setUsername(e.target.value.toLowerCase())}
+            onChange={(e) => {
+              setUsername(e.target.value.toLowerCase());
+              setError(null);
+            }}
             placeholder="yourname"
             autoFocus
+            autoComplete="username"
             autoCapitalize="none"
             autoCorrect="off"
             maxLength={30}
-            aria-invalid={username.length > 0 && !valid}
-            aria-describedby={error ? "username-error" : undefined}
+            // Invalid once a submit has said so, not while the field is half-typed: every
+            // username is invalid at one character, and announcing that is just noise.
+            aria-invalid={error !== null}
+            aria-describedby={error ? "username-hint username-error" : "username-hint"}
           />
         </div>
-        <p className="text-muted-foreground text-xs">
-          This is your handle on LinkedOut. It can&apos;t be changed easily later.
+        {/* The rule lives here, visible and always linked. It used to exist only inside the
+            unreachable branch below, so the one thing that could explain a rejected username
+            was the one thing nobody could ever see. */}
+        <p id="username-hint" className="text-muted-foreground text-xs">
+          3–30 characters: lowercase letters, numbers, and underscores. This is your handle on
+          LinkedOut and can&apos;t be changed easily later.
         </p>
       </div>
 
@@ -82,6 +94,7 @@ export function OnboardingForm({
           value={name}
           onChange={(e) => setName(e.target.value)}
           maxLength={80}
+          autoComplete="name"
           placeholder="Your name"
         />
       </div>
@@ -92,7 +105,11 @@ export function OnboardingForm({
         </p>
       ) : null}
 
-      <Button type="submit" disabled={busy || !valid}>
+      {/* Gated on `busy` alone. Gating on validity too made `handleSubmit`'s own
+          `if (!valid)` branch unreachable — a disabled default button suppresses implicit
+          submission as well, so Enter could not reach it either. The result was a dead
+          button and total silence about why, which fails everyone, not only AT users. */}
+      <Button type="submit" disabled={busy}>
         {busy ? "Setting up…" : "Continue"}
       </Button>
     </form>

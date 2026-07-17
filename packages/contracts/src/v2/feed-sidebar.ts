@@ -67,6 +67,7 @@ export const feedSidebarResponseSchema = z.object({
   topLs: z.object({
     basis: z.literal('MOST_INTERACTED'),
     window: interactionWindowSchema,
+    windowLabel: z.string().min(1),
     items: z.array(featuredLSchema).max(5),
   }).strict(),
   lOfTheDay: z
