@@ -19,6 +19,24 @@ journey `date`, category filters, or popular-tags endpoint in new code.
 The Zod schemas are authoritative for shapes. This document adds the behavioral rules that a type
 cannot express: privacy, eligibility, ordering, time windows, cache policy, and failure behavior.
 
+## 0. Authentication is uniform across v2
+
+Every v2 route answers a credential the same way, whatever the route otherwise does:
+
+- **No credential presented** — routes documented `Authentication: optional` serve the guest view;
+  routes requiring authentication return `401`.
+- **A credential is presented and is invalid or expired** — always `401`, on every v2 route,
+  including `GET /v2/auth/me`. v2 never silently downgrades a bad credential to a guest.
+
+This differs from v1, which downgrades an invalid credential to guest on its optional-auth reads.
+v1 keeps that behavior for its live consumers; v2 does not inherit it. §3's "all existing v1
+resources continue under `/v2` unless changed below" is about resource *shapes* and does not carry
+v1's lenient credential handling into v2.
+
+The asymmetry this rule forbids is concrete: if `/v2/auth/me` answered `200 {user: null}` for a
+dead session while `/v2/feed` answered `401`, a client would read "signed out" from the former and
+never attempt a refresh, while the latter told it the session merely needed one.
+
 ## 1. Clean L model
 
 `LCard` contains:
@@ -132,7 +150,8 @@ The two are composed from a single value at one site, so they cannot disagree.
 
 - `SIGNED_OUT` means no credential was presented. `ONBOARDING_REQUIRED` and `READY` identify exactly
   the authenticated viewer; the profile is never another user.
-- Invalid or expired presented credentials receive `401`; they are not silently treated as guest.
+- Invalid or expired presented credentials receive `401` (§0); they are not silently treated as
+  guest, so `SIGNED_OUT` never stands in for a rejected credential.
 - `personalized` is true only for `READY`. Guests and onboarding viewers receive the safe global
   fallback.
 - A suggestion is onboarded, has a non-empty username, is not the viewer, is not already followed

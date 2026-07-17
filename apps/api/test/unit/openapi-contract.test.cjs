@@ -119,6 +119,9 @@ function guardNames(Controller, handler) {
   return new Set(names);
 }
 
+// Both optional-auth guards describe the same wire contract — the cookie may be omitted — so
+// they share one OpenAPI security block. They differ in what a *bad* cookie does, which OpenAPI
+// cannot express; that difference is pinned by the guard-policy test instead.
 function expectedSecurity(guards) {
   if (guards.has('JwtAuthGuard')) return [{ accessCookie: [] }];
   if (guards.has('OptionalAuthGuard') || guards.has('StrictOptionalAuthGuard')) {
@@ -167,6 +170,7 @@ async function controllerOperations(version = '1') {
             methodName,
             method: httpMethod,
             path,
+            guards,
             security: DIRECT_COOKIE_SECURITY.get(key) ?? expectedSecurity(guards),
             status: expectedSuccessStatus(method, handler, guards),
           });
@@ -367,6 +371,36 @@ test('v2 OpenAPI and route contracts cover exactly the registered v2 operations'
     new Set(Object.values(API_ROUTE_CONTRACTS_V2)).size,
     Object.keys(API_ROUTE_CONTRACTS_V2).length,
     'v2 route contracts do not alias distinct operations',
+  );
+});
+
+// The guard split is the whole of the "invalid credentials are a 401, never a silent guest"
+// rule (docs/api-contract-v2.md §0). It is per-route metadata, so nothing but an explicit
+// sweep catches a new v2 read that reaches for the lenient guard out of habit.
+test('every v2 optional-auth read rejects a bad credential; v1 keeps its lenient downgrade', async () => {
+  const optionalAuthOperations = (operations) =>
+    [...operations.values()].filter(
+      ({ guards }) => guards.has('OptionalAuthGuard') || guards.has('StrictOptionalAuthGuard'),
+    );
+
+  const v2OptionalAuth = optionalAuthOperations(await controllerOperations('2'));
+  const v1OptionalAuth = optionalAuthOperations(await controllerOperations('1'));
+
+  // Guards against the assertions below passing because the filter matched nothing.
+  assert.ok(v2OptionalAuth.length > 0, 'v2 exposes optional-auth reads');
+  assert.ok(v1OptionalAuth.length > 0, 'v1 exposes optional-auth reads');
+
+  assert.deepEqual(
+    v2OptionalAuth.filter(({ guards }) => guards.has('OptionalAuthGuard')).map(({ key }) => key),
+    [],
+    'v2 optional-auth reads use StrictOptionalAuthGuard, so a presented-but-invalid credential 401s',
+  );
+  assert.deepEqual(
+    v1OptionalAuth
+      .filter(({ guards }) => guards.has('StrictOptionalAuthGuard'))
+      .map(({ key }) => key),
+    [],
+    'v1 optional-auth reads keep the lenient downgrade live v1 consumers depend on',
   );
 });
 

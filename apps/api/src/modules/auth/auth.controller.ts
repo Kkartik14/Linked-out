@@ -1,11 +1,13 @@
-import { Controller, Get, HttpCode, Post, Req, Res, UseGuards } from '@nestjs/common';
+import { Controller, Get, HttpCode, Post, Req, Res, UseGuards, Version } from '@nestjs/common';
 import type { AuthMeResponse } from '@linkedout/contracts';
 import type { Request, Response } from 'express';
 
 import { OptionalUser } from '../../common/decorators/current-user.decorator';
 import { ApiContract, API_ROUTE_CONTRACTS } from '../../common/contracts/api-route-contracts';
+import { API_ROUTE_CONTRACTS_V2 } from '../../common/contracts/api-route-contracts-v2';
 import { JwtAuthGuard } from '../../common/guards/jwt-auth.guard';
 import { OptionalAuthGuard } from '../../common/guards/optional-auth.guard';
+import { StrictOptionalAuthGuard } from '../../common/guards/strict-optional-auth.guard';
 import { AppErrors } from '../../common/errors/app-exception';
 import { getCookie } from '../../common/http/cookies';
 import type { AuthUser } from '../../common/types/auth';
@@ -62,10 +64,30 @@ export class AuthController {
     return this.completeOAuth(user, req, res);
   }
 
+  /** V1 downgrades an invalid credential to guest. Retained for live v1 consumers. */
   @Get('me')
+  @Version('1')
   @UseGuards(OptionalAuthGuard)
   @ApiContract(API_ROUTE_CONTRACTS.authMe)
-  async me(@OptionalUser() user: AuthUser | undefined): Promise<AuthMeResponse> {
+  meV1(@OptionalUser() user: AuthUser | undefined): Promise<AuthMeResponse> {
+    return this.describeViewer(user);
+  }
+
+  /**
+   * V2 answers "who am I" consistently with every other v2 read: no credential is a guest,
+   * but a presented-and-invalid one is a 401 rather than a silent guest downgrade. The
+   * downgrade let a client with a dead session read `user: null` here and conclude it was
+   * signed out, while every other v2 route 401'd — so it never refreshed.
+   */
+  @Get('me')
+  @Version('2')
+  @UseGuards(StrictOptionalAuthGuard)
+  @ApiContract(API_ROUTE_CONTRACTS_V2.authMe)
+  meV2(@OptionalUser() user: AuthUser | undefined): Promise<AuthMeResponse> {
+    return this.describeViewer(user);
+  }
+
+  private async describeViewer(user: AuthUser | undefined): Promise<AuthMeResponse> {
     if (!user) {
       return { user: null, needsOnboarding: false };
     }

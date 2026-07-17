@@ -107,6 +107,7 @@ deterministically between tests.
 | `20-concurrency-edges` | Counter integrity under concurrent writes; coercion edges |
 | `21-feed-sidebar-v2` | `GET /v2/feed/sidebar`: viewer states, ranking, windows, daily selection |
 | `22-clean-l-v2` | The v2 clean L shape, strict bodies, and the v2 OpenAPI surface |
+| `23-v2-auth-uniformity` | Contract §0: v2 rejects a bad credential everywhere; v1 stays lenient |
 
 ## The contract is the oracle
 
