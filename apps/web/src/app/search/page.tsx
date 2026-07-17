@@ -4,14 +4,13 @@ import { searchLs, searchUsers } from "@/lib/api";
 import { redirectIfCredentialRejected } from "@/lib/public-read";
 import { SearchClient } from "@/components/search/search-client";
 
-export function generateMetadata({
+export async function generateMetadata({
   searchParams,
 }: {
   searchParams: Promise<{ q?: string }>;
 }): Promise<Metadata> {
-  return searchParams.then((sp) => ({
-    title: sp.q ? `Search: ${sp.q}` : "Search",
-  }));
+  const sp = await searchParams;
+  return { title: sp.q ? `Search: ${sp.q}` : "Search" };
 }
 
 export default async function SearchPage({

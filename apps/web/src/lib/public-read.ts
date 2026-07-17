@@ -1,3 +1,4 @@
+import { isSafeReturnTo } from "@linkedout/contracts/v2";
 import { notFound, redirect } from "next/navigation";
 
 import { isApiError } from "@/lib/api";
@@ -17,10 +18,18 @@ import { isApiError } from "@/lib/api";
  *
  * Remove this when the BFF/session boundary lands and a broken session is cleared at the
  * edge instead of at every page.
+ *
+ * `returnTo` is validated rather than trusted. Every caller passes a literal path today, so
+ * this is defense-in-depth, not a live hole — but it is the same rule `oauthLoginUrl` and
+ * the login/onboarding/auth-callback pages already apply, and a returnTo that reaches a
+ * redirect is exactly where an open redirect would appear if a caller ever interpolated
+ * user input. Unsafe values fall back to `/` rather than throwing: this runs on a failure
+ * path, and losing the return destination beats failing the recovery entirely.
  */
 export function redirectIfCredentialRejected(err: unknown, returnTo: string): void {
   if (isApiError(err) && err.status === 401) {
-    redirect(`/login?returnTo=${encodeURIComponent(returnTo)}`);
+    const safe = isSafeReturnTo(returnTo) ? returnTo : "/";
+    redirect(`/login?returnTo=${encodeURIComponent(safe)}`);
   }
 }
 

@@ -1,15 +1,11 @@
 import type { Metadata } from "next";
 import { redirect } from "next/navigation";
-import { isSafeReturnTo } from "@linkedout/contracts/v2";
 
 import { getSession } from "@/lib/session";
+import { safeReturnTo } from "@/lib/auth-entry";
 import { OnboardingForm } from "@/components/onboarding-form";
 
 export const metadata: Metadata = { title: "Set up your profile" };
-
-function safeReturnTo(value: string | undefined): string {
-  return value && isSafeReturnTo(value) ? value : "/";
-}
 
 export default async function OnboardingPage({
   searchParams,
@@ -19,6 +15,9 @@ export default async function OnboardingPage({
   const sp = await searchParams;
   const session = await getSession();
   if (!session.user) redirect("/login");
+  // The backend decides who still needs onboarding; without this an already-onboarded user
+  // who navigates here is handed the setup form and invited to re-pick a username.
+  if (!session.needsOnboarding) redirect(safeReturnTo(sp.returnTo));
 
   return (
     <div className="mx-auto w-full max-w-md px-4 py-10">
