@@ -1,4 +1,8 @@
-import { isSafeReturnTo } from "@linkedout/contracts/v2";
+import {
+  OAUTH_FAILURES,
+  isSafeReturnTo,
+  oauthFailureCodeSchema,
+} from "@linkedout/contracts/v2";
 
 /**
  * Shared by the three auth entry points — `/login`, `/auth/callback`, `/onboarding` — each of
@@ -18,22 +22,26 @@ export function safeReturnTo(value: string | null | undefined): string {
 }
 
 /**
- * OAuth failures arrive as a `?error=` code on a redirect the backend issues, not in an API
- * error envelope, so there is no server-composed `message` to render and the copy has to live
- * here. That makes this the one place in the app that composes business copy from a machine
- * code, against CLAUDE.md §0 — see TODO(contract) below.
+ * OAuth failure copy is the backend's, and now lives in the shared contract as
+ * `OAUTH_FAILURES` rather than in a table here.
  *
- * TODO(contract): have the callback redirect carry a ready-to-display message, the way every
- * API error envelope already does, and delete this table.
+ * Keyed off the `error` code, deliberately **not** the `message` the redirect also carries.
+ * A query parameter is attacker-supplied: anyone can send a victim a link to the real
+ * `/auth/callback?error=oauth_failed&message=…` and have our own sign-in page render their
+ * words. React escapes markup so it is not XSS — but "Your account is locked, call
+ * 1-800-…", rendered by the genuine site under its own domain and styling, *is* the attack;
+ * the markup was never the point. This is the reasoning behind the OAuth 2.0 Security BCP
+ * treating `error_description` as developer-facing and not for end users.
+ *
+ * Taking the copy from the contract instead costs nothing that matters here: the codes are
+ * a closed enum of three, so the message is knowable from the code alone, and the backend
+ * still owns the words. The one thing it gives up is changing that wording without a
+ * contracts bump — a real trade, but not one worth rendering unauthenticated text for.
  */
-const OAUTH_ERROR_MESSAGES: Record<string, string> = {
-  access_denied: "You cancelled the sign-in. Try again whenever you're ready.",
-  oauth_failed: "Something went wrong with the provider. Please try again.",
-  email_taken: "That email is already linked to a different login method.",
-};
-
-/** `null` when no error code is present — callers render nothing in that case. */
 export function oauthErrorMessage(code: string | null | undefined): string | null {
   if (!code) return null;
-  return OAUTH_ERROR_MESSAGES[code] ?? "Sign-in failed. Please try again.";
+  const known = oauthFailureCodeSchema.safeParse(code);
+  // The fallback stays frontend copy on purpose: an unrecognised code is by definition one
+  // the contract has no words for, so there is nothing to render but our own.
+  return known.success ? OAUTH_FAILURES[known.data].message : "Sign-in failed. Please try again.";
 }
