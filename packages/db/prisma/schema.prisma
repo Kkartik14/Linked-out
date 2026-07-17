@@ -286,8 +286,10 @@ model Follow {
   createdAt DateTime @default(now())
 
   @@unique([followerId, followingId])
-  @@index([followingId])
-  @@index([followerId])
+  // Both follower/following lists paginate by keyset — `WHERE "followingId" = $1 AND id < $2
+  // ORDER BY id DESC` — so `id` must be in the index or Postgres cannot serve the ORDER BY.
+  @@index([followingId, id(sort: Desc)])
+  @@index([followerId, id(sort: Desc)])
 }
 
 // ─── Collections ──────────────────────────────────────────────────────────────
