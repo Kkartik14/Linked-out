@@ -17,12 +17,10 @@ export type NotificationWithRelations = Prisma.NotificationGetPayload<{
       select: {
         id: true;
         title: true;
+        authorId: true;
         beenThereCount: true;
         helpfulCount: true;
-        reactions: {
-          select: { type: true };
-          where: { type: { in: ['BEEN_THERE', 'HELPFUL'] } };
-        };
+        reactions: { select: { type: true } };
       };
     };
   };
@@ -35,11 +33,15 @@ function notificationInclude(recipientId: string) {
       select: {
         id: true,
         title: true,
+        // Lets the mapper tell whether this recipient owns the L or is being notified as the
+        // author of a comment someone replied to — the two need different copy.
+        authorId: true,
         beenThereCount: true,
         helpfulCount: true,
         // The denormalized counters include the L author's own reactions. Fetch at most
         // their two relevant reaction rows so the mapper can preserve the external-builder
-        // wording without hydrating every reactor on the L.
+        // wording without hydrating every reactor on the L. The `userId` filter is what makes
+        // this the *recipient's* own reactions; the mapper's subtraction depends on it.
         reactions: {
           where: { userId: recipientId, type: { in: ['BEEN_THERE', 'HELPFUL'] } },
           select: { type: true },
