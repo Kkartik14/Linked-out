@@ -85,9 +85,16 @@ test('the repository architecture pins the same Node major locally and in CI', (
   assert.equal(webPackage.engines.node, '22.x');
   assert.doesNotMatch(ciWorkflow, /\bNODE_VERSION\s*:/);
   assert.doesNotMatch(ciWorkflow, /^\s+node-version:\s/m);
+
+  // Derived from the workflow rather than hardcoded: the claim is "every setup-node step reads
+  // the pin", and a literal count restates that as a number that has to be bumped whenever a
+  // job is added — failing for the wrong reason, and inviting the bump to be made without
+  // checking the new step actually reads the pin.
+  const setupNodeSteps = (ciWorkflow.match(/^\s+-\s+uses:\s*actions\/setup-node@/gm) ?? []).length;
+  assert.ok(setupNodeSteps > 0, 'the workflow sets Node up at all');
   assert.equal(
     (ciWorkflow.match(/^\s+node-version-file:\s*\.node-version\s*$/gm) ?? []).length,
-    3,
+    setupNodeSteps,
     'every setup-node step reads the repository Node pin',
   );
 });
