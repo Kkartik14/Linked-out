@@ -22,16 +22,35 @@ docker-compose.yml Local PostgreSQL
 
 Use Node.js 22 (pinned in `.node-version`, matching CI) and pnpm 11.10.0.
 
-Backend workspace:
+Backend workspace — **run this block on a fresh clone and again after every `git pull`.** Every
+step is idempotent, so it is always safe to re-run, and it keeps your dev database in step with
+the migrations you just pulled:
 
 ```bash
 pnpm install
-pnpm db:up
-pnpm migrate
+pnpm db:up                                  # start Postgres (needs the Docker engine running)
+pnpm --filter @linkedout/db migrate:deploy  # apply any migrations you just pulled
+pnpm build                                  # regenerate the Prisma client + contracts
 pnpm dev
 ```
 
 The API runs on `http://localhost:4000/v1` by default.
+
+`pnpm db:up` only works if the Docker **engine** is running — an open Docker Desktop window is
+not enough. Confirm with `docker info`; if that errors, start Docker and retry. A stale
+`~/.docker/run/docker.sock` makes the failure look like a database problem rather than a stopped
+engine.
+
+**Do not skip `migrate:deploy`.** It is the most common way to break local dev: the test suites
+migrate `linkedout_test`, but nothing migrates your `linkedout` dev database, so it drifts behind
+silently while every suite stays green. The API then fails at runtime with errors like
+`The column L.popularityScore does not exist in the current database`.
+
+Use `pnpm migrate` (`prisma migrate dev`) **only when authoring a new migration.** It diffs
+`schema.prisma` against the database and can generate new migrations or prompt for a reset —
+and because several objects are owned by raw SQL rather than `schema.prisma` (the `searchVector`
+generated column, the FTS/trigram/partial indexes, and the `Follow` counter triggers), it can
+propose dropping them. To catch an existing database up, always use `migrate:deploy`.
 
 Frontend workspace:
 
