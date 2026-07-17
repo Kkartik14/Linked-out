@@ -107,6 +107,7 @@ model User {
   accounts        Account[]
   sessions        Session[]
   browserSessions BrowserSession[]
+  oauthHandoffs   OAuthHandoff[]
 
   @@index([status])
 }
@@ -160,6 +161,24 @@ model BrowserSession {
   @@index([createdAt, id])
   @@index([lastUsedAt, id])
   @@index([revokedAt, id])
+}
+
+// One-time OAuth callback result. Only its hash is persisted; sub and returnTo are
+// bound by the server after OAuth state validation and cannot be supplied at exchange.
+model OAuthHandoff {
+  id         String    @id @default(cuid()) // ULID assigned by the client extension
+  codeHash   String    @unique @db.Char(64)
+  sub        String
+  returnTo   String    @db.VarChar(512)
+  createdAt  DateTime  @default(now())
+  expiresAt  DateTime
+  consumedAt DateTime?
+
+  user User @relation(fields: [sub], references: [id], onDelete: Cascade)
+
+  @@index([sub])
+  @@index([expiresAt, id])
+  @@index([consumedAt, id])
 }
 
 model VerificationToken {

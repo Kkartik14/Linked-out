@@ -2,6 +2,8 @@ import type { Type } from '@nestjs/common';
 import {
   addLToCollectionInputSchema,
   authMeResponseSchema,
+  oauthHandoffExchangeInputSchema,
+  oauthHandoffExchangeResponseSchema,
   avatarUploadRequestSchema,
   avatarUploadResponseSchema,
   collectionDetailSchema,
@@ -49,6 +51,8 @@ const searchResultSchema = z.union([paginatedLCardSchema, paginatedUserSummarySc
 export const API_COMPONENT_SCHEMAS = {
   AddLToCollectionInput: addLToCollectionInputSchema,
   AuthMeResponse: authMeResponseSchema,
+  OAuthHandoffExchangeInput: oauthHandoffExchangeInputSchema,
+  OAuthHandoffExchangeResponse: oauthHandoffExchangeResponseSchema,
   AvatarUploadRequest: avatarUploadRequestSchema,
   AvatarUploadResponse: avatarUploadResponseSchema,
   Collection: collectionSchema,
@@ -202,6 +206,12 @@ export const API_ROUTE_CONTRACTS = {
   authMe: route('get /auth/me', 200, jsonResponse('AuthMeResponse')),
   authRefresh: route('post /auth/refresh', 200, jsonResponse('OkResponse')),
   authLogout: route('post /auth/logout', 200, jsonResponse('OkResponse')),
+  authOAuthHandoffExchange: route(
+    'post /auth/oauth/handoff/exchange',
+    200,
+    jsonResponse('OAuthHandoffExchangeResponse'),
+    jsonBody('OAuthHandoffExchangeInput'),
+  ),
 
   userUpdateMe: route(
     'patch /users/me',

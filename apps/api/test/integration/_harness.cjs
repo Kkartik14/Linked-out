@@ -222,6 +222,7 @@ const TABLES = [
   'Reaction',
   'DailyLSelection',
   'L',
+  'OAuthHandoff',
   'BrowserSession',
   'Session',
   'Account',

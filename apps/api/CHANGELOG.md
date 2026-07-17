@@ -15,6 +15,13 @@ and their CI/test boundaries. Newest first.
 - OAuth failure redirects now carry safe server-owned display copy, and the v2 Top-Ls aggregate
   supplies its own window caption so clients no longer need to compose either business message.
 
+### Added
+
+- Added the purpose-scoped OAuth handoff boundary for the one-origin BFF: Nest can persist a
+  60-second, single-use callback result by hash and exchange it atomically for the state-bound
+  `{ sub, returnTo }` using a dedicated `aud: auth-exchange` assertion. The legacy cookie/session
+  callback remains the default until `OAUTH_SESSION_MODE=handoff` is enabled for the cutover.
+
 ### Documentation
 
 - Added this backend-specific changelog. Internal design and contract narratives now live in the

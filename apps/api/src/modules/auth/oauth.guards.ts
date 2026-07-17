@@ -16,6 +16,7 @@ interface OAuthAuthenticateOptions {
 
 export interface OAuthRequest extends Request {
   oauthError?: OAuthFailureCode;
+  oauthReturnTo?: string;
 }
 
 function stateCookieOptions(config: AppConfigService, maxAgeMs: number): CookieOptions {
@@ -23,7 +24,7 @@ function stateCookieOptions(config: AppConfigService, maxAgeMs: number): CookieO
     httpOnly: true,
     secure: config.isProduction,
     sameSite: 'lax',
-    domain: config.cookieDomain,
+    domain: config.oauthStateCookieDomain,
     path: '/v1/auth',
     maxAge: maxAgeMs,
   };
@@ -57,7 +58,10 @@ function callbackStateIsValid(context: ExecutionContext, config: AppConfigServic
     getCookie(req, OAUTH_STATE_COOKIE),
     config.jwtAccessSecret,
   );
-  if (returnTo) return true;
+  if (returnTo) {
+    (req as OAuthRequest).oauthReturnTo = returnTo;
+    return true;
+  }
 
   const oauthReq = req as OAuthRequest;
   oauthReq.oauthError = req.query.error === 'access_denied' ? 'access_denied' : 'oauth_failed';

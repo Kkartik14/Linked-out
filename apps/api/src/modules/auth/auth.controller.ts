@@ -1,5 +1,22 @@
-import { Controller, Get, HttpCode, Post, Req, Res, UseGuards, Version } from '@nestjs/common';
-import { OAUTH_FAILURES, type AuthMeResponse, type OAuthFailureCode } from '@linkedout/contracts';
+import {
+  Body,
+  Controller,
+  Get,
+  HttpCode,
+  Post,
+  Req,
+  Res,
+  UseGuards,
+  Version,
+} from '@nestjs/common';
+import {
+  oauthHandoffExchangeInputSchema,
+  OAUTH_FAILURES,
+  type AuthMeResponse,
+  type OAuthFailureCode,
+  type OAuthHandoffExchangeInput,
+  type OAuthHandoffExchangeResponse,
+} from '@linkedout/contracts';
 import type { Request, Response } from 'express';
 
 import { OptionalUser } from '../../common/decorators/current-user.decorator';
@@ -9,14 +26,17 @@ import { OptionalAuthGuard } from '../../common/guards/optional-auth.guard';
 import { StrictOptionalAuthGuard } from '../../common/guards/strict-optional-auth.guard';
 import { AppErrors } from '../../common/errors/app-exception';
 import { getCookie } from '../../common/http/cookies';
+import { ZodValidationPipe } from '../../common/pipes/zod-validation.pipe';
 import type { AuthUser } from '../../common/types/auth';
 import { AppConfigService } from '../../config/app-config.service';
 import { UsersService } from '../users/users.service';
 import { AuthService } from './auth.service';
+import { AuthExchangeGuard } from './auth-exchange.guard';
 import { GithubAuthGuard, GoogleAuthGuard } from './oauth.guards';
 import { REFRESH_COOKIE, TokenService } from './token.service';
-import { decodeOAuthState, OAUTH_STATE_COOKIE } from './oauth-state';
+import { OAUTH_STATE_COOKIE } from './oauth-state';
 import type { OAuthRequest } from './oauth.guards';
+import { OAuthHandoffService } from './oauth-handoff.service';
 
 @Controller({ path: 'auth', version: ['1', '2'] })
 export class AuthController {
@@ -25,6 +45,7 @@ export class AuthController {
     private readonly tokens: TokenService,
     private readonly users: UsersService,
     private readonly config: AppConfigService,
+    private readonly handoffs: OAuthHandoffService,
   ) {}
 
   @Get('google')
@@ -122,13 +143,30 @@ export class AuthController {
     return { ok: true };
   }
 
+  @Post('oauth/handoff/exchange')
+  @Version('1')
+  @HttpCode(200)
+  @UseGuards(AuthExchangeGuard)
+  @ApiContract(API_ROUTE_CONTRACTS.authOAuthHandoffExchange)
+  async exchangeOAuthHandoff(
+    @Res({ passthrough: true }) res: Response,
+    @Body(new ZodValidationPipe(oauthHandoffExchangeInputSchema))
+    input: OAuthHandoffExchangeInput,
+  ): Promise<OAuthHandoffExchangeResponse> {
+    res.setHeader('Cache-Control', 'no-store');
+    const handoff = await this.handoffs.exchange(input.code);
+    if (!handoff) throw AppErrors.invalidHandoff();
+    return handoff;
+  }
+
   private async completeOAuth(
     user: AuthUser | undefined,
     req: Request,
     res: Response,
   ): Promise<void> {
+    res.setHeader('Cache-Control', 'no-store');
     res.clearCookie(OAUTH_STATE_COOKIE, {
-      domain: this.config.cookieDomain,
+      domain: this.config.oauthStateCookieDomain,
       path: '/v1/auth',
     });
     if (!user) {
@@ -139,15 +177,18 @@ export class AuthController {
       res.redirect(this.oauthFailureRedirect(error));
       return;
     }
-    const returnTo = decodeOAuthState(
-      req.query.state,
-      getCookie(req, OAUTH_STATE_COOKIE),
-      this.config.jwtAccessSecret,
-    );
+    const returnTo = (req as OAuthRequest).oauthReturnTo;
     if (!returnTo) {
       res.redirect(this.oauthFailureRedirect('oauth_failed'));
       return;
     }
+    if (this.config.oauthSessionMode === 'handoff') {
+      const code = await this.handoffs.issue(user.id, returnTo);
+      this.tokens.clearAuthCookies(res);
+      res.redirect(`${this.config.webUrl}/auth/callback?code=${encodeURIComponent(code)}`);
+      return;
+    }
+
     const { refreshToken } = await this.auth.startSession(user);
     this.tokens.setAuthCookies(res, user, refreshToken);
     res.redirect(`${this.config.webUrl}/auth/callback?returnTo=${encodeURIComponent(returnTo)}`);

@@ -114,6 +114,7 @@ export const envSchema = z
       (value) => value.length === 0 || Buffer.byteLength(value, 'utf8') >= 32,
       { message: 'INTERNAL_API_SECRET must contain at least 32 bytes.' },
     ),
+    OAUTH_SESSION_MODE: z.enum(['legacy', 'handoff']).default('legacy'),
     COOKIE_DOMAIN: z.string().default(''),
 
     GOOGLE_CLIENT_ID: z.string().default(''),
@@ -129,6 +130,13 @@ export const envSchema = z
     R2_ENDPOINT: optionalUrl,
   })
   .superRefine((env, ctx) => {
+    if (env.OAUTH_SESSION_MODE === 'handoff' && env.INTERNAL_API_SECRET.length === 0) {
+      ctx.addIssue({
+        code: 'custom',
+        path: ['INTERNAL_API_SECRET'],
+        message: 'INTERNAL_API_SECRET is required when OAUTH_SESSION_MODE is handoff.',
+      });
+    }
     if (
       env.INTERNAL_API_SECRET.length > 0 &&
       (env.INTERNAL_API_SECRET === env.JWT_ACCESS_SECRET ||

@@ -63,6 +63,20 @@ export class AppConfigService {
     return this.env.INTERNAL_API_SECRET.length > 0 ? this.env.INTERNAL_API_SECRET : undefined;
   }
 
+  get oauthSessionMode(): Env['OAUTH_SESSION_MODE'] {
+    return this.env.OAUTH_SESSION_MODE;
+  }
+
+  /** Handoff callbacks enter through the public BFF; legacy callbacks still enter Nest. */
+  get oauthCallbackBaseUrl(): string {
+    return this.oauthSessionMode === 'handoff' ? this.webUrl : this.apiBaseUrl;
+  }
+
+  /** Handoff state is host-only; legacy keeps its bounded cross-subdomain compatibility. */
+  get oauthStateCookieDomain(): string | undefined {
+    return this.oauthSessionMode === 'legacy' ? this.cookieDomain : undefined;
+  }
+
   /** Empty in dev (host-only cookie on localhost); e.g. ".linkedout.app" in prod. */
   get cookieDomain(): string | undefined {
     return this.env.COOKIE_DOMAIN.length > 0 ? this.env.COOKIE_DOMAIN : undefined;

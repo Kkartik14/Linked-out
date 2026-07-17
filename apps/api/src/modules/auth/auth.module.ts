@@ -8,9 +8,12 @@ import { OptionalAuthGuard } from '../../common/guards/optional-auth.guard';
 import { StrictOptionalAuthGuard } from '../../common/guards/strict-optional-auth.guard';
 import { UsersModule } from '../users/users.module';
 import { AuthController } from './auth.controller';
+import { AuthExchangeGuard } from './auth-exchange.guard';
 import { AccessPrincipalResolver } from './access-principal.resolver';
 import { AuthRepository } from './auth.repository';
 import { AuthService } from './auth.service';
+import { OAuthHandoffRepository } from './oauth-handoff.repository';
+import { OAuthHandoffService } from './oauth-handoff.service';
 import { TokenModule } from './token.module';
 import { NestRequestAuthentication } from './nest-request-authentication';
 import { JwtStrategy } from './strategies/jwt.strategy';
@@ -40,6 +43,9 @@ const githubStrategyProvider: Provider = {
   controllers: [AuthController],
   providers: [
     AuthRepository,
+    OAuthHandoffRepository,
+    OAuthHandoffService,
+    AuthExchangeGuard,
     AccessPrincipalResolver,
     NestRequestAuthentication,
     { provide: REQUEST_AUTHENTICATION, useExisting: NestRequestAuthentication },

@@ -16,7 +16,7 @@ export class GoogleStrategy extends PassportStrategy(Strategy, 'google') {
     const options: StrategyOptions = {
       clientID: config.google.clientId,
       clientSecret: config.google.clientSecret,
-      callbackURL: `${config.apiBaseUrl}/v1/auth/google/callback`,
+      callbackURL: `${config.oauthCallbackBaseUrl}/v1/auth/google/callback`,
       scope: ['email', 'profile'],
     };
     super(options);

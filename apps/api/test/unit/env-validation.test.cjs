@@ -56,3 +56,20 @@ test('the internal assertion key cannot reuse either browser-token secret', () =
     );
   }
 });
+
+test('handoff OAuth mode cannot boot without its private exchange key', () => {
+  const result = envSchema.safeParse({
+    ...productionEnv,
+    NODE_ENV: 'test',
+    OAUTH_SESSION_MODE: 'handoff',
+    INTERNAL_API_SECRET: '',
+  });
+  assert.equal(result.success, false);
+  assert.ok(
+    result.error.issues.some(
+      (issue) =>
+        issue.path.join('.') === 'INTERNAL_API_SECRET' &&
+        issue.message.includes('OAUTH_SESSION_MODE is handoff'),
+    ),
+  );
+});

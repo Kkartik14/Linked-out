@@ -1,6 +1,7 @@
 import { z } from 'zod';
 
 import { userProfileSchema } from './user';
+import { ulidSchema } from './common';
 
 const CONTROL_CHARS = /[\u0000-\u001f\u007f]/;
 
@@ -31,6 +32,31 @@ export const oauthStartQuerySchema = z
   })
   .strict();
 export type OAuthStartQuery = z.infer<typeof oauthStartQuerySchema>;
+
+export const oauthHandoffCodeSchema = z
+  .string()
+  .regex(/^[A-Za-z0-9_-]{43}$/, 'code must be a 256-bit base64url value');
+export type OAuthHandoffCode = z.infer<typeof oauthHandoffCodeSchema>;
+
+export const oauthHandoffRedirectQuerySchema = z
+  .object({ code: oauthHandoffCodeSchema })
+  .strict();
+export type OAuthHandoffRedirectQuery = z.infer<typeof oauthHandoffRedirectQuerySchema>;
+
+export const oauthHandoffExchangeInputSchema = z
+  .object({ code: oauthHandoffCodeSchema })
+  .strict();
+export type OAuthHandoffExchangeInput = z.infer<typeof oauthHandoffExchangeInputSchema>;
+
+export const oauthHandoffExchangeResponseSchema = z
+  .object({
+    sub: ulidSchema,
+    returnTo: returnToSchema,
+  })
+  .strict();
+export type OAuthHandoffExchangeResponse = z.infer<
+  typeof oauthHandoffExchangeResponseSchema
+>;
 
 export const oauthFailureCodeSchema = z.enum([
   'access_denied',

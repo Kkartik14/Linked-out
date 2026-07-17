@@ -32,6 +32,7 @@ export type {
   Account,
   Session,
   BrowserSession,
+  OAuthHandoff,
   VerificationToken,
   AvatarDeletionClaim,
   L,
