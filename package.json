@@ -19,6 +19,7 @@
     "test:e2e": "pnpm --dir apps/web test:e2e",
     "db:test:setup": "bash scripts/setup-test-db.sh",
     "db:test:verify-schema": "node scripts/verify-migrated-schema.cjs",
+    "docs:sync-contract": "node scripts/sync-contract-docs.cjs",
     "migrate": "pnpm --filter @linkedout/db migrate:dev",
     "generate": "pnpm --filter @linkedout/db generate",
     "maintenance:cleanup": "node apps/api/dist/maintenance/run-cleanup.js",
