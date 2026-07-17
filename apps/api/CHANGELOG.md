@@ -12,8 +12,11 @@ and their CI/test boundaries. Newest first.
 - Completed CONTRACT-01B for the legacy v1 surface: query objects now reject unknown parameters,
   OAuth start accepts only its documented `returnTo`, and user searches reject the L-only category
   filter instead of silently ignoring it.
-- OAuth failure redirects now carry safe server-owned display copy, and the v2 Top-Ls aggregate
-  supplies its own window caption so clients no longer need to compose either business message.
+- The OAuth failure contract now publishes safe server-owned display copy, and the v2 Top-Ls
+  aggregate supplies its own window caption so clients no longer compose either business message.
+- Removed unauthenticated OAuth display copy from redirect query strings. Redirects now carry only
+  the validated failure code; clients take the corresponding copy from the versioned shared
+  contract, preventing attacker-authored links from presenting trusted-looking messages.
 
 ### Added
 

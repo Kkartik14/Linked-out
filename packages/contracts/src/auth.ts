@@ -65,7 +65,7 @@ export const oauthFailureCodeSchema = z.enum([
 ]);
 export type OAuthFailureCode = z.infer<typeof oauthFailureCodeSchema>;
 
-/** Safe, server-owned copy carried by an OAuth failure redirect. */
+/** Safe, server-owned copy shared with clients through the versioned contract. */
 export const oauthFailureSchema = z
   .object({
     code: oauthFailureCodeSchema,
@@ -77,7 +77,6 @@ export type OAuthFailure = z.infer<typeof oauthFailureSchema>;
 export const oauthFailureRedirectQuerySchema = z
   .object({
     error: oauthFailureCodeSchema,
-    message: z.string().min(1),
   })
   .strict();
 export type OAuthFailureRedirectQuery = z.infer<typeof oauthFailureRedirectQuerySchema>;

@@ -11,7 +11,6 @@ import {
 } from '@nestjs/common';
 import {
   oauthHandoffExchangeInputSchema,
-  OAUTH_FAILURES,
   type AuthMeResponse,
   type OAuthFailureCode,
   type OAuthHandoffExchangeInput,
@@ -195,8 +194,7 @@ export class AuthController {
   }
 
   private oauthFailureRedirect(code: OAuthFailureCode): string {
-    const failure = OAUTH_FAILURES[code];
-    const query = new URLSearchParams({ error: failure.code, message: failure.message });
+    const query = new URLSearchParams({ error: code });
     return `${this.config.webUrl}/auth/callback?${query.toString()}`;
   }
 }

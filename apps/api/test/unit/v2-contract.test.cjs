@@ -92,11 +92,14 @@ test('OAuth failure copy is contract-valid and server-owned', () => {
   for (const failure of Object.values(v2.OAUTH_FAILURES)) {
     assert.deepEqual(v2.oauthFailureSchema.parse(failure), failure);
     assert.deepEqual(
+      v2.oauthFailureRedirectQuerySchema.parse({ error: failure.code }),
+      { error: failure.code },
+    );
+    assert.throws(() =>
       v2.oauthFailureRedirectQuerySchema.parse({
         error: failure.code,
         message: failure.message,
       }),
-      { error: failure.code, message: failure.message },
     );
   }
 });
