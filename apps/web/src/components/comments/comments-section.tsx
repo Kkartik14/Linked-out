@@ -6,7 +6,7 @@ import { useInfiniteQuery, useMutation, useQuery, useQueryClient } from "@tansta
 import { addComment, getComments } from "@/lib/api";
 import { appendComment, flattenComments, type CommentPages } from "@/lib/comment-cache";
 import { queryKeys } from "@/lib/query-keys";
-import { useComposedPrincipal, usePrincipal, useSession } from "@/components/session-provider";
+import { useComposedPrincipal, usePrincipal, useViewer } from "@/components/session-provider";
 import { CommentForm } from "@/components/comments/comment-form";
 import { CommentItem } from "@/components/comments/comment-item";
 import { Button } from "@/components/ui/button";
@@ -26,7 +26,7 @@ function CommentSkeleton() {
 }
 
 export function CommentsSection({ lId, commentCount }: { lId: string; commentCount: number }) {
-  const { user } = useSession();
+  const user = useViewer();
   const principal = usePrincipal();
   const composedAs = useComposedPrincipal();
   const queryClient = useQueryClient();

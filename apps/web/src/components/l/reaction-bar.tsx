@@ -10,7 +10,7 @@ import type { ReactionResult, ReactionsSummary, ReactionType } from "@linkedout/
 
 import { addReaction, removeReaction, errorMessage } from "@/lib/api";
 import { queryKeys } from "@/lib/query-keys";
-import { useComposedPrincipal, usePrincipal, useSession } from "@/components/session-provider";
+import { useComposedPrincipal, usePrincipal, useViewer } from "@/components/session-provider";
 import { reactionOption, useMeta } from "@/components/meta-provider";
 import { cn } from "@/lib/utils";
 
@@ -59,7 +59,7 @@ export function ReactionBar({
   commentCount: number;
   commentHref: string;
 }) {
-  const { user } = useSession();
+  const user = useViewer();
   const principal = usePrincipal();
   const composedAs = useComposedPrincipal();
   const meta = useMeta();

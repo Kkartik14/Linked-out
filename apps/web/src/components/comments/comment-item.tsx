@@ -16,7 +16,7 @@ import {
   type CommentPages,
 } from "@/lib/comment-cache";
 import { queryKeys } from "@/lib/query-keys";
-import { useComposedPrincipal, usePrincipal, useSession } from "@/components/session-provider";
+import { useComposedPrincipal, usePrincipal, useViewer } from "@/components/session-provider";
 import { statusOption, useMeta } from "@/components/meta-provider";
 import { UserAvatar } from "@/components/user-avatar";
 import { ConfirmDialog } from "@/components/confirm-dialog";
@@ -33,7 +33,7 @@ function CommentBody({
   lId: string;
   depth: number;
 }) {
-  const { user } = useSession();
+  const user = useViewer();
   const principal = usePrincipal();
   const composedAs = useComposedPrincipal();
   const meta = useMeta();

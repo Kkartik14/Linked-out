@@ -1,14 +1,12 @@
 import type { Metadata } from "next";
-import { redirect } from "next/navigation";
 
-import { getSession } from "@/lib/session";
+import { getSession, requireViewer } from "@/lib/session";
 import { LComposer } from "@/components/l/l-composer";
 
 export const metadata: Metadata = { title: "Share an L" };
 
 export default async function NewLPage() {
-  const session = await getSession();
-  if (!session.user) redirect("/login?returnTo=/new");
+  requireViewer(await getSession(), "/new");
 
   return (
     <div className="mx-auto w-full max-w-2xl px-4 py-6">

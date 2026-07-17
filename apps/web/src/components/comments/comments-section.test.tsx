@@ -23,7 +23,7 @@ import { ReactionBar } from "@/components/l/reaction-bar";
 import { addComment, addReply, deleteComment, getComments, getReplies } from "@/lib/api";
 import { appendComment, flattenComments, type CommentPages } from "@/lib/comment-cache";
 
-const loggedIn: Session = { user: mockUser, needsOnboarding: false };
+const loggedIn: Session = { status: "authenticated", user: mockUser, needsOnboarding: false };
 const author = {
   id: mockUser.id,
   username: mockUser.username,

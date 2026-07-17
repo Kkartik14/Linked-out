@@ -52,7 +52,7 @@ export function renderWithProviders(
 ) {
   const { session, ...rest } = opts ?? {};
   const queryClient = new QueryClient({ defaultOptions: { queries: { retry: false } } });
-  const value: Session = session ?? { user: null, needsOnboarding: false };
+  const value: Session = session ?? { status: "guest" };
 
   function Wrapper({ children }: { children: React.ReactNode }) {
     return (

@@ -23,7 +23,7 @@ import {
 } from "@/components/ui/dropdown-menu";
 
 export function UserMenu() {
-  const { user } = useSession();
+  const session = useSession();
   const meta = useMeta();
   const router = useRouter();
   const composedAs = useComposedPrincipal();
@@ -39,14 +39,18 @@ export function UserMenu() {
     onError: () => toast.error("Could not sign out. Try again."),
   });
 
-  if (!user) {
-    return (
+  if (session.status !== "authenticated") {
+    // A guest is offered sign-in. An `unavailable` session renders nothing at all — showing
+    // "Log in" would claim they are signed out when the truth is only that we could not
+    // confirm the session, and a bare header is the honest way to say "we don't know yet".
+    return session.status === "guest" ? (
       <Button asChild size="sm">
         <Link href="/login">Log in</Link>
       </Button>
-    );
+    ) : null;
   }
 
+  const user = session.user;
   const status = statusOption(meta, user.status);
 
   return (

@@ -13,7 +13,7 @@ import {
   errorMessage,
   getUserCollections,
 } from "@/lib/api";
-import { useComposedPrincipal, usePrincipal, useSession } from "@/components/session-provider";
+import { useComposedPrincipal, usePrincipal, useViewer } from "@/components/session-provider";
 import { queryKeys } from "@/lib/query-keys";
 import { Button } from "@/components/ui/button";
 import {
@@ -35,7 +35,7 @@ type SaveToCollectionProps = {
 
 /** Resolves the viewer before any hook runs, so the inner component always has one. */
 export function SaveToCollectionButton(props: SaveToCollectionProps) {
-  const { user } = useSession();
+  const user = useViewer();
   if (!user) return null;
   return <SaveToCollection {...props} user={user} />;
 }

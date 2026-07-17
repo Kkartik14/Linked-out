@@ -5,7 +5,7 @@ import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
 import { PenLine, Search } from "lucide-react";
 
-import { useSession } from "@/components/session-provider";
+import { useViewer } from "@/components/session-provider";
 import { Button } from "@/components/ui/button";
 import { ThemeToggle } from "@/components/layout/theme-toggle";
 import { NotificationsBell } from "@/components/layout/notifications-bell";
@@ -40,7 +40,7 @@ function HeaderSearch() {
 }
 
 export function Header() {
-  const { user } = useSession();
+  const user = useViewer();
   const pathname = usePathname();
   const isFeed = pathname === "/";
 

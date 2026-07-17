@@ -8,12 +8,34 @@ import type { UserProfile } from "@linkedout/contracts/v2";
 import type { ComposedPrincipal } from "@/lib/principal";
 import { subscribeSessionChanged } from "@/lib/session-channel";
 
-export interface Session {
-  user: UserProfile | null;
-  needsOnboarding: boolean;
+/**
+ * What this tab knows about who is viewing — three genuinely different facts, not two.
+ *
+ *  - `authenticated` — a live viewer, with the onboarding bit the server resolved.
+ *  - `guest` — no viewer: either no credential was presented, or one was and it was rejected.
+ *    Both lead to the same remedy (sign in), so the UI need not tell them apart.
+ *  - `unavailable` — we could **not determine** identity: `/auth/me` failed for a reason that
+ *    is not "not signed in" (a 5xx, a network error, a timeout). This is the state AUTH-06
+ *    exists for. Collapsing it into `guest` — which the old shape did — renders an outage as a
+ *    confident sign-out: it hides the user's own menu, offers "Log in" as if the session were
+ *    gone, and bounces protected routes to `/login`. The honest answer is "we don't know yet".
+ */
+export type Session =
+  | { status: "authenticated"; user: UserProfile; needsOnboarding: boolean }
+  | { status: "guest" }
+  | { status: "unavailable" };
+
+/** The viewer's profile, or `null` when there is none to show — guest and unavailable alike. */
+export function sessionViewer(session: Session): UserProfile | null {
+  return session.status === "authenticated" ? session.user : null;
 }
 
-const SessionContext = React.createContext<Session>({ user: null, needsOnboarding: false });
+/** Cache-scoping principal: the viewer id, or `"anon"` when there is no known viewer. */
+export function sessionPrincipal(session: Session): string {
+  return sessionViewer(session)?.id ?? "anon";
+}
+
+const SessionContext = React.createContext<Session>({ status: "guest" });
 
 /**
  * Holds the session snapshot and owns the one place a principal change is reconciled.
@@ -33,7 +55,7 @@ export function SessionProvider({
 }) {
   const router = useRouter();
   const queryClient = useQueryClient();
-  const principal = session.user?.id ?? "anon";
+  const principal = sessionPrincipal(session);
   const previousPrincipal = React.useRef(principal);
 
   /**
@@ -95,9 +117,18 @@ export function useSession(): Session {
   return React.useContext(SessionContext);
 }
 
-/** The current principal id for cache scoping — the user id, or `"anon"` when logged out. */
+/**
+ * The viewer's profile, or `null` when there is none. Most UI only needs "is there a viewer";
+ * the guest-vs-unavailable distinction matters to just the header (what to offer) and the
+ * protected routes (redirect vs error), which read the full {@link useSession} instead.
+ */
+export function useViewer(): UserProfile | null {
+  return sessionViewer(useSession());
+}
+
+/** The current principal id for cache scoping — the viewer id, or `"anon"`. */
 export function usePrincipal(): string {
-  return useSession().user?.id ?? "anon";
+  return sessionPrincipal(useSession());
 }
 
 /**

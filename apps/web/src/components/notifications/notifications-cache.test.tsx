@@ -47,7 +47,7 @@ describe("notifications bell + page share a QueryClient without colliding", () =
         <NotificationsBell />
         <NotificationsList />
       </>,
-      { session: { user: mockUser, needsOnboarding: false } },
+      { session: { status: "authenticated", user: mockUser, needsOnboarding: false } },
     );
 
     // The infinite page rendered its item — its `{ pages }` shape was not clobbered by the

@@ -57,9 +57,11 @@ function Composed({ seen }: { seen: string[] }) {
   return <output>{composedAs}</output>;
 }
 
-const signedIn: Session = { user: mockUser, needsOnboarding: false };
+const signedIn: Session = { status: "authenticated", user: mockUser, needsOnboarding: false };
+const OTHER_ID = "01BX5ZZKBKACTAV9WEVGEMMVRZ";
 const otherUser: Session = {
-  user: { ...mockUser, id: "01BX5ZZKBKACTAV9WEVGEMMVRZ", username: "other" },
+  status: "authenticated",
+  user: { ...mockUser, id: OTHER_ID, username: "other" },
   needsOnboarding: false,
 };
 
@@ -83,7 +85,7 @@ describe("SessionProvider cache lifecycle", () => {
     queryClient.setQueryData(["feed", mockUser.id], { viewer: "kartik" });
 
     const view = renderProvider(signedIn, queryClient, routerSpy());
-    view.rerenderWith({ user: { ...mockUser, bio: "edited" }, needsOnboarding: false });
+    view.rerenderWith({ status: "authenticated", user: { ...mockUser, bio: "edited" }, needsOnboarding: false });
     await settle();
 
     expect(queryClient.getQueryCache().getAll()).toHaveLength(1);
@@ -110,8 +112,8 @@ describe("useComposedPrincipal", () => {
     const view = renderProvider(signedIn, new QueryClient(), routerSpy(), <Composed seen={seen} />);
     view.rerenderWith(otherUser);
 
-    expect(view.getByRole("status")).toHaveTextContent(otherUser.user!.id);
-    expect(seen.at(-1)).toBe(otherUser.user!.id);
+    expect(view.getByRole("status")).toHaveTextContent(OTHER_ID);
+    expect(seen.at(-1)).toBe(OTHER_ID);
   });
 
   it("does not remount when the snapshot changes but the principal does not", () => {
@@ -119,14 +121,14 @@ describe("useComposedPrincipal", () => {
     // viewer was in the middle of typing, for no safety gain — same person, same session.
     const seen: string[] = [];
     const view = renderProvider(signedIn, new QueryClient(), routerSpy(), <Composed seen={seen} />);
-    view.rerenderWith({ user: { ...mockUser, bio: "edited" }, needsOnboarding: false });
+    view.rerenderWith({ status: "authenticated", user: { ...mockUser, bio: "edited" }, needsOnboarding: false });
 
     expect(new Set(seen)).toEqual(new Set([mockUser.id]));
   });
 
   it("declares the guest principal when signed out", () => {
     const seen: string[] = [];
-    renderProvider({ user: null, needsOnboarding: false }, new QueryClient(), routerSpy(), (
+    renderProvider({ status: "guest" }, new QueryClient(), routerSpy(), (
       <Composed seen={seen} />
     ));
 

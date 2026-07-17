@@ -9,9 +9,10 @@ vi.mock("@/lib/api", async (importOriginal) => {
 
 import { OnboardingForm } from "@/components/onboarding-form";
 import { patchMe } from "@/lib/api";
+import type { Session } from "@/components/session-provider";
 import { mockUser, renderWithProviders } from "@/test/utils";
 
-const signedIn = { user: mockUser, needsOnboarding: true };
+const signedIn: Session = { status: "authenticated", user: mockUser, needsOnboarding: true };
 
 function render() {
   return renderWithProviders(<OnboardingForm returnTo="/" defaultName="" />, {

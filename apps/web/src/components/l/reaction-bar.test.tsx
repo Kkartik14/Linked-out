@@ -23,7 +23,7 @@ vi.mock("@/lib/api", async (importOriginal) => {
 import { ReactionBar } from "@/components/l/reaction-bar";
 import { addReaction } from "@/lib/api";
 
-const loggedIn: Session = { user: mockUser, needsOnboarding: false };
+const loggedIn: Session = { status: "authenticated", user: mockUser, needsOnboarding: false };
 
 beforeEach(() => {
   vi.clearAllMocks();

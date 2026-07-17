@@ -7,7 +7,7 @@ import type { UserProfile } from "@linkedout/contracts/v2";
 
 import { errorMessage, follow, unfollow } from "@/lib/api";
 import { queryKeys } from "@/lib/query-keys";
-import { useComposedPrincipal, usePrincipal, useSession } from "@/components/session-provider";
+import { useComposedPrincipal, usePrincipal, useViewer } from "@/components/session-provider";
 import { Button } from "@/components/ui/button";
 
 export function FollowButton({
@@ -17,7 +17,7 @@ export function FollowButton({
   username: string;
   following: boolean;
 }) {
-  const { user } = useSession();
+  const user = useViewer();
   const principal = usePrincipal();
   const composedAs = useComposedPrincipal();
   const router = useRouter();

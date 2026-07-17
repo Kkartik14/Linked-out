@@ -26,9 +26,9 @@ vi.mock("@/lib/api", async (importOriginal) => {
 import { FeedSidebarLeft, FeedSidebarRight } from "@/components/feed/sidebar/feed-sidebar";
 import { follow, getFeedSidebar } from "@/lib/api";
 
-const loggedIn: Session = { user: mockUser, needsOnboarding: false };
-const signedOut: Session = { user: null, needsOnboarding: false };
-const onboarding: Session = { user: mockUser, needsOnboarding: true };
+const loggedIn: Session = { status: "authenticated", user: mockUser, needsOnboarding: false };
+const signedOut: Session = { status: "guest" };
+const onboarding: Session = { status: "authenticated", user: mockUser, needsOnboarding: true };
 
 /**
  * The clock every test runs at, and the response's own freshness window.
@@ -366,7 +366,7 @@ describe("FeedSidebarLeft — viewer card", () => {
 
   it("sends a half-onboarded viewer to finish onboarding", () => {
     renderWithProviders(<FeedSidebarLeft initial={sidebar({ user: mockUser, needsOnboarding: true })} />, {
-      session: { user: mockUser, needsOnboarding: true },
+      session: { status: "authenticated", user: mockUser, needsOnboarding: true },
     });
 
     expect(screen.getByRole("link", { name: /finish/i })).toHaveAttribute("href", "/onboarding");

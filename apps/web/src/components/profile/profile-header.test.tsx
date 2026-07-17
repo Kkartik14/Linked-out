@@ -19,7 +19,7 @@ vi.mock("@/lib/api", async (importOriginal) => {
 import { ProfileHeader } from "@/components/profile/profile-header";
 import { follow, getProfile } from "@/lib/api";
 
-const loggedIn: Session = { user: mockUser, needsOnboarding: false };
+const loggedIn: Session = { status: "authenticated", user: mockUser, needsOnboarding: false };
 const profile: UserProfile = {
   ...mockUser,
   id: "target-user",
