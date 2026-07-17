@@ -5,6 +5,7 @@ import type { CookieOptions, Request, Response } from 'express';
 
 import { AppErrors, isAppExceptionBody } from '../../common/errors/app-exception';
 import { getCookie } from '../../common/http/cookies';
+import { zodErrorToFieldErrors } from '../../common/pipes/zod-validation.pipe';
 import type { AuthUser } from '../../common/types/auth';
 import { AppConfigService } from '../../config/app-config.service';
 import { createOAuthState, decodeOAuthState, OAUTH_STATE_COOKIE } from './oauth-state';
@@ -36,7 +37,7 @@ function stateFromRequest(
   const res = context.switchToHttp().getResponse<Response>();
   const parsed = oauthStartQuerySchema.safeParse(req.query);
   if (!parsed.success) {
-    throw AppErrors.validationMessage('returnTo must be a relative path.');
+    throw AppErrors.validation(zodErrorToFieldErrors(parsed.error));
   }
   const returnTo = parsed.data.returnTo ?? '/';
   const state = createOAuthState(returnTo, config.jwtAccessSecret);

@@ -64,6 +64,16 @@ describe('18 · cross-cutting contract invariants (§1.5–§1.7)', () => {
     }
   });
 
+  test('every list endpoint rejects unknown query parameters', async () => {
+    for (const endpoint of LIST_ENDPOINTS) {
+      const res = await h.get(url(endpoint, 'limti=5'), {
+        cookie: endpoint.auth ? user.cookie : undefined,
+      });
+      const error = h.expectError(res, 400, 'VALIDATION_ERROR');
+      assert.equal(error.details[0].field, 'limti', endpoint.path);
+    }
+  });
+
   test('cursors are opaque base64url that decode to an object, never a raw id', async () => {
     for (let i = 0; i < 3; i += 1) await h.createL(user.id, { title: `L${i}` });
 

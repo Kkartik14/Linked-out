@@ -219,6 +219,12 @@ describe('02 · auth & sessions (contract §1.1, §4.1)', () => {
     assert.ok(res.headers.get('location').includes('state='));
   });
 
+  test('GET /auth/google rejects undocumented navigation parameters', async () => {
+    const res = await h.get('/auth/google?utm_source=mail');
+    const error = h.expectError(res, 400, 'VALIDATION_ERROR');
+    assert.equal(error.details[0].field, 'utm_source');
+  });
+
   test('GET /auth/google rejects open-redirect returnTo values', async () => {
     const hostile = [
       'https://evil.example.com',

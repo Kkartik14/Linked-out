@@ -103,6 +103,15 @@ test('query validation rejects impossible pagination and search values', () => {
   assert.equal(paginationPipe.transform({ limit: '5' }).limit, 5);
 
   assert.throws(
+    () => paginationPipe.transform({ limti: '5' }),
+    (error) => {
+      assertAppError(error, 400, 'VALIDATION_ERROR');
+      assert.equal(errorBody(error).details[0].field, 'limti');
+      return true;
+    },
+  );
+
+  assert.throws(
     () => paginationPipe.transform({ limit: '0' }),
     (error) => {
       assertAppError(error, 400, 'VALIDATION_ERROR');
@@ -119,6 +128,16 @@ test('query validation rejects impossible pagination and search values', () => {
       return true;
     },
   );
+
+  for (const query of [
+    { q: 'builder', tyep: 'users' },
+    { q: 'builder', type: 'users', filter: 'career' },
+  ]) {
+    assert.throws(
+      () => searchPipe.transform(query),
+      (error) => assertAppError(error, 400, 'VALIDATION_ERROR'),
+    );
+  }
 
   assert.throws(
     () => new ZodValidationPipe(createLInputSchema).transform({

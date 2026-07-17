@@ -5,6 +5,12 @@ and their CI/test boundaries. Newest first.
 
 ## [Unreleased]
 
+### Changed
+
+- Completed CONTRACT-01B for the legacy v1 surface: query objects now reject unknown parameters,
+  OAuth start accepts only its documented `returnTo`, and user searches reject the L-only category
+  filter instead of silently ignoring it.
+
 ### Documentation
 
 - Added this backend-specific changelog. Internal design and contract narratives now live in the

@@ -25,7 +25,9 @@ export const authMeResponseSchema = z.object({
 export type AuthMeResponse = z.infer<typeof authMeResponseSchema>;
 
 /** `returnTo` must be a relative path (leading slash) — no open redirects. */
-export const oauthStartQuerySchema = z.object({
-  returnTo: returnToSchema.optional(),
-});
+export const oauthStartQuerySchema = z
+  .object({
+    returnTo: returnToSchema.optional(),
+  })
+  .strict();
 export type OAuthStartQuery = z.infer<typeof oauthStartQuerySchema>;

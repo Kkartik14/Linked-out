@@ -111,6 +111,7 @@ describe('01 · meta & discovery (contract §4.12)', () => {
     h.expectError(await h.get('/tags/popular?limit=21'), 400, 'VALIDATION_ERROR');
     h.expectError(await h.get('/tags/popular?limit=0'), 400, 'VALIDATION_ERROR');
     h.expectError(await h.get('/tags/popular?limit=abc'), 400, 'VALIDATION_ERROR');
+    h.expectError(await h.get('/tags/popular?limti=2'), 400, 'VALIDATION_ERROR');
   });
 
   test('unknown routes render the standard error envelope, not an HTML 404', async () => {

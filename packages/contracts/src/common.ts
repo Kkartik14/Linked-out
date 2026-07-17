@@ -32,10 +32,12 @@ export const dateInputSchema = z
 export function paginationQuerySchema(options?: { defaultLimit?: number; maxLimit?: number }) {
   const defaultLimit = options?.defaultLimit ?? 20;
   const maxLimit = options?.maxLimit ?? 50;
-  return z.object({
-    limit: z.coerce.number().int().min(1).max(maxLimit).default(defaultLimit),
-    cursor: z.string().min(1).optional(),
-  });
+  return z
+    .object({
+      limit: z.coerce.number().int().min(1).max(maxLimit).default(defaultLimit),
+      cursor: z.string().min(1).optional(),
+    })
+    .strict();
 }
 
 export type PaginationQuery = z.infer<ReturnType<typeof paginationQuerySchema>>;
@@ -61,9 +63,8 @@ export interface Paginated<T> {
  * which would otherwise let a privacy field fall back to its permissive default. PATCH bodies
  * also require at least one recognized field via `hasAtLeastOneField`.
  *
- * NOTE: query objects (pagination/feed/search/auth/meta) are NOT yet strict — see
- * `docs/contract-01-status.md` (CONTRACT-01B). Do not claim "all external request objects are
- * strict" until 01B lands.
+ * Query objects are also strict (CONTRACT-01B). Endpoint-specific schemas may refine valid field
+ * combinations further; for example, the legacy search filter is valid only for L searches.
  */
 export const AT_LEAST_ONE_FIELD = 'Provide at least one field to update.';
 
