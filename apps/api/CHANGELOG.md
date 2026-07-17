@@ -7,6 +7,8 @@ and their CI/test boundaries. Newest first.
 
 ### Changed
 
+- Legacy logout no longer requires a live 15-minute access cookie: it revokes an optional refresh
+  session first, clears both cookies, and returns 200 for absent, stale, or repeated requests.
 - Completed CONTRACT-01B for the legacy v1 surface: query objects now reject unknown parameters,
   OAuth start accepts only its documented `returnTo`, and user searches reject the L-only category
   filter instead of silently ignoring it.

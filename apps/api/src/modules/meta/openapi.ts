@@ -158,7 +158,7 @@ export function buildOpenApiDocument(): OpenApiDocument {
           security: [{ refreshCookie: [] }],
         },
       },
-      '/auth/logout': { post: {} },
+      '/auth/logout': { post: { security: [] } },
 
       '/users/me': {
         patch: {

@@ -5,7 +5,6 @@ import type { Request, Response } from 'express';
 import { OptionalUser } from '../../common/decorators/current-user.decorator';
 import { ApiContract, API_ROUTE_CONTRACTS } from '../../common/contracts/api-route-contracts';
 import { API_ROUTE_CONTRACTS_V2 } from '../../common/contracts/api-route-contracts-v2';
-import { JwtAuthGuard } from '../../common/guards/jwt-auth.guard';
 import { OptionalAuthGuard } from '../../common/guards/optional-auth.guard';
 import { StrictOptionalAuthGuard } from '../../common/guards/strict-optional-auth.guard';
 import { AppErrors } from '../../common/errors/app-exception';
@@ -112,7 +111,6 @@ export class AuthController {
 
   @Post('logout')
   @HttpCode(200)
-  @UseGuards(JwtAuthGuard)
   @ApiContract(API_ROUTE_CONTRACTS.authLogout)
   async logout(
     @Req() req: Request,

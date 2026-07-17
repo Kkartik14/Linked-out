@@ -159,7 +159,7 @@ export function buildOpenApiV2Document(): OpenApiDocument {
       '/auth/github/callback': { get: { security: [] } },
       '/auth/me': { get: { security: optionalAuth } },
       '/auth/refresh': { post: { security: [{ refreshCookie: [] }] } },
-      '/auth/logout': { post: {} },
+      '/auth/logout': { post: { security: [] } },
       '/users/me': { patch: {} },
       '/users/{username}': {
         get: {
