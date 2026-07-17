@@ -69,7 +69,7 @@ describe("ProfileHeader follow state", () => {
 
     await user.click(screen.getByRole("button", { name: "Follow" }));
 
-    expect(follow).toHaveBeenCalledWith("sam");
+    expect(follow).toHaveBeenCalledWith(mockUser.id, "sam");
     expect(await screen.findByRole("button", { name: "Following" })).toBeInTheDocument();
     expect(screen.getByText(/11 followers/)).toHaveTextContent("11 followers · 4 following");
   });

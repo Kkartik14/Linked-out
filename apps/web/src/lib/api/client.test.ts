@@ -1,7 +1,11 @@
+import { PRINCIPAL_BINDING_HEADER } from "@linkedout/contracts/v2";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
+import type { ComposedPrincipal } from "@/lib/principal";
 import { apiFetch } from "./client";
 import { ApiError } from "./errors";
+
+const COMPOSED = "01ARZ3NDEKTSV4RRFFQ69G5FAV" as string as ComposedPrincipal;
 
 function jsonResponse(body: unknown, init: ResponseInit = {}) {
   return new Response(JSON.stringify(body), {
@@ -25,6 +29,28 @@ describe("apiFetch", () => {
     expect(String(url)).toMatch(/\/ls$/);
     expect(init).toMatchObject({ method: "POST", credentials: "include", cache: "no-store" });
     expect(new Headers(init?.headers).get("content-type")).toBe("application/json");
+  });
+
+  it("puts the composing principal on the wire, under the contract's header name", async () => {
+    vi.mocked(fetch).mockResolvedValueOnce(jsonResponse({ ok: true }));
+
+    await apiFetch("/ls", { method: "POST", principal: COMPOSED, body: "{}" });
+
+    const [, init] = vi.mocked(fetch).mock.calls[0]!;
+    // Asserted against the contract's own constant: the API matches on this exact name, and
+    // a typo here is a 409 on every write with nothing in the diff to see.
+    expect(new Headers(init?.headers).get(PRINCIPAL_BINDING_HEADER)).toBe(COMPOSED);
+    // `principal` is ours, not `fetch`'s — it must be consumed, not forwarded as an option.
+    expect(init).not.toHaveProperty("principal");
+  });
+
+  it("omits the header entirely when no principal is declared", async () => {
+    vi.mocked(fetch).mockResolvedValueOnce(jsonResponse({ data: [] }));
+
+    await apiFetch("/feed");
+
+    const [, init] = vi.mocked(fetch).mock.calls[0]!;
+    expect(new Headers(init?.headers).has(PRINCIPAL_BINDING_HEADER)).toBe(false);
   });
 
   it("preserves an explicit anonymous Next revalidation policy", async () => {

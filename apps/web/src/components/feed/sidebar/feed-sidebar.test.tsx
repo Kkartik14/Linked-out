@@ -492,7 +492,7 @@ describe("FeedSidebarLeft — people to follow", () => {
       screen.getByRole("button", { name: new RegExp(`follow ${target.user.name}`, "i") }),
     );
 
-    expect(follow).toHaveBeenCalledWith(target.user.username);
+    expect(follow).toHaveBeenCalledWith(mockUser.id, target.user.username);
     await waitFor(() => expect(screen.queryByText(target.user.name!)).not.toBeInTheDocument());
   });
 
@@ -545,7 +545,7 @@ describe("FeedSidebarLeft — people to follow", () => {
     const succeeding = data.peopleToFollow.items[1]!;
 
     let rejectFailing: ((reason: Error) => void) | undefined;
-    vi.mocked(follow).mockImplementation((username) => {
+    vi.mocked(follow).mockImplementation((_principal, username) => {
       if (username === failing.user.username) {
         return new Promise((_resolve, reject) => {
           rejectFailing = reject;

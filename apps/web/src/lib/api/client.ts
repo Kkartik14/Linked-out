@@ -1,5 +1,7 @@
 import { API_BASE_URL } from "@/lib/env";
 import type { ErrorEnvelope } from "@linkedout/contracts/v2";
+import { PRINCIPAL_BINDING_HEADER } from "@linkedout/contracts/v2";
+import type { ComposedPrincipal } from "@/lib/principal";
 import { ApiError } from "./errors";
 
 export interface ApiFetchInit extends RequestInit {
@@ -7,6 +9,13 @@ export interface ApiFetchInit extends RequestInit {
   skipRefresh?: boolean;
   /** Overrides {@link DEFAULT_TIMEOUT_MS}. Use for a request the page can live without. */
   timeoutMs?: number;
+  /**
+   * Render-time identity for an authenticated mutation. The API rejects any authenticated
+   * unsafe method whose declaration is missing or disagrees with the live credential
+   * (`409 PRINCIPAL_MISMATCH`), so every mutating endpoint must carry one — see
+   * {@link ComposedPrincipal} for why it may not be read from the current session.
+   */
+  principal?: ComposedPrincipal;
 }
 
 /**
@@ -72,12 +81,13 @@ function toApiError(status: number, body: unknown, headers?: Headers): ApiError 
  * typed as `T`, or throws `ApiError`.
  */
 export async function apiFetch<T>(path: string, init: ApiFetchInit = {}): Promise<T> {
-  const { skipRefresh, timeoutMs = DEFAULT_TIMEOUT_MS, ...rest } = init;
+  const { skipRefresh, timeoutMs = DEFAULT_TIMEOUT_MS, principal, ...rest } = init;
   const headers = new Headers(rest.headers);
   const forwardsCredentials = rest.credentials !== "omit";
   if (!forwardsCredentials) headers.delete("cookie");
   const cookie = forwardsCredentials ? await serverCookieHeader() : null;
   if (cookie) headers.set("cookie", cookie);
+  if (principal) headers.set(PRINCIPAL_BINDING_HEADER, principal);
   if (rest.body && !headers.has("content-type")) {
     headers.set("content-type", "application/json");
   }

@@ -5,6 +5,7 @@ import { useRouter } from "next/navigation";
 import { useQueryClient } from "@tanstack/react-query";
 import type { UserProfile } from "@linkedout/contracts/v2";
 
+import type { ComposedPrincipal } from "@/lib/principal";
 import { subscribeSessionChanged } from "@/lib/session-channel";
 
 export interface Session {
@@ -70,7 +71,24 @@ export function SessionProvider({
     queryClient.getMutationCache().clear();
   }, [principal, queryClient]);
 
-  return <SessionContext.Provider value={session}>{children}</SessionContext.Provider>;
+  /**
+   * Keyed on the principal, so a change in *who this tab is* remounts the tree rather than
+   * re-rendering it. Two things depend on that, and neither is optional:
+   *
+   *  - `useComposedPrincipal()` freezes at mount. Without a remount it would keep declaring
+   *    the previous principal forever, and an ordinary sign-out/sign-in in this same tab
+   *    would then 409 every mutation until a hard reload.
+   *  - `router.refresh()` preserves client state by design — which is exactly wrong here.
+   *    A half-typed form composed under A would otherwise survive the refresh and sit there
+   *    with B's identity attached, which is the stale-write this whole mechanism exists to
+   *    stop. Remounting discards it. Losing in-progress input is the intended outcome when
+   *    the person at the keyboard is no longer who the form was for.
+   */
+  return (
+    <SessionContext.Provider value={session}>
+      <React.Fragment key={principal}>{children}</React.Fragment>
+    </SessionContext.Provider>
+  );
 }
 
 export function useSession(): Session {
@@ -80,4 +98,27 @@ export function useSession(): Session {
 /** The current principal id for cache scoping — the user id, or `"anon"` when logged out. */
 export function usePrincipal(): string {
   return useSession().user?.id ?? "anon";
+}
+
+/**
+ * The principal this component was composed under, for `X-LinkedOut-Principal` on mutations.
+ *
+ * Freezing is the mechanism: the principal is captured at mount and never follows the
+ * context afterwards. Reading `usePrincipal()` at submit time instead would look identical
+ * and be useless — a cross-tab sign-in refreshes this tree, so the live value would already
+ * have caught up to the new session and every stale write would sail through. The value must
+ * describe the render the user actually interacted with, which is a fact only mount-time
+ * knows. `SessionProvider` remounts on principal change, so a frozen value is never stale
+ * for a tree that is still on screen.
+ *
+ * `useState`, not `useRef`: the initialiser runs once and the value is then ignored on every
+ * later render, which is exactly the freeze — and unlike reading `ref.current` during
+ * render, it is something React actually guarantees.
+ *
+ * The one place a `ComposedPrincipal` is minted, hence the one cast: this is the only site
+ * that can honestly claim the value means what the brand says it means.
+ */
+export function useComposedPrincipal(): ComposedPrincipal {
+  const [composedAs] = React.useState(usePrincipal());
+  return composedAs as ComposedPrincipal;
 }

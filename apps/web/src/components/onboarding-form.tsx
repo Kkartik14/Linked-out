@@ -6,6 +6,7 @@ import { toast } from "sonner";
 import { usernameInputSchema } from "@linkedout/contracts/v2";
 
 import { errorMessage, isApiError, patchMe } from "@/lib/api";
+import { useComposedPrincipal } from "@/components/session-provider";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -18,6 +19,7 @@ export function OnboardingForm({
   defaultName: string;
 }) {
   const router = useRouter();
+  const composedAs = useComposedPrincipal();
   const [username, setUsername] = React.useState("");
   const [name, setName] = React.useState(defaultName);
   const [error, setError] = React.useState<string | null>(null);
@@ -34,7 +36,7 @@ export function OnboardingForm({
     setBusy(true);
     setError(null);
     try {
-      await patchMe({ username, name: name.trim() || null });
+      await patchMe(composedAs, { username, name: name.trim() || null });
       toast.success("You're all set.");
       router.replace(returnTo);
       router.refresh();

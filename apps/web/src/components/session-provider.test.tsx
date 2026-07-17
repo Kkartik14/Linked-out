@@ -6,7 +6,11 @@ import {
 } from "next/dist/shared/lib/app-router-context.shared-runtime";
 import { describe, expect, it, vi } from "vitest";
 
-import { SessionProvider, type Session } from "@/components/session-provider";
+import {
+  SessionProvider,
+  useComposedPrincipal,
+  type Session,
+} from "@/components/session-provider";
 import { publishSessionChanged } from "@/lib/session-channel";
 import { mockUser } from "@/test/utils";
 
@@ -29,18 +33,28 @@ function routerSpy() {
   } satisfies AppRouterInstance;
 }
 
-function renderProvider(session: Session, queryClient: QueryClient, router: AppRouterInstance) {
+function renderProvider(
+  session: Session,
+  queryClient: QueryClient,
+  router: AppRouterInstance,
+  child: React.ReactNode = <div>child</div>,
+) {
   const tree = (value: Session) => (
     <AppRouterContext.Provider value={router}>
       <QueryClientProvider client={queryClient}>
-        <SessionProvider session={value}>
-          <div>child</div>
-        </SessionProvider>
+        <SessionProvider session={value}>{child}</SessionProvider>
       </QueryClientProvider>
     </AppRouterContext.Provider>
   );
   const view = render(tree(session));
   return { ...view, rerenderWith: (next: Session) => view.rerender(tree(next)) };
+}
+
+/** Renders whatever it was composed under, and records every value it ever declared. */
+function Composed({ seen }: { seen: string[] }) {
+  const composedAs = useComposedPrincipal();
+  seen.push(composedAs);
+  return <output>{composedAs}</output>;
 }
 
 const signedIn: Session = { user: mockUser, needsOnboarding: false };
@@ -73,6 +87,50 @@ describe("SessionProvider cache lifecycle", () => {
     await settle();
 
     expect(queryClient.getQueryCache().getAll()).toHaveLength(1);
+  });
+});
+
+describe("useComposedPrincipal", () => {
+  it("declares the principal the view was composed under, not the live one", () => {
+    // The bug this whole mechanism exists to stop: a form composed under A must keep
+    // declaring A while the cookie already says B, so the API can reject the write. If this
+    // ever tracked the live principal it would agree with the session on every request and
+    // the 409 would never fire — passing tests, silent hole.
+    const seen: string[] = [];
+    const view = renderProvider(signedIn, new QueryClient(), routerSpy(), <Composed seen={seen} />);
+
+    expect(view.getByRole("status")).toHaveTextContent(mockUser.id);
+    expect(seen).toEqual([mockUser.id]);
+  });
+
+  it("remounts on a principal change so the declaration follows the new viewer", () => {
+    // Freezing without remounting would pin the old principal forever: an ordinary
+    // sign-out/sign-in in this very tab would then 409 every mutation until a hard reload.
+    const seen: string[] = [];
+    const view = renderProvider(signedIn, new QueryClient(), routerSpy(), <Composed seen={seen} />);
+    view.rerenderWith(otherUser);
+
+    expect(view.getByRole("status")).toHaveTextContent(otherUser.user!.id);
+    expect(seen.at(-1)).toBe(otherUser.user!.id);
+  });
+
+  it("does not remount when the snapshot changes but the principal does not", () => {
+    // A profile edit re-renders the layout. Remounting there would throw away whatever the
+    // viewer was in the middle of typing, for no safety gain — same person, same session.
+    const seen: string[] = [];
+    const view = renderProvider(signedIn, new QueryClient(), routerSpy(), <Composed seen={seen} />);
+    view.rerenderWith({ user: { ...mockUser, bio: "edited" }, needsOnboarding: false });
+
+    expect(new Set(seen)).toEqual(new Set([mockUser.id]));
+  });
+
+  it("declares the guest principal when signed out", () => {
+    const seen: string[] = [];
+    renderProvider({ user: null, needsOnboarding: false }, new QueryClient(), routerSpy(), (
+      <Composed seen={seen} />
+    ));
+
+    expect(seen).toEqual(["anon"]);
   });
 });
 

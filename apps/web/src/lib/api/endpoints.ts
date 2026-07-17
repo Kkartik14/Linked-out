@@ -30,7 +30,8 @@ import {
   updateLInputSchema,
 } from "@linkedout/contracts/v2";
 import type { z } from "zod";
-import { apiFetch } from "./client";
+import type { ComposedPrincipal } from "@/lib/principal";
+import { apiFetch, type ApiFetchInit } from "./client";
 
 /**
  * Request bodies are the schema's INPUT type, not `z.infer` (which is the *output*).
@@ -62,9 +63,28 @@ function json(body: unknown): { body: string } {
   return { body: JSON.stringify(body) };
 }
 
+/**
+ * Every authenticated mutation, and the only way to make one.
+ *
+ * The API refuses an authenticated unsafe method that does not declare the principal its
+ * view was composed under (`409 PRINCIPAL_MISMATCH`) — a missing header is a mismatch, not
+ * an exemption. Routing all of them through here, with `principal` a required leading
+ * argument of the branded type, is what makes forgetting it a compile error rather than a
+ * write that fails in production. A new mutation cannot silently skip the declaration; it
+ * cannot be written at all without one.
+ */
+function mutate<T>(
+  principal: ComposedPrincipal,
+  path: string,
+  init: ApiFetchInit,
+): Promise<T> {
+  return apiFetch<T>(path, { ...init, principal });
+}
+
 // ── Auth ────────────────────────────────────────────────────────────────────
 export const getMe = () => apiFetch<AuthMeResponse>("/auth/me");
-export const logout = () => apiFetch<OkResponse>("/auth/logout", { method: "POST" });
+export const logout = (principal: ComposedPrincipal) =>
+  mutate<OkResponse>(principal, "/auth/logout", { method: "POST" });
 
 /** Full backend URL to start an OAuth flow (a browser navigation, not a fetch). */
 export function oauthLoginUrl(provider: "google" | "github", returnTo = "/"): string {
@@ -123,64 +143,79 @@ export const getFeedSidebar = () =>
 
 // ── Ls (core object) ─────────────────────────────────────────────────────────
 export const getL = (id: string) => apiFetch<LDetail>(`/ls/${id}`);
-export const createL = (body: CreateLBody) =>
-  apiFetch<LDetail>("/ls", { method: "POST", ...json(body) });
-export const patchL = (id: string, body: UpdateLBody) =>
-  apiFetch<LDetail>(`/ls/${id}`, { method: "PATCH", ...json(body) });
-export const deleteL = (id: string) => apiFetch<OkResponse>(`/ls/${id}`, { method: "DELETE" });
+export const createL = (principal: ComposedPrincipal, body: CreateLBody) =>
+  mutate<LDetail>(principal, "/ls", { method: "POST", ...json(body) });
+export const patchL = (principal: ComposedPrincipal, id: string, body: UpdateLBody) =>
+  mutate<LDetail>(principal, `/ls/${id}`, { method: "PATCH", ...json(body) });
+export const deleteL = (principal: ComposedPrincipal, id: string) =>
+  mutate<OkResponse>(principal, `/ls/${id}`, { method: "DELETE" });
 
 // ── Reactions ────────────────────────────────────────────────────────────────
-export const addReaction = (id: string, type: ReactionType) =>
-  apiFetch<ReactionResult>(`/ls/${id}/reactions/${type}`, { method: "PUT" });
-export const removeReaction = (id: string, type: ReactionType) =>
-  apiFetch<ReactionResult>(`/ls/${id}/reactions/${type}`, { method: "DELETE" });
+export const addReaction = (principal: ComposedPrincipal, id: string, type: ReactionType) =>
+  mutate<ReactionResult>(principal, `/ls/${id}/reactions/${type}`, { method: "PUT" });
+export const removeReaction = (principal: ComposedPrincipal, id: string, type: ReactionType) =>
+  mutate<ReactionResult>(principal, `/ls/${id}/reactions/${type}`, { method: "DELETE" });
 export const getSaved = (cursor?: string, limit?: number) =>
   apiFetch<Paginated<LCard>>(`/me/saved${qs({ cursor, limit })}`);
 
 // ── Comments ─────────────────────────────────────────────────────────────────
 export const getComments = (lId: string, cursor?: string, limit?: number) =>
   apiFetch<Paginated<Comment>>(`/ls/${lId}/comments${qs({ cursor, limit })}`);
-export const addComment = (lId: string, body: CreateCommentInput) =>
-  apiFetch<Comment>(`/ls/${lId}/comments`, { method: "POST", ...json(body) });
+export const addComment = (
+  principal: ComposedPrincipal,
+  lId: string,
+  body: CreateCommentInput,
+) => mutate<Comment>(principal, `/ls/${lId}/comments`, { method: "POST", ...json(body) });
 export const getReplies = (commentId: string, cursor?: string, limit?: number) =>
   apiFetch<Paginated<Comment>>(`/comments/${commentId}/replies${qs({ cursor, limit })}`);
-export const addReply = (commentId: string, body: CreateCommentInput) =>
-  apiFetch<Comment>(`/comments/${commentId}/replies`, { method: "POST", ...json(body) });
-export const deleteComment = (id: string) =>
-  apiFetch<OkResponse>(`/comments/${id}`, { method: "DELETE" });
+export const addReply = (
+  principal: ComposedPrincipal,
+  commentId: string,
+  body: CreateCommentInput,
+) => mutate<Comment>(principal, `/comments/${commentId}/replies`, { method: "POST", ...json(body) });
+export const deleteComment = (principal: ComposedPrincipal, id: string) =>
+  mutate<OkResponse>(principal, `/comments/${id}`, { method: "DELETE" });
 
 // ── Users & profiles ─────────────────────────────────────────────────────────
 export const getProfile = (username: string) =>
   apiFetch<UserProfile>(`/users/${username}`);
-export const patchMe = (body: UpdateUserInput) =>
-  apiFetch<UserProfile>("/users/me", { method: "PATCH", ...json(body) });
+export const patchMe = (principal: ComposedPrincipal, body: UpdateUserInput) =>
+  mutate<UserProfile>(principal, "/users/me", { method: "PATCH", ...json(body) });
 export const getUserLs = (username: string, type?: LType, cursor?: string, limit?: number) =>
   apiFetch<Paginated<LCard>>(`/users/${username}/ls${qs({ type, cursor, limit })}`);
 export const getJourney = (username: string, cursor?: string, limit?: number) =>
   apiFetch<Paginated<JourneyNode>>(`/users/${username}/journey${qs({ cursor, limit })}`);
 export const getUserCollections = (username: string, cursor?: string, limit?: number) =>
   apiFetch<Paginated<Collection>>(`/users/${username}/collections${qs({ cursor, limit })}`);
-export const follow = (username: string) =>
-  apiFetch<FollowResult>(`/users/${username}/follow`, { method: "PUT" });
-export const unfollow = (username: string) =>
-  apiFetch<FollowResult>(`/users/${username}/follow`, { method: "DELETE" });
+export const follow = (principal: ComposedPrincipal, username: string) =>
+  mutate<FollowResult>(principal, `/users/${username}/follow`, { method: "PUT" });
+export const unfollow = (principal: ComposedPrincipal, username: string) =>
+  mutate<FollowResult>(principal, `/users/${username}/follow`, { method: "DELETE" });
 
 // ── Collections ──────────────────────────────────────────────────────────────
-export const createCollection = (title: string) =>
-  apiFetch<Collection>("/collections", { method: "POST", ...json({ title }) });
+export const createCollection = (principal: ComposedPrincipal, title: string) =>
+  mutate<Collection>(principal, "/collections", { method: "POST", ...json({ title }) });
 export const getCollection = (id: string) =>
   apiFetch<CollectionDetail>(`/collections/${id}`);
-export const renameCollection = (id: string, title: string) =>
-  apiFetch<Collection>(`/collections/${id}`, { method: "PATCH", ...json({ title }) });
-export const deleteCollection = (id: string) =>
-  apiFetch<OkResponse>(`/collections/${id}`, { method: "DELETE" });
-export const addLToCollection = (id: string, lId: string, position?: number) =>
-  apiFetch<CollectionDetail>(`/collections/${id}/ls/${lId}`, {
+export const renameCollection = (principal: ComposedPrincipal, id: string, title: string) =>
+  mutate<Collection>(principal, `/collections/${id}`, { method: "PATCH", ...json({ title }) });
+export const deleteCollection = (principal: ComposedPrincipal, id: string) =>
+  mutate<OkResponse>(principal, `/collections/${id}`, { method: "DELETE" });
+export const addLToCollection = (
+  principal: ComposedPrincipal,
+  id: string,
+  lId: string,
+  position?: number,
+) =>
+  mutate<CollectionDetail>(principal, `/collections/${id}/ls/${lId}`, {
     method: "PUT",
     ...(position !== undefined ? json({ position }) : {}),
   });
-export const removeLFromCollection = (id: string, lId: string) =>
-  apiFetch<CollectionDetail>(`/collections/${id}/ls/${lId}`, { method: "DELETE" });
+export const removeLFromCollection = (
+  principal: ComposedPrincipal,
+  id: string,
+  lId: string,
+) => mutate<CollectionDetail>(principal, `/collections/${id}/ls/${lId}`, { method: "DELETE" });
 
 // ── Search ───────────────────────────────────────────────────────────────────
 /** v2 search is always relevance-ranked and has no category filter. */
@@ -194,11 +229,11 @@ export const getNotifications = (cursor?: string, limit?: number) =>
   apiFetch<Paginated<Notification>>(`/notifications${qs({ cursor, limit })}`);
 export const getUnreadCount = () =>
   apiFetch<{ count: number }>("/notifications/unread-count");
-export const markNotificationRead = (id: string) =>
-  apiFetch<OkResponse>(`/notifications/${id}/read`, { method: "POST" });
-export const markAllNotificationsRead = () =>
-  apiFetch<OkResponse>("/notifications/read-all", { method: "POST" });
+export const markNotificationRead = (principal: ComposedPrincipal, id: string) =>
+  mutate<OkResponse>(principal, `/notifications/${id}/read`, { method: "POST" });
+export const markAllNotificationsRead = (principal: ComposedPrincipal) =>
+  mutate<OkResponse>(principal, "/notifications/read-all", { method: "POST" });
 
 // ── Media upload ─────────────────────────────────────────────────────────────
-export const presignAvatar = (body: AvatarUploadRequest) =>
-  apiFetch<AvatarUploadResponse>("/uploads/avatar", { method: "POST", ...json(body) });
+export const presignAvatar = (principal: ComposedPrincipal, body: AvatarUploadRequest) =>
+  mutate<AvatarUploadResponse>(principal, "/uploads/avatar", { method: "POST", ...json(body) });

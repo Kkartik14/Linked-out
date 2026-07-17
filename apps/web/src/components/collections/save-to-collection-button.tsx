@@ -13,7 +13,7 @@ import {
   errorMessage,
   getUserCollections,
 } from "@/lib/api";
-import { usePrincipal, useSession } from "@/components/session-provider";
+import { useComposedPrincipal, usePrincipal, useSession } from "@/components/session-provider";
 import { queryKeys } from "@/lib/query-keys";
 import { Button } from "@/components/ui/button";
 import {
@@ -46,6 +46,7 @@ function SaveToCollection({
   user,
 }: SaveToCollectionProps & { user: UserProfile }) {
   const principal = usePrincipal();
+  const composedAs = useComposedPrincipal();
   const router = useRouter();
   const queryClient = useQueryClient();
   const [open, setOpen] = React.useState(false);
@@ -69,7 +70,7 @@ function SaveToCollection({
   };
 
   const addExisting = useMutation({
-    mutationFn: (collectionId: string) => addLToCollection(collectionId, lId),
+    mutationFn: (collectionId: string) => addLToCollection(composedAs, collectionId, lId),
     onSuccess: () => {
       toast.success("Added to collection.");
       afterChange();
@@ -79,8 +80,8 @@ function SaveToCollection({
 
   const createAndAdd = useMutation({
     mutationFn: async (nextTitle: string) => {
-      const collection = await createCollection(nextTitle);
-      await addLToCollection(collection.id, lId);
+      const collection = await createCollection(composedAs, nextTitle);
+      await addLToCollection(composedAs, collection.id, lId);
       return collection;
     },
     onSuccess: () => {

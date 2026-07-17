@@ -118,7 +118,7 @@ describe("CommentsSection canonical cache", () => {
     const dialog = await screen.findByRole("dialog", { name: "Delete this comment?" });
     await user.click(within(dialog).getByRole("button", { name: "Delete" }));
 
-    await waitFor(() => expect(deleteComment).toHaveBeenCalledWith(original.id));
+    await waitFor(() => expect(deleteComment).toHaveBeenCalledWith(mockUser.id, original.id));
     await waitFor(() => expect(screen.queryByText(original.body)).not.toBeInTheDocument());
     expect(screen.getByRole("heading", { name: "Comments" })).toBeInTheDocument();
     expect(screen.getByRole("link", { name: "0 comments" })).toBeInTheDocument();

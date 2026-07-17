@@ -205,7 +205,7 @@ describe("ReactionBar", () => {
 
     await user.click(screen.getAllByRole("button", { name: /been there/i })[0]!);
 
-    expect(addReaction).toHaveBeenCalledWith("l1", "BEEN_THERE");
+    expect(addReaction).toHaveBeenCalledWith(mockUser.id, "l1", "BEEN_THERE");
     await waitFor(() => {
       expect(screen.getAllByRole("button", { name: /been there/i })).toHaveLength(2);
       for (const button of screen.getAllByRole("button", { name: /been there/i })) {

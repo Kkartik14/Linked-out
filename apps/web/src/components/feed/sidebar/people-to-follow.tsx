@@ -11,7 +11,7 @@ import type {
 
 import { errorMessage, follow } from "@/lib/api";
 import { queryKeys } from "@/lib/query-keys";
-import { usePrincipal } from "@/components/session-provider";
+import { useComposedPrincipal, usePrincipal } from "@/components/session-provider";
 import { statusOption, useMeta } from "@/components/meta-provider";
 import { UserAvatar } from "@/components/user-avatar";
 import { Button } from "@/components/ui/button";
@@ -132,12 +132,13 @@ export function PeopleToFollow({
   viewer: FeedSidebarViewer;
 }) {
   const principal = usePrincipal();
+  const composedAs = useComposedPrincipal();
   const queryClient = useQueryClient();
   const sidebarKey = queryKeys.feedSidebar.detail(principal);
   const followHref = permissionRoute(viewer);
 
   const mutation = useMutation({
-    mutationFn: (username: string) => follow(username),
+    mutationFn: (username: string) => follow(composedAs, username),
     onMutate: async (username) => {
       await queryClient.cancelQueries({ queryKey: sidebarKey, exact: true });
       const current = queryClient.getQueryData<FeedSidebarResponse>(sidebarKey);

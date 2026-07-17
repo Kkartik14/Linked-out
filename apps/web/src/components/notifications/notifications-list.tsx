@@ -11,11 +11,12 @@ import { Skeleton } from "@/components/ui/skeleton";
 import { timeAgo } from "@/lib/format";
 import { cn } from "@/lib/utils";
 import { queryKeys } from "@/lib/query-keys";
-import { usePrincipal } from "@/components/session-provider";
+import { useComposedPrincipal, usePrincipal } from "@/components/session-provider";
 
 export function NotificationsList() {
   const queryClient = useQueryClient();
   const principal = usePrincipal();
+  const composedAs = useComposedPrincipal();
 
   // Infinite page — a DISTINCT key from the header's finite preview query (FRONTEND-01).
   const query = useInfiniteQuery({
@@ -29,12 +30,12 @@ export function NotificationsList() {
     queryClient.invalidateQueries({ queryKey: queryKeys.notifications.all(principal) });
 
   const markAll = useMutation({
-    mutationFn: markAllNotificationsRead,
+    mutationFn: () => markAllNotificationsRead(composedAs),
     onSuccess: () => void invalidateAll(),
   });
 
   const markOne = useMutation({
-    mutationFn: markNotificationRead,
+    mutationFn: (id: string) => markNotificationRead(composedAs, id),
     onSuccess: () => void invalidateAll(),
   });
 

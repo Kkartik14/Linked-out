@@ -16,7 +16,7 @@ import {
   type CommentPages,
 } from "@/lib/comment-cache";
 import { queryKeys } from "@/lib/query-keys";
-import { usePrincipal, useSession } from "@/components/session-provider";
+import { useComposedPrincipal, usePrincipal, useSession } from "@/components/session-provider";
 import { statusOption, useMeta } from "@/components/meta-provider";
 import { UserAvatar } from "@/components/user-avatar";
 import { ConfirmDialog } from "@/components/confirm-dialog";
@@ -35,6 +35,7 @@ function CommentBody({
 }) {
   const { user } = useSession();
   const principal = usePrincipal();
+  const composedAs = useComposedPrincipal();
   const meta = useMeta();
   const queryClient = useQueryClient();
   const [replying, setReplying] = React.useState(false);
@@ -56,7 +57,7 @@ function CommentBody({
   });
 
   const reply = useMutation({
-    mutationFn: (body: string) => addReply(comment.id, { body }),
+    mutationFn: (body: string) => addReply(composedAs, comment.id, { body }),
     onMutate: async () => {
       await Promise.all([
         queryClient.cancelQueries({ queryKey: repliesKey, exact: true }),
@@ -85,7 +86,7 @@ function CommentBody({
   const parentId = comment.parentId;
 
   const del = useMutation({
-    mutationFn: () => deleteComment(comment.id),
+    mutationFn: () => deleteComment(composedAs, comment.id),
     onMutate: async () => {
       const affectedRepliesKey = parentId
         ? queryKeys.comments.replies(principal, parentId)

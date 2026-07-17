@@ -8,7 +8,7 @@ import { toast } from "sonner";
 
 import { logout } from "@/lib/api";
 import { publishSessionChanged } from "@/lib/session-channel";
-import { useSession } from "@/components/session-provider";
+import { useComposedPrincipal, useSession } from "@/components/session-provider";
 import { useMeta, statusOption } from "@/components/meta-provider";
 import { UserAvatar } from "@/components/user-avatar";
 import { Button } from "@/components/ui/button";
@@ -26,9 +26,10 @@ export function UserMenu() {
   const { user } = useSession();
   const meta = useMeta();
   const router = useRouter();
+  const composedAs = useComposedPrincipal();
 
   const signOut = useMutation({
-    mutationFn: logout,
+    mutationFn: () => logout(composedAs),
     onSuccess: () => {
       toast.success("Signed out.");
       // The session cookies are gone for every tab, not just this one.

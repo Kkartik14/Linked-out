@@ -7,6 +7,7 @@ import { useMutation, useQueryClient, type QueryKey } from "@tanstack/react-quer
 import { toast } from "sonner";
 
 import { createCollection, errorMessage } from "@/lib/api";
+import { useComposedPrincipal } from "@/components/session-provider";
 import { Button } from "@/components/ui/button";
 import {
   Dialog,
@@ -27,11 +28,12 @@ export function CreateCollectionButton({
 }) {
   const queryClient = useQueryClient();
   const router = useRouter();
+  const composedAs = useComposedPrincipal();
   const [open, setOpen] = React.useState(false);
   const [title, setTitle] = React.useState("");
 
   const create = useMutation({
-    mutationFn: (nextTitle: string) => createCollection(nextTitle),
+    mutationFn: (nextTitle: string) => createCollection(composedAs, nextTitle),
     onSuccess: () => {
       setTitle("");
       setOpen(false);
