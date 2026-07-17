@@ -5,10 +5,12 @@ import type { CreateLInput } from "@linkedout/contracts/v2";
 import { apiFetch } from "./client";
 import {
   createL,
+  getComments,
   getFeed,
   getFeedSidebar,
   getMeta,
   getNotifications,
+  getReplies,
   getSaved,
   oauthLoginUrl,
   searchLs,
@@ -79,6 +81,26 @@ describe("API endpoint helpers", () => {
     );
   });
 
+  it("forwards the cursor for comment and reply pagination", () => {
+    // A dropped cursor here still returns page 1, so only an assertion on the URL catches
+    // it — every page past the first would silently repeat the first.
+    void getComments("01HZY", "comments-next", 6);
+    void getComments("01HZY");
+    void getReplies("01HZZ", "replies-next", 7);
+    void getReplies("01HZZ");
+
+    expect(apiFetch).toHaveBeenNthCalledWith(
+      1,
+      "/ls/01HZY/comments?cursor=comments-next&limit=6",
+    );
+    expect(apiFetch).toHaveBeenNthCalledWith(2, "/ls/01HZY/comments");
+    expect(apiFetch).toHaveBeenNthCalledWith(
+      3,
+      "/comments/01HZZ/replies?cursor=replies-next&limit=7",
+    );
+    expect(apiFetch).toHaveBeenNthCalledWith(4, "/comments/01HZZ/replies");
+  });
+
   it("creates safe OAuth URLs and rejects open redirects", () => {
     expect(oauthLoginUrl("google", "/new?draft=1")).toContain(
       "/auth/google?returnTo=%2Fnew%3Fdraft%3D1",
@@ -89,9 +111,12 @@ describe("API endpoint helpers", () => {
     expect(() => oauthLoginUrl("github", "/\\evil")).toThrow(/safe relative path/);
   });
 
-  it("fetches the discovery rails from the one aggregate route", () => {
+  it("fetches the discovery rails from the one aggregate route, on a short budget", () => {
     void getFeedSidebar();
 
-    expect(apiFetch).toHaveBeenCalledWith("/feed/sidebar");
+    // The rails fail independently of the centre feed (contract v2 §2), which is only true
+    // if they actually fail: the tighter timeout is what stops a slow backend holding the
+    // feed page open for something the page is allowed to drop.
+    expect(apiFetch).toHaveBeenCalledWith("/feed/sidebar", { timeoutMs: 3_000 });
   });
 });
