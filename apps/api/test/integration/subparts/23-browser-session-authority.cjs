@@ -7,6 +7,7 @@ const {
   BrowserSessionAuthority,
   hashBrowserSessionCookie,
 } = require('@linkedout/session-authority');
+const { PrismaCleanupPersistence } = require('../../../dist/maintenance/prisma-cleanup.persistence');
 const h = require('../_harness.cjs');
 
 const START = new Date('2026-01-01T00:00:00.000Z');
@@ -117,5 +118,43 @@ describe('browser session authority', () => {
       },
     });
     await assert.rejects(() => unavailable.authorize(VALID_BUT_UNKNOWN_COOKIE), infrastructureFailure);
+  });
+
+  test('cleanup bounds work while retaining live sessions and fresh tombstones', async () => {
+    const user = await h.createUser();
+    const cutoff = after(START, BROWSER_SESSION_ABSOLUTE_TIMEOUT_MS + 24 * 60 * 60 * 1000);
+    const atStart = new BrowserSessionAuthority(h.ctx.prisma, { clock: { now: () => START } });
+    await atStart.create(user.id); // idle-expired
+    const absoluteExpired = await atStart.create(user.id);
+    await h.ctx.prisma.browserSession.update({
+      where: { id: absoluteExpired.sid },
+      data: { lastUsedAt: after(START, BROWSER_SESSION_ABSOLUTE_TIMEOUT_MS - 24 * 60 * 60 * 1000) },
+    });
+    const oldTombstone = await atStart.create(user.id);
+    await atStart.revoke(oldTombstone.cookie);
+
+    const liveCreation = after(cutoff, -24 * 60 * 60 * 1000);
+    const liveAuthority = new BrowserSessionAuthority(h.ctx.prisma, {
+      clock: { now: () => liveCreation },
+    });
+    const live = await liveAuthority.create(user.id);
+    const freshTombstone = await liveAuthority.create(user.id);
+    const justRevoked = new BrowserSessionAuthority(h.ctx.prisma, {
+      clock: { now: () => after(cutoff, -30 * 1000) },
+    });
+    await justRevoked.revoke(freshTombstone.cookie);
+
+    const cleanup = new PrismaCleanupPersistence(h.ctx.prisma);
+    assert.equal(await cleanup.deleteExpiredBatch('browserSessions', cutoff, 2), 2);
+    assert.equal(await cleanup.deleteExpiredBatch('browserSessions', cutoff, 2), 1);
+    assert.deepEqual(
+      await h.ctx.prisma.browserSession.findMany({
+        orderBy: { id: 'asc' },
+        select: { id: true },
+      }),
+      [{ id: live.sid }, { id: freshTombstone.sid }].sort((left, right) =>
+        left.id.localeCompare(right.id),
+      ),
+    );
   });
 });

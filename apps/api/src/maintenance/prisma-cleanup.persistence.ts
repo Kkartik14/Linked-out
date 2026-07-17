@@ -1,4 +1,9 @@
 import { Prisma, type ExtendedPrismaClient } from '@linkedout/db';
+import {
+  BROWSER_SESSION_ABSOLUTE_TIMEOUT_MS,
+  BROWSER_SESSION_IDLE_TIMEOUT_MS,
+  REVOKED_BROWSER_SESSION_RETENTION_MS,
+} from '@linkedout/session-authority';
 
 import { lockAvatarObjectKey } from '../common/avatar/avatar-object';
 import type {
@@ -15,7 +20,7 @@ const OWNED_AVATAR_FROM_URL_PATTERN =
 export class PrismaCleanupPersistence implements CleanupPersistence {
   constructor(private readonly db: ExtendedPrismaClient) {}
 
-  deleteExpiredBatch(entity: ExpiredEntity, cutoff: Date, limit: number): Promise<number> {
+  async deleteExpiredBatch(entity: ExpiredEntity, cutoff: Date, limit: number): Promise<number> {
     switch (entity) {
       case 'sessions':
         return this.db.$executeRaw`
@@ -31,6 +36,8 @@ export class PrismaCleanupPersistence implements CleanupPersistence {
           USING doomed
           WHERE target."id" = doomed."id"
         `;
+      case 'browserSessions':
+        return this.deleteExpiredBrowserSessionBatch(cutoff, limit);
       case 'verificationTokens':
         return this.db.$executeRaw`
           WITH doomed AS (
@@ -60,6 +67,61 @@ export class PrismaCleanupPersistence implements CleanupPersistence {
           WHERE target."key" = doomed."key"
         `;
     }
+  }
+
+  private async deleteExpiredBrowserSessionBatch(cutoff: Date, limit: number): Promise<number> {
+    const revokedCutoff = new Date(cutoff.getTime() - REVOKED_BROWSER_SESSION_RETENTION_MS);
+    const idleCutoff = new Date(cutoff.getTime() - BROWSER_SESSION_IDLE_TIMEOUT_MS);
+    const absoluteCutoff = new Date(cutoff.getTime() - BROWSER_SESSION_ABSOLUTE_TIMEOUT_MS);
+
+    const revoked = await this.db.$executeRaw`
+      WITH doomed AS (
+        SELECT "sid"
+        FROM "BrowserSession"
+        WHERE "revokedAt" <= ${revokedCutoff}
+        ORDER BY "revokedAt", "sid"
+        LIMIT ${limit}
+        FOR UPDATE SKIP LOCKED
+      )
+      DELETE FROM "BrowserSession" AS target
+      USING doomed
+      WHERE target."sid" = doomed."sid"
+    `;
+    if (revoked === limit) return revoked;
+
+    const afterRevoked = limit - revoked;
+    const idleExpired = await this.db.$executeRaw`
+      WITH doomed AS (
+        SELECT "sid"
+        FROM "BrowserSession"
+        WHERE "revokedAt" IS NULL
+          AND "lastUsedAt" <= ${idleCutoff}
+        ORDER BY "lastUsedAt", "sid"
+        LIMIT ${afterRevoked}
+        FOR UPDATE SKIP LOCKED
+      )
+      DELETE FROM "BrowserSession" AS target
+      USING doomed
+      WHERE target."sid" = doomed."sid"
+    `;
+    if (revoked + idleExpired === limit) return limit;
+
+    const afterIdle = limit - revoked - idleExpired;
+    const absoluteExpired = await this.db.$executeRaw`
+      WITH doomed AS (
+        SELECT "sid"
+        FROM "BrowserSession"
+        WHERE "revokedAt" IS NULL
+          AND "createdAt" <= ${absoluteCutoff}
+        ORDER BY "createdAt", "sid"
+        LIMIT ${afterIdle}
+        FOR UPDATE SKIP LOCKED
+      )
+      DELETE FROM "BrowserSession" AS target
+      USING doomed
+      WHERE target."sid" = doomed."sid"
+    `;
+    return revoked + idleExpired + absoluteExpired;
   }
 
   async auditAvatarIdentity(sampleLimit: number): Promise<AvatarIdentityAudit> {

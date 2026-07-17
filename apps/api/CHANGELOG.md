@@ -32,6 +32,8 @@ v1 API remains available during migration.
 - Added the durable browser-session authority for the one-origin BFF: 256-bit opaque cookies are
   stored only by hash, live sessions slide monotonically for 30 idle days with a 90-day cap, and
   logout revokes a persistent tombstone idempotently.
+- Extended bounded maintenance cleanup to purge idle/absolute-expired browser sessions and retain
+  revoked tombstones until already-issued internal assertions have expired.
 
 - **A complete `/v2` API surface** backed by `@linkedout/contracts/v2`, served alongside v1.
   Existing resources retain their behavior unless v2 explicitly changes their shape or query.
