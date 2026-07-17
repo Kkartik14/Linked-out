@@ -1,6 +1,6 @@
 import { Injectable, Logger, type CanActivate, type ExecutionContext } from '@nestjs/common';
 import { AuthGuard } from '@nestjs/passport';
-import { oauthStartQuerySchema } from '@linkedout/contracts';
+import { oauthStartQuerySchema, type OAuthFailureCode } from '@linkedout/contracts';
 import type { CookieOptions, Request, Response } from 'express';
 
 import { AppErrors, isAppExceptionBody } from '../../common/errors/app-exception';
@@ -15,7 +15,7 @@ interface OAuthAuthenticateOptions {
 }
 
 export interface OAuthRequest extends Request {
-  oauthError?: 'access_denied' | 'oauth_failed' | 'email_taken';
+  oauthError?: OAuthFailureCode;
 }
 
 function stateCookieOptions(config: AppConfigService, maxAgeMs: number): CookieOptions {

@@ -414,6 +414,7 @@ describe('21 · GET /v2/feed/sidebar', () => {
       'an interaction older than the window does not make its L eligible',
     );
     assert.equal(body.topLs.window.endsAt, body.generatedAt, 'the window ends at generatedAt');
+    assert.equal(body.topLs.windowLabel, 'Past 7 days');
     assert.equal(
       Date.parse(body.topLs.window.endsAt) - Date.parse(body.topLs.window.startsAt),
       7 * 24 * 60 * 60 * 1_000,

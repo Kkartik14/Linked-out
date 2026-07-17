@@ -242,20 +242,23 @@ describe('02 · auth & sessions (contract §1.1, §4.1)', () => {
   test('OAuth callback without valid state redirects to the web app with ?error=', async () => {
     const res = await h.get('/auth/google/callback?code=abc&state=tampered');
     assert.equal(res.status, 302);
-    const location = res.headers.get('location');
-    assert.ok(
-      location.startsWith(`${h.WEB_URL}/auth/callback?error=`),
-      `expected an error redirect to the web app, got ${location}`,
+    const location = new URL(res.headers.get('location'));
+    assert.equal(location.origin + location.pathname, `${h.WEB_URL}/auth/callback`);
+    assert.equal(location.searchParams.get('error'), 'oauth_failed');
+    assert.equal(
+      location.searchParams.get('message'),
+      'Something went wrong with the provider. Please try again.',
     );
-    assert.ok(location.endsWith('=oauth_failed'));
   });
 
   test('OAuth callback surfaces a user cancellation as ?error=access_denied', async () => {
     const res = await h.get('/auth/google/callback?error=access_denied');
     assert.equal(res.status, 302);
+    const location = new URL(res.headers.get('location'));
+    assert.equal(location.searchParams.get('error'), 'access_denied');
     assert.equal(
-      res.headers.get('location'),
-      `${h.WEB_URL}/auth/callback?error=access_denied`,
+      location.searchParams.get('message'),
+      "You cancelled the sign-in. Try again whenever you're ready.",
     );
   });
 

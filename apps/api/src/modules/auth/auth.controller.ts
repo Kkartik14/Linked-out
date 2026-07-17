@@ -1,5 +1,5 @@
 import { Controller, Get, HttpCode, Post, Req, Res, UseGuards, Version } from '@nestjs/common';
-import type { AuthMeResponse } from '@linkedout/contracts';
+import { OAUTH_FAILURES, type AuthMeResponse, type OAuthFailureCode } from '@linkedout/contracts';
 import type { Request, Response } from 'express';
 
 import { OptionalUser } from '../../common/decorators/current-user.decorator';
@@ -138,7 +138,7 @@ export class AuthController {
       const error =
         oauthReq.oauthError ??
         (req.query.error === 'access_denied' ? 'access_denied' : 'oauth_failed');
-      res.redirect(`${this.config.webUrl}/auth/callback?error=${error}`);
+      res.redirect(this.oauthFailureRedirect(error));
       return;
     }
     const returnTo = decodeOAuthState(
@@ -147,11 +147,17 @@ export class AuthController {
       this.config.jwtAccessSecret,
     );
     if (!returnTo) {
-      res.redirect(`${this.config.webUrl}/auth/callback?error=oauth_failed`);
+      res.redirect(this.oauthFailureRedirect('oauth_failed'));
       return;
     }
     const { refreshToken } = await this.auth.startSession(user);
     this.tokens.setAuthCookies(res, user, refreshToken);
     res.redirect(`${this.config.webUrl}/auth/callback?returnTo=${encodeURIComponent(returnTo)}`);
+  }
+
+  private oauthFailureRedirect(code: OAuthFailureCode): string {
+    const failure = OAUTH_FAILURES[code];
+    const query = new URLSearchParams({ error: failure.code, message: failure.message });
+    return `${this.config.webUrl}/auth/callback?${query.toString()}`;
   }
 }

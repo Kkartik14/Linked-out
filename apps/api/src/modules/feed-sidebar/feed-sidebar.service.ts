@@ -17,6 +17,7 @@ const NEGATIVE_SELECTION_RETRY_MS = 60_000;
 const TOP_LS_WINDOW_MS = 7 * 24 * 60 * 60 * 1_000;
 const PEOPLE_ACTIVITY_WINDOW_MS = 30 * 24 * 60 * 60 * 1_000;
 const SIDEBAR_ITEM_LIMIT = 5;
+const TOP_LS_WINDOW_LABEL = 'Past 7 days';
 
 function startOfUtcDay(at: Date): Date {
   return new Date(Date.UTC(at.getUTCFullYear(), at.getUTCMonth(), at.getUTCDate()));
@@ -163,6 +164,7 @@ export class FeedSidebarService {
           startsAt: topStartsAt.toISOString(),
           endsAt: generatedAt.toISOString(),
         },
+        windowLabel: TOP_LS_WINDOW_LABEL,
         items: topFeatured.map(({ card, interactionCount }) => ({
           l: card,
           interactionCount,

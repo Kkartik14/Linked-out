@@ -88,6 +88,19 @@ test('v2 package does not export removed category or tag-discovery contracts', (
   assert.equal('lCategory' in meta, false);
 });
 
+test('OAuth failure copy is contract-valid and server-owned', () => {
+  for (const failure of Object.values(v2.OAUTH_FAILURES)) {
+    assert.deepEqual(v2.oauthFailureSchema.parse(failure), failure);
+    assert.deepEqual(
+      v2.oauthFailureRedirectQuerySchema.parse({
+        error: failure.code,
+        message: failure.message,
+      }),
+      { error: failure.code, message: failure.message },
+    );
+  }
+});
+
 test('feed sidebar schema gives both rails one stable, attributed daily item', () => {
   const payload = {
     contractVersion: 2,
@@ -110,6 +123,7 @@ test('feed sidebar schema gives both rails one stable, attributed daily item', (
         startsAt: '2026-07-10T02:00:00.000Z',
         endsAt: '2026-07-17T02:00:00.000Z',
       },
+      windowLabel: 'Past 7 days',
       items: [],
     },
     lOfTheDay: {
