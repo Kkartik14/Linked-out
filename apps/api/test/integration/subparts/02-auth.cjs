@@ -242,10 +242,8 @@ describe('02 · auth & sessions (contract §1.1, §4.1)', () => {
     const location = new URL(res.headers.get('location'));
     assert.equal(location.origin + location.pathname, `${h.WEB_URL}/auth/callback`);
     assert.equal(location.searchParams.get('error'), 'oauth_failed');
-    assert.equal(
-      location.searchParams.get('message'),
-      'Something went wrong with the provider. Please try again.',
-    );
+    assert.equal(location.searchParams.get('message'), null);
+    assert.deepEqual([...location.searchParams.keys()], ['error']);
   });
 
   test('OAuth callback surfaces a user cancellation as ?error=access_denied', async () => {
@@ -253,10 +251,8 @@ describe('02 · auth & sessions (contract §1.1, §4.1)', () => {
     assert.equal(res.status, 302);
     const location = new URL(res.headers.get('location'));
     assert.equal(location.searchParams.get('error'), 'access_denied');
-    assert.equal(
-      location.searchParams.get('message'),
-      "You cancelled the sign-in. Try again whenever you're ready.",
-    );
+    assert.equal(location.searchParams.get('message'), null);
+    assert.deepEqual([...location.searchParams.keys()], ['error']);
   });
 
   test('every mutating route rejects an anonymous caller with 401', async () => {
