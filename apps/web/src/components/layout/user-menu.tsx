@@ -7,6 +7,7 @@ import { useMutation } from "@tanstack/react-query";
 import { toast } from "sonner";
 
 import { logout } from "@/lib/api";
+import { publishSessionChanged } from "@/lib/session-channel";
 import { useSession } from "@/components/session-provider";
 import { useMeta, statusOption } from "@/components/meta-provider";
 import { UserAvatar } from "@/components/user-avatar";
@@ -30,6 +31,8 @@ export function UserMenu() {
     mutationFn: logout,
     onSuccess: () => {
       toast.success("Signed out.");
+      // The session cookies are gone for every tab, not just this one.
+      publishSessionChanged();
       router.refresh();
     },
     onError: () => toast.error("Could not sign out. Try again."),

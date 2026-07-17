@@ -5,6 +5,7 @@ import Link from "next/link";
 import { useRouter, useSearchParams } from "next/navigation";
 import { getMe } from "@/lib/api";
 import { oauthErrorMessage, safeReturnTo } from "@/lib/auth-entry";
+import { publishSessionChanged } from "@/lib/session-channel";
 import { Button } from "@/components/ui/button";
 
 function Centered({ children }: { children: React.ReactNode }) {
@@ -37,11 +38,17 @@ function CallbackInner() {
         if (cancelled) return;
         if (!me.user) {
           router.replace(`/login?returnTo=${encodeURIComponent(returnTo)}`);
-        } else if (me.needsOnboarding) {
-          router.replace(`/onboarding?returnTo=${encodeURIComponent(returnTo)}`);
-        } else {
-          router.replace(returnTo);
+          return;
         }
+        // Sign-in succeeded, so a new principal now owns the shared cookies. Announce it
+        // before navigating: any other tab is still rendering the previous viewer and
+        // holding its private cache. Onboarding-required is still a completed sign-in.
+        publishSessionChanged();
+        router.replace(
+          me.needsOnboarding
+            ? `/onboarding?returnTo=${encodeURIComponent(returnTo)}`
+            : returnTo,
+        );
       })
       .catch(() => {
         if (!cancelled) setFetchFailed(true);
