@@ -1,4 +1,4 @@
-import { Injectable, type CanActivate, type ExecutionContext } from '@nestjs/common';
+import { Injectable, Logger, type CanActivate, type ExecutionContext } from '@nestjs/common';
 import { AuthGuard } from '@nestjs/passport';
 import { oauthStartQuerySchema } from '@linkedout/contracts';
 import type { CookieOptions, Request, Response } from 'express';
@@ -63,14 +63,27 @@ function callbackStateIsValid(context: ExecutionContext, config: AppConfigServic
   return false;
 }
 
+const oauthLogger = new Logger('OAuth');
+
 function rememberOAuthError(context: ExecutionContext | undefined, err: unknown): void {
+  const response = err && typeof err === 'object' && 'response' in err ? err.response : null;
+  const emailTaken =
+    response !== null && isAppExceptionBody(response) && response.code === 'EMAIL_TAKEN';
+
+  // `email_taken` is a user-facing outcome the flow expects. Anything else that throws here is
+  // a failure of ours — a provider or database outage — and the callback answers every one of
+  // them with the same 302 the user sees when they decline consent. Without this line that
+  // outage leaves no trace at all: the request log records a successful redirect.
+  if (!emailTaken) {
+    oauthLogger.error(
+      'OAuth callback failed; redirecting as oauth_failed',
+      err instanceof Error ? err.stack : String(err),
+    );
+  }
+
   const req = context?.switchToHttp().getRequest<OAuthRequest>();
   if (!req) return;
-  const response = err && typeof err === 'object' && 'response' in err ? err.response : null;
-  req.oauthError =
-    response !== null && isAppExceptionBody(response) && response.code === 'EMAIL_TAKEN'
-      ? 'email_taken'
-      : 'oauth_failed';
+  req.oauthError = emailTaken ? 'email_taken' : 'oauth_failed';
 }
 
 /** OAuth guards carry `returnTo` through the flow as `state`, and never block the callback. */
