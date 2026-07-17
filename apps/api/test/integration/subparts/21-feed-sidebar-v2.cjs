@@ -54,12 +54,32 @@ describe('21 · GET /v2/feed/sidebar', () => {
       baseUrl: h.ctx.v2BaseUrl,
     }), 400, 'VALIDATION_ERROR');
 
+    // Seed real candidates first. Against the freshly reset database the only user is the
+    // viewer itself, which is never its own suggestion — so `items` is `[]`, and every
+    // `.every()` below would hold no matter what the server put in `canFollow`.
+    const actor = await h.createUser({ username: 'actor' });
+    for (const username of ['builder_one', 'builder_two']) {
+      const candidate = await h.createUser({ username });
+      const l = await h.createL(candidate.id, { isAnonymous: false, visibility: 'PUBLIC' });
+      await h.ctx.prisma.reaction.create({
+        data: { userId: actor.id, lId: l.id, type: 'HELPFUL' },
+      });
+    }
+
     const onboarding = await h.createOnboardingUser();
     const body = h.expectShape(await sidebar(onboarding.cookie), feedSidebarResponseSchema);
     assert.equal(body.viewer.state, 'ONBOARDING_REQUIRED');
     assert.equal(body.viewer.profile.id, onboarding.id);
     assert.equal(body.peopleToFollow.personalized, false);
-    assert.ok(body.peopleToFollow.items.every((item) => !item.viewer.canFollow));
+    assert.deepEqual(
+      body.peopleToFollow.items.map((item) => item.user.username).sort(),
+      ['builder_one', 'builder_two'],
+      'the global fallback returns candidates, so the canFollow assertion below is not vacuous',
+    );
+    assert.ok(
+      body.peopleToFollow.items.every((item) => !item.viewer.canFollow),
+      'a viewer who has not onboarded cannot follow anyone yet',
+    );
   });
 
   test('people suggestions rank mutual follows before active builders and exclude unsafe candidates', async () => {
@@ -306,5 +326,129 @@ describe('21 · GET /v2/feed/sidebar', () => {
 
     const replaced = h.expectShape(await sidebar(), feedSidebarResponseSchema);
     assert.equal(replaced.lOfTheDay.item.l.id, runnerUp.id);
+  });
+
+  // The ranking tests above all give each L a distinct interactionCount, so the count alone
+  // decides the order and the documented tie-breaks never run. These pin the tie-breaks by
+  // holding the count equal across every candidate.
+  test('Top Ls break a tie on distinct HELPFUL reactors, then distinct commenters', async () => {
+    const author = await h.createUser({ username: 'author' });
+    const actorOne = await h.createUser({ username: 'actor_one' });
+    const actorTwo = await h.createUser({ username: 'actor_two' });
+
+    const twoHelpful = await h.createL(author.id, { title: 'two helpful reactors' });
+    const helpfulAndComment = await h.createL(author.id, { title: 'one helpful, one commenter' });
+    const helpfulOnly = await h.createL(author.id, { title: 'one helpful, no commenter' });
+    const noHelpful = await h.createL(author.id, { title: 'no helpful reactors' });
+
+    await h.ctx.prisma.reaction.createMany({
+      data: [
+        { userId: actorOne.id, lId: twoHelpful.id, type: 'HELPFUL' },
+        { userId: actorTwo.id, lId: twoHelpful.id, type: 'HELPFUL' },
+        { userId: actorOne.id, lId: helpfulAndComment.id, type: 'HELPFUL' },
+        { userId: actorOne.id, lId: helpfulOnly.id, type: 'HELPFUL' },
+        { userId: actorTwo.id, lId: helpfulOnly.id, type: 'BEEN_THERE' },
+        { userId: actorOne.id, lId: noHelpful.id, type: 'BEEN_THERE' },
+        { userId: actorTwo.id, lId: noHelpful.id, type: 'BEEN_THERE' },
+      ],
+    });
+    await h.ctx.prisma.comment.create({
+      data: { authorId: actorTwo.id, lId: helpfulAndComment.id, body: 'the second actor' },
+    });
+
+    const body = h.expectShape(await sidebar(), feedSidebarResponseSchema);
+    assert.ok(
+      body.topLs.items.every((item) => item.interactionCount === 2),
+      'every candidate must tie on interactionCount, or the tie-break is not what ordered them',
+    );
+    assert.deepEqual(
+      body.topLs.items.map((item) => item.l.id),
+      [twoHelpful.id, helpfulAndComment.id, helpfulOnly.id, noHelpful.id],
+    );
+  });
+
+  test('Top Ls fall back to ascending L id once every tie-break is equal', async () => {
+    const author = await h.createUser({ username: 'author' });
+    const actor = await h.createUser({ username: 'actor' });
+
+    // Identical in every ranked dimension: same count, same HELPFUL reactors, no commenters.
+    const ids = [];
+    for (const title of ['first', 'second', 'third']) {
+      const l = await h.createL(author.id, { title });
+      await h.ctx.prisma.reaction.create({
+        data: { userId: actor.id, lId: l.id, type: 'HELPFUL' },
+      });
+      ids.push(l.id);
+    }
+
+    const body = h.expectShape(await sidebar(), feedSidebarResponseSchema);
+    assert.deepEqual(
+      body.topLs.items.map((item) => item.l.id),
+      ids.slice().sort(),
+      'a full tie is ordered by L id ascending',
+    );
+  });
+
+  test('Top Ls report a rolling seven-day window and ignore interactions outside it', async () => {
+    const author = await h.createUser({ username: 'author' });
+    const actor = await h.createUser({ username: 'actor' });
+    const inWindow = await h.createL(author.id, { title: 'interacted with recently' });
+    const tooOld = await h.createL(author.id, { title: 'interacted with eight days ago' });
+
+    await h.ctx.prisma.reaction.createMany({
+      data: [
+        { userId: actor.id, lId: inWindow.id, type: 'HELPFUL' },
+        {
+          userId: actor.id,
+          lId: tooOld.id,
+          type: 'HELPFUL',
+          createdAt: new Date(Date.now() - 8 * 24 * 60 * 60 * 1_000),
+        },
+      ],
+    });
+
+    const body = h.expectShape(await sidebar(), feedSidebarResponseSchema);
+    assert.deepEqual(
+      body.topLs.items.map((item) => item.l.id),
+      [inWindow.id],
+      'an interaction older than the window does not make its L eligible',
+    );
+    assert.equal(body.topLs.window.endsAt, body.generatedAt, 'the window ends at generatedAt');
+    assert.equal(
+      Date.parse(body.topLs.window.endsAt) - Date.parse(body.topLs.window.startsAt),
+      7 * 24 * 60 * 60 * 1_000,
+      'the window is exactly seven days',
+    );
+  });
+
+  test('Top Ls return at most five unique items, keeping the highest ranked', async () => {
+    const author = await h.createUser({ username: 'author' });
+    const actors = [];
+    for (let index = 0; index < 7; index += 1) {
+      actors.push(await h.createUser({ username: `actor_${index}` }));
+    }
+
+    // Seven eligible Ls with strictly descending interaction counts: 7, 6, 5 … 1.
+    const ordered = [];
+    for (let rank = 0; rank < 7; rank += 1) {
+      const l = await h.createL(author.id, { title: `rank ${rank}` });
+      await h.ctx.prisma.reaction.createMany({
+        data: actors.slice(0, 7 - rank).map((actor) => ({
+          userId: actor.id,
+          lId: l.id,
+          type: 'HELPFUL',
+        })),
+      });
+      ordered.push(l.id);
+    }
+
+    const body = h.expectShape(await sidebar(), feedSidebarResponseSchema);
+    const returned = body.topLs.items.map((item) => item.l.id);
+    assert.deepEqual(returned, ordered.slice(0, 5), 'the cap keeps the top five, not any five');
+    assert.equal(new Set(returned).size, returned.length, 'ids are unique');
+    assert.deepEqual(
+      body.topLs.items.map((item) => item.interactionCount),
+      [7, 6, 5, 4, 3],
+    );
   });
 });
