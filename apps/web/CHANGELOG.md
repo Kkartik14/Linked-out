@@ -5,6 +5,90 @@ Notable changes to the LinkedOut frontend. Newest first.
 This file covers `apps/web` only. The API contract it builds against is documented in
 `docs/api-contract-v2.md`.
 
+## [Unreleased]
+
+A precision pass over the v2 cutover: enforce the rules the repo already wrote down, delete
+what the cutover left behind, and pin the invariants that were only being upheld by habit.
+
+### Enforced
+
+- **`eslint-config-next` carries no type-safety rules**, and the root config that has them
+  scopes itself to `apps/api`/`packages/*` — so CLAUDE.md §1's "No `any`. No `unknown` as an
+  escape hatch" applied to nothing here (`tsc --strict` rejects only *implicit* any). Added
+  `typescript-eslint` with `no-explicit-any`, `consistent-type-assertions`
+  (`objectLiteralTypeAssertions: never`) and `no-unnecessary-type-assertion`. The existing
+  code was already clean; nothing now stops the next `as any` at the `/v2` boundary.
+- **`pnpm lint` is `--max-warnings=0`.** `react-hooks/exhaustive-deps` and 24 other rules are
+  warn-level: they ran in CI and could not fail it. (No violations existed — the gate is
+  regression prevention.) Fixed in `package.json`, so CI and local dev cannot diverge.
+- Vendored `components/ui/**` is exempt from `consistent-type-assertions` — `shadcn add`
+  regenerates those files, and both patterns it emits (`createContext({} as T)`,
+  `as React.CSSProperties` for CSS custom properties) are defensible.
+
+### Fixed
+
+- **The composer no longer chooses the privacy default.** Request bodies were typed
+  `z.infer<typeof createLInputSchema>` — the schema's *output*, where `.default()` makes
+  `type`/`visibility`/`isAnonymous` **required**. `createL({ title, story })` did not compile,
+  so the composer hardcoded `visibility: "PUBLIC"`. Bodies are now `z.input<…>`; form defaults
+  are read from the contract. This also unbroke `patchL(id, { resolvedAt: "<ISO>" })` — the
+  shape §1 documents, which previously failed to typecheck.
+- **`flattenComments` no longer re-sorts by ULID.** It ordered the list by comparing ids —
+  depending on internals of a value the contract calls opaque (line 14), and on their case:
+  `ulidSchema` accepts lowercase, which sorts after every uppercase id. Pages already arrive
+  ordered. Dedupe now re-seats an id at its *last-seen* position, so a canonical page is
+  authoritative for position as well as value and an optimistic append's guessed slot cannot
+  outrank the server's real order (§4).
+- **No request can hang forever.** `apiFetch` had no timeout, which quietly voided §2's "the
+  sidebar fails independently of the centre feed": a request that never settles never
+  rejects, so the rails' `.catch()` never fired and held the feed page open. Default 10s;
+  `getFeedSidebar` takes 3s, being explicitly droppable.
+- `/onboarding` checked `!session.user` but never `needsOnboarding`, handing an
+  already-onboarded user the setup form.
+- The profile page awaited `getProfile` then `getJourney` in series though neither depends on
+  the other, billing every view for a needless round trip; and swallowed a rejected
+  credential into an empty timeline instead of routing it through `public-read`.
+- `(feed)/loading.tsx` was a one-column `max-w-2xl` skeleton standing in for a three-column
+  `max-w-[80rem]` grid, so the route jumped sideways on resolve.
+- `login` and `auth/callback` each carried a private copy of the OAuth error table, and the
+  copies had **drifted**; `safeReturnTo` existed three times. Both now live in
+  `src/lib/auth-entry.ts`.
+
+### Removed
+
+- **~35 lines of cookie-rotation machinery in `client.ts`** (`splitSetCookie`,
+  `mergeCookieHeader`, `setCookiesFrom`, the `cookieHeader` plumbing) that could never run.
+  Refresh is browser-gated, and in a browser `Set-Cookie` is a forbidden *response* header
+  and `Cookie` a forbidden *request* header — userland can neither read a rotation nor
+  replay it. Retry works because the browser's jar applies it and `credentials: "include"`
+  sends it. Its test only passed by fabricating a `Response` with a working `getSetCookie()`
+  via `as unknown as Response`, asserting a cookie header a real browser never sends.
+- Dead exports: `formatMonthYear`, `getFollowers`/`getFollowing`, `queryKeys.comments.all`,
+  the `ApiFetchInit` re-export, and the no-op `Principal` alias.
+
+### Changed
+
+- `FeedControls`' `canFollow` prop is now `canUseFollowingFeed`. `canFollow` is the contract's
+  name for `SuggestedUser.viewer.canFollow` — a per-user permission §2 says not to recreate —
+  and this only meant "is there a Following tab".
+- `endpoints.ts`'s hand-written `FeedQuery` shadowed the contract's own `FeedQuery` one import
+  path away, with `sort`/`cursor`/`limit` duplicated by hand. Now `FeedRequest extends
+  Partial<ContractFeedQuery>`, keeping only the genuinely frontend-only `scope`.
+- `(feed)/page.tsx` validates `?sort=` with `feedSortSchema.catch("latest")` instead of a
+  hand-rolled `Set` plus two casts that asserted an unvalidated URL param into the enum
+  *before* the check meant to justify it.
+
+### Tests
+
+- Mutation testing (44 injected bugs) scored **31 killed / 13 survived**. Closed the survivors
+  that mattered: `public-read.ts` had **zero** unit coverage (its only tests need Postgres, so
+  `pnpm test` could go green while §2's credential rule regressed); the sidebar's
+  `refreshAfter - generatedAt` derivation was unpinned; `FeedSidebarLeft`'s failure-hides-rail
+  had no test though `FeedSidebarRight`'s did; `truncate`/`initials` asserted only length and
+  suffix, never output; comment/reply cursors were uncovered.
+- `l-card.test.tsx` built a foreign shape with `} as LCardType` — a cast defeating the contract
+  in the test meant to defend it. Now `Object.assign`, which widens honestly.
+
 ## [1.1.0] — 2026-07-17
 
 Moves the frontend onto the **v2 API** and adds the feed's discovery rails.

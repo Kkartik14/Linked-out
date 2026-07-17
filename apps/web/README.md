@@ -41,7 +41,7 @@ Point `NEXT_PUBLIC_API_BASE_URL` (in `.env.local`) at your API — default `http
 | `pnpm typecheck` | `tsc --noEmit` |
 | `pnpm lint` | ESLint (flat config) |
 | `pnpm test` | Vitest (unit + component) |
-| `pnpm test:e2e` | Playwright (needs `pnpm build` + `pnpm exec playwright install chromium` first) |
+| `pnpm test:e2e` | Playwright (run `pnpm exec playwright install chromium` once first; the script builds with the e2e API base URL itself) |
 
 ## The contract
 
@@ -68,9 +68,16 @@ Delete it when the BFF/session boundary lands and a broken session is cleared at
 
 - **Types come from `@linkedout/contracts/v2`** (contract §0) — imported directly,
   never hand-written. It's a `file:` workspace dependency (`../../packages/contracts`).
-- **One API seam:** `src/lib/api/` — `client.ts` (credentials, error-envelope
-  decoding, 401→refresh→retry with server-side cookie rotation, cursor pagination)
-  and `endpoints.ts` (typed calls). All backend traffic flows through here.
+- **One API seam:** `src/lib/api/` — `client.ts` (credentials, error-envelope decoding,
+  request timeouts, and a single-flight 401→refresh→retry) and `endpoints.ts` (typed calls,
+  cursor pagination). All backend traffic flows through here.
+- **Refresh is browser-only.** `Set-Cookie` is a forbidden response header and `Cookie` a
+  forbidden request header, so no userland code can read or replay a rotation: the browser's
+  own cookie jar carries it and `credentials: "include"` puts it on the retry. On the server
+  an expired session simply surfaces its `401` — there is no server-side rotation, because a
+  Server Component has no response to set cookies on (ADR 0001 §1.1). `src/lib/public-read.ts`
+  is what turns that `401` into navigation; `AUTH-01` in `e2e/auth-settings.spec.ts` is
+  `test.fixme` pending the BFF/session boundary.
 - **No client-side business logic:** permissions come from `viewer.*` flags,
   reputation/enum copy from `GET /meta/enums`, and notification strings, suggestion
   reasons and interaction labels are rendered server-side and shown verbatim. Ranked

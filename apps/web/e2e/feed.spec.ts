@@ -81,8 +81,9 @@ test.describe("feed & L detail", () => {
   test("cards no longer render the category, company, tags or event date", async ({ page }) => {
     await page.goto("/");
 
-    // The seeded google L has category INTERVIEWS, company Google, and tags — v1 still
-    // sends all of them, and the card must ignore every one.
+    // The seeded google L still carries category INTERVIEWS, company Google, and tags in the
+    // database — v2 simply stops emitting them. Asserting against the real API is what proves
+    // the mappers drop them, rather than trusting that the card would have ignored them.
     await expect(feed(page).getByText(world.google.title)).toBeVisible();
     await expect(page.getByText("Interviews", { exact: true })).toHaveCount(0);
     await expect(page.getByText("#interview")).toHaveCount(0);
