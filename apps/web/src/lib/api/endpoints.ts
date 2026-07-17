@@ -1,4 +1,4 @@
-import { API_BASE_URL, API_V2_BASE_URL } from "@/lib/env";
+import { API_BASE_URL } from "@/lib/env";
 import type {
   AuthMeResponse,
   AvatarUploadRequest,
@@ -11,6 +11,7 @@ import type {
   FeedSidebarResponse,
   FeedSort as ContractFeedSort,
   FollowResult,
+  JourneyNode,
   LCard,
   LDetail,
   LType,
@@ -24,12 +25,7 @@ import type {
   UserProfile,
   UserSummary,
 } from "@linkedout/contracts/v2";
-import { feedSidebarResponseSchema, isSafeReturnTo } from "@linkedout/contracts/v2";
-// The journey is the one surface v2 cannot serve yet: v1's JourneyNode has no `createdAt`
-// (it sends the `eventDate ?? createdAt` alias as `date`) and v1 orders by that alias, so
-// adopting the v2 node here would render an out-of-order timeline labelled with the wrong
-// timestamps. Reverted to the v2 import the moment GET /v2/users/:username/journey ships.
-import type { JourneyNode } from "@linkedout/contracts";
+import { isSafeReturnTo } from "@linkedout/contracts/v2";
 import { apiFetch } from "./client";
 
 type QueryValue = string | number | boolean | undefined | null;
@@ -96,21 +92,7 @@ export function getFeed(opts: FeedQuery = {}): Promise<Paginated<LCard>> {
  *
  * Fails independently of the centre feed — callers hide the rails rather than the page.
  */
-export async function getFeedSidebar(): Promise<FeedSidebarResponse> {
-  if (process.env.NEXT_PUBLIC_FEED_SIDEBAR_FIXTURE === "1") {
-    // Dynamically imported so the fixture is dead-code-eliminated from the production
-    // bundle: the env check folds to `false` at build time and this branch disappears.
-    const { makeFeedSidebarFixture } = await import("./fixtures/feed-sidebar");
-    const me = await getMe().catch<AuthMeResponse>(() => ({
-      user: null,
-      needsOnboarding: false,
-    }));
-    // Parsed, not cast: a fixture that drifts from the contract fails here rather than
-    // rendering a shape the real endpoint would never send.
-    return feedSidebarResponseSchema.parse(makeFeedSidebarFixture(new Date(), me));
-  }
-  return apiFetch<FeedSidebarResponse>("/feed/sidebar", { baseUrl: API_V2_BASE_URL });
-}
+export const getFeedSidebar = () => apiFetch<FeedSidebarResponse>("/feed/sidebar");
 
 // ── Ls (core object) ─────────────────────────────────────────────────────────
 export const getL = (id: string) => apiFetch<LDetail>(`/ls/${id}`);

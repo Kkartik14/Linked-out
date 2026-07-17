@@ -1,6 +1,6 @@
-import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
+import { beforeEach, describe, expect, it, vi } from "vitest";
 
-import { feedSidebarResponseSchema, type CreateLInput } from "@linkedout/contracts/v2";
+import type { CreateLInput } from "@linkedout/contracts/v2";
 
 import { apiFetch } from "./client";
 import {
@@ -22,10 +22,6 @@ vi.mock("./client", () => ({
 describe("API endpoint helpers", () => {
   beforeEach(() => {
     vi.mocked(apiFetch).mockReset();
-  });
-
-  afterEach(() => {
-    vi.unstubAllEnvs();
   });
 
   it("builds global feed query strings without empty params", () => {
@@ -92,45 +88,10 @@ describe("API endpoint helpers", () => {
     expect(() => oauthLoginUrl("github", "//evil.example")).toThrow(/safe relative path/);
     expect(() => oauthLoginUrl("github", "/\\evil")).toThrow(/safe relative path/);
   });
-});
 
-describe("getFeedSidebar", () => {
-  beforeEach(() => {
-    vi.mocked(apiFetch).mockReset();
-  });
-
-  afterEach(() => {
-    vi.unstubAllEnvs();
-  });
-
-  it("serves a schema-valid fixture without hitting the unshipped v2 route", async () => {
-    vi.stubEnv("NEXT_PUBLIC_FEED_SIDEBAR_FIXTURE", "1");
-    // The fixture reads the real /auth/me so dev sees its own signed-in state.
-    vi.mocked(apiFetch).mockResolvedValueOnce({ user: null, needsOnboarding: false });
-
-    const sidebar = await getFeedSidebar();
-
-    expect(() => feedSidebarResponseSchema.parse(sidebar)).not.toThrow();
-    expect(apiFetch).not.toHaveBeenCalledWith("/feed/sidebar", expect.anything());
-  });
-
-  it("degrades the fixture to a guest response when /auth/me fails", async () => {
-    vi.stubEnv("NEXT_PUBLIC_FEED_SIDEBAR_FIXTURE", "1");
-    vi.mocked(apiFetch).mockRejectedValueOnce(new Error("network"));
-
-    const sidebar = await getFeedSidebar();
-
-    expect(sidebar.viewer.state).toBe("SIGNED_OUT");
-  });
-
-  it("calls the v2 route on the v2 base URL once the fixture flag is off", () => {
-    vi.stubEnv("NEXT_PUBLIC_FEED_SIDEBAR_FIXTURE", "");
-
+  it("fetches the discovery rails from the one aggregate route", () => {
     void getFeedSidebar();
 
-    // v2 lives beside v1 on the same host; only this route is v2-only today.
-    expect(apiFetch).toHaveBeenCalledWith("/feed/sidebar", {
-      baseUrl: "http://localhost:4000/v2",
-    });
+    expect(apiFetch).toHaveBeenCalledWith("/feed/sidebar");
   });
 });

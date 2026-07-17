@@ -1,8 +1,8 @@
 import { cache } from "react";
 import type { Metadata } from "next";
-import { notFound } from "next/navigation";
 
-import { getJourney, getProfile, isApiError } from "@/lib/api";
+import { getJourney, getProfile } from "@/lib/api";
+import { publicReadFailure } from "@/lib/public-read";
 import { ProfileHeader } from "@/components/profile/profile-header";
 import { ProfileTabs } from "@/components/profile/profile-tabs";
 
@@ -32,13 +32,9 @@ export default async function ProfilePage({
 }) {
   const { username } = await params;
 
-  let profile;
-  try {
-    profile = await loadProfile(username);
-  } catch (err) {
-    if (isApiError(err) && err.status === 404) notFound();
-    throw err;
-  }
+  const profile = await loadProfile(username).catch((err: unknown) =>
+    publicReadFailure(err, `/u/${username}`),
+  );
 
   const journeyInitial = await getJourney(username).catch(() => undefined);
 

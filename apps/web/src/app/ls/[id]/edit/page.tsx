@@ -1,8 +1,9 @@
 import { cache } from "react";
 import type { Metadata } from "next";
-import { notFound, redirect } from "next/navigation";
+import { redirect } from "next/navigation";
 
-import { getL, isApiError } from "@/lib/api";
+import { getL } from "@/lib/api";
+import { publicReadFailure } from "@/lib/public-read";
 import { LComposer } from "@/components/l/l-composer";
 
 const loadL = cache((id: string) => getL(id));
@@ -12,13 +13,7 @@ export const metadata: Metadata = { title: "Edit L" };
 export default async function EditLPage({ params }: { params: Promise<{ id: string }> }) {
   const { id } = await params;
 
-  let l;
-  try {
-    l = await loadL(id);
-  } catch (err) {
-    if (isApiError(err) && err.status === 404) notFound();
-    throw err;
-  }
+  const l = await loadL(id).catch((err: unknown) => publicReadFailure(err, `/ls/${id}/edit`));
   if (!l.viewer.canEdit) redirect(`/ls/${id}`);
 
   return (

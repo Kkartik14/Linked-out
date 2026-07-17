@@ -1,8 +1,8 @@
 import { cache } from "react";
 import type { Metadata } from "next";
-import { notFound } from "next/navigation";
 
-import { getCollection, isApiError } from "@/lib/api";
+import { getCollection } from "@/lib/api";
+import { publicReadFailure } from "@/lib/public-read";
 import { CollectionDetailView } from "@/components/collections/collection-detail-view";
 
 const loadCollection = cache((id: string) => getCollection(id));
@@ -28,13 +28,9 @@ export default async function CollectionPage({
 }) {
   const { id } = await params;
 
-  let collection;
-  try {
-    collection = await loadCollection(id);
-  } catch (err) {
-    if (isApiError(err) && err.status === 404) notFound();
-    throw err;
-  }
+  const collection = await loadCollection(id).catch((err: unknown) =>
+    publicReadFailure(err, `/collections/${id}`),
+  );
   return (
     <div className="mx-auto w-full max-w-2xl px-4 py-6">
       <CollectionDetailView collection={collection} />

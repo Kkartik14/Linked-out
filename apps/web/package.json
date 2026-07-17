@@ -14,7 +14,7 @@
     "typecheck": "tsc --noEmit",
     "test": "vitest run",
     "test:watch": "vitest",
-    "test:e2e": "NEXT_PUBLIC_API_BASE_URL=http://localhost:${E2E_API_PORT:-4010}/v1 NEXT_PUBLIC_FEED_SIDEBAR_FIXTURE=1 pnpm build && ALLOW_TEST_DB_RESET=1 TEST_DB_EXPECTED_SESSION_USER=linkedout playwright test"
+    "test:e2e": "NEXT_PUBLIC_API_BASE_URL=http://localhost:${E2E_API_PORT:-4010}/v2 pnpm build && ALLOW_TEST_DB_RESET=1 TEST_DB_EXPECTED_SESSION_USER=linkedout playwright test"
   },
   "dependencies": {
     "@hookform/resolvers": "^5.4.0",

@@ -21,12 +21,16 @@ pnpm install
 pnpm dev            # http://localhost:3000  (expects the API at NEXT_PUBLIC_API_BASE_URL)
 ```
 
-Point `NEXT_PUBLIC_API_BASE_URL` (in `.env.local`) at your API — default `http://localhost:4000/v1`.
+Point `NEXT_PUBLIC_API_BASE_URL` (in `.env.local`) at your API — default `http://localhost:4000/v2`.
 
 > **After the backend rebuilds `@linkedout/contracts`, re-run `pnpm install` here.** pnpm
 > materialises the `file:` dependency as a *copy*, not a live symlink, so a rebuilt
 > contracts package is invisible to this workspace until you reinstall. The symptom is a
 > phantom type error, or a missing export that plainly exists in `packages/contracts`.
+
+> **After the backend adds a migration, run `pnpm --filter @linkedout/db migrate:deploy`.**
+> Nothing migrates your dev database automatically, and the API answers a route whose
+> tables are behind with a `500` — which reads like a frontend bug and is not one.
 
 ## Scripts
 
@@ -39,25 +43,26 @@ Point `NEXT_PUBLIC_API_BASE_URL` (in `.env.local`) at your API — default `http
 | `pnpm test` | Vitest (unit + component) |
 | `pnpm test:e2e` | Playwright (needs `pnpm build` + `pnpm exec playwright install chromium` first) |
 
-## Contract version
+## The contract
 
-The app builds against **v2** (`@linkedout/contracts/v2`, `docs/api-contract-v2.md`), while
-the deployed API is still **v1**. That works because v1 responses are a strict superset of
-v2's, and v1's strict write schemas accept a v2 body — so the app speaks v2 types to v1
-routes until `/v2` ships (contract §5). `API_BASE_URL` therefore stays on `/v1`.
+The app speaks **v2 only** — `@linkedout/contracts/v2`, documented in `docs/api-contract-v2.md`.
+`NEXT_PUBLIC_API_BASE_URL` carries the `/v2` prefix and there is no second base URL.
 
-The v2 L has **no `category`, `company`, `tags`, or `eventDate`**, and there is no category
-filter or `/tags/popular` route. v1 still sends those fields; the UI ignores them.
+The v2 L has **no `category`, `company`, `tags`, or `eventDate`**, there is no category
+filter on the feed or search, and `/tags/popular` does not exist. `JourneyNode` carries
+`createdAt` and the journey is ordered by `(createdAt, id)`.
 
-Two things are still v1, each with its removal trigger written at the code:
+### Rejected credentials
 
-- **`journey-timeline`** imports v1's `JourneyNode`. v2's node needs `createdAt`, which v1
-  never sends (it sends the `eventDate ?? createdAt` alias as `date`) *and* orders by that
-  alias — so adopting the v2 node today would render a timeline sorted one way and
-  labelled another. Migrate when `GET /v2/users/:username/journey` ships.
-- **`src/lib/api/fixtures/`** serves `GET /v2/feed/sidebar` locally, because the route is
-  not deployed yet. Gated by `NEXT_PUBLIC_FEED_SIDEBAR_FIXTURE=1`; delete the directory,
-  the flag, and the branch in `getFeedSidebar` when the route is live.
+v2's optional-auth reads do **not** downgrade a presented-but-invalid credential to a guest
+response — they reject it with `401` (contract §2). A stale or corrupt `lo_access` cookie
+therefore fails even a public read.
+
+The frontend cannot clear an httpOnly cookie from a Server Component (there is no routing
+boundary to set a response header — ADR 0001 §1.1), so it cannot heal the session itself.
+`src/lib/public-read.ts` sends those viewers to `/login`, which is the one recoverable
+answer that neither pretends the credential is valid nor silently re-fetches as a guest.
+Delete it when the BFF/session boundary lands and a broken session is cleared at the edge.
 
 ## Architecture notes
 
@@ -79,8 +84,8 @@ Two things are still v1, each with its removal trigger written at the code:
 
 ### The feed rails
 
-`GET /v2/feed/sidebar` is one optional-auth aggregate carrying the viewer, people to
-follow, Top Ls, and L of the day. The wire does not encode left/right — placement is ours:
+`GET /feed/sidebar` is one optional-auth aggregate carrying the viewer, people to follow,
+Top Ls, and L of the day. The wire does not encode left/right — placement is ours:
 
 - **Left** — viewer box, then People to Follow in its own container.
 - **Right** — Top Ls, then L of the day.
@@ -91,6 +96,10 @@ follow, Top Ls, and L of the day. The wire does not encode left/right — placem
 - **No polling.** `refreshAfter` becomes a derived `staleTime`; the rails refresh on
   remount and after a follow, never under a reader's eyes.
 - The request **fails independently of the feed**: the rails hide, the page stays whole.
+
+The feed route is three landmarks — two `complementary` rails around a `region` named
+"The Feed". The same L can legitimately appear in both the feed and a rail, so anything
+addressing "the feed" (a screen reader, a test) needs that name to mean something.
 
 ## Routes
 

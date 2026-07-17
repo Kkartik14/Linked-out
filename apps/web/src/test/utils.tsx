@@ -17,7 +17,9 @@ import { SessionProvider, type Session } from "@/components/session-provider";
 import { TooltipProvider } from "@/components/ui/tooltip";
 
 export const mockUser: UserProfile = {
-  id: "u_kartik",
+  // A real ULID: `id` is `ulidSchema` on the wire, so a placeholder like "u_kartik" fails
+  // any test that validates this user against the contract.
+  id: "01ARZ3NDEKTSV4RRFFQ69G5FAV",
   username: "kartik",
   name: "Kartik Gupta",
   image: null,

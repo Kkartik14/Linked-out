@@ -1,9 +1,14 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { screen, waitFor, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
-import type { FeedSidebarResponse } from "@linkedout/contracts/v2";
+import {
+  feedSidebarResponseSchema,
+  type AuthMeResponse,
+  type FeedSidebarResponse,
+  type LCard,
+  type UserSummary,
+} from "@linkedout/contracts/v2";
 
-import { makeFeedSidebarFixture } from "@/lib/api/fixtures/feed-sidebar";
 import { mockUser, renderWithProviders } from "@/test/utils";
 import type { Session } from "@/components/session-provider";
 
@@ -20,17 +25,135 @@ vi.mock("@/lib/api", async (importOriginal) => {
 import { FeedSidebarLeft, FeedSidebarRight } from "@/components/feed/sidebar/feed-sidebar";
 import { follow, getFeedSidebar } from "@/lib/api";
 
-const NOW = new Date("2026-07-17T02:00:00.000Z");
 const loggedIn: Session = { user: mockUser, needsOnboarding: false };
 const signedOut: Session = { user: null, needsOnboarding: false };
 
+const RUPA: UserSummary = {
+  id: "01ARZ3NDEKTSV4RRFFQ69G5FC0",
+  username: "rupa",
+  name: "Rupa Iyer",
+  image: null,
+  status: "RECOVERING",
+};
+const DEV: UserSummary = {
+  id: "01ARZ3NDEKTSV4RRFFQ69G5FC1",
+  username: "devansh",
+  name: "Devansh Mehta",
+  image: null,
+  status: "INTERVIEWING",
+};
+
+function card(over: Pick<LCard, "id" | "title" | "author" | "isAnonymous">): LCard {
+  return {
+    storyPreview: "A short account of what happened, and what it taught.",
+    type: "STORY",
+    visibility: "PUBLIC",
+    resolvedAt: null,
+    reactions: { total: 0, beenThere: 0, helpful: 0, respect: 0, pain: 0, saved: 0 },
+    commentCount: 0,
+    viewer: { reactions: [], canEdit: false },
+    createdAt: "2026-07-14T09:30:00.000Z",
+    ...over,
+  };
+}
+
+/**
+ * A response shaped exactly as the endpoint sends it. Built here rather than imported,
+ * because it is test data: it exists to pin these components' behaviour, and it is
+ * validated against the real contract below so it cannot quietly drift from the wire.
+ */
+function sidebar(me: AuthMeResponse): FeedSidebarResponse {
+  const ready = me.user !== null && !me.needsOnboarding;
+  const viewer: FeedSidebarResponse["viewer"] = !me.user
+    ? { state: "SIGNED_OUT", profile: null }
+    : me.needsOnboarding
+      ? { state: "ONBOARDING_REQUIRED", profile: me.user }
+      : { state: "READY", profile: me.user };
+
+  return {
+    contractVersion: 2,
+    generatedAt: "2026-07-17T02:00:00.000Z",
+    refreshAfter: "2026-07-17T02:01:00.000Z",
+    viewer,
+    peopleToFollow: {
+      personalized: ready,
+      items: [
+        {
+          user: RUPA,
+          reason: { code: "MUTUAL_FOLLOWS", count: 3, text: "3 mutual follows" },
+          viewer: { canFollow: ready },
+        },
+        {
+          user: DEV,
+          reason: { code: "ACTIVE_BUILDER", text: "Active builder this week" },
+          viewer: { canFollow: ready },
+        },
+      ],
+    },
+    topLs: {
+      basis: "MOST_INTERACTED",
+      // Exactly seven days, so the derived caption is assertable.
+      window: { startsAt: "2026-07-10T02:00:00.000Z", endsAt: "2026-07-17T02:00:00.000Z" },
+      items: [
+        {
+          l: card({
+            id: "01ARZ3NDEKTSV4RRFFQ69G5FB0",
+            title: "We shipped to 40,000 users with a migration that had never been tested",
+            author: DEV,
+            isAnonymous: false,
+          }),
+          interactionCount: 34,
+          interactionLabel: "34 builders interacted",
+        },
+        {
+          // Anonymous Ls are eligible for Top Ls and stay unattributed (contract §2).
+          l: card({
+            id: "01ARZ3NDEKTSV4RRFFQ69G5FB1",
+            title: "I burned out and told nobody for seven months",
+            author: null,
+            isAnonymous: true,
+          }),
+          interactionCount: 27,
+          interactionLabel: "27 builders interacted",
+        },
+      ],
+    },
+    lOfTheDay: {
+      selectedFor: "2026-07-17",
+      basis: "MOST_INTERACTED",
+      window: { startsAt: "2026-07-16T00:00:00.000Z", endsAt: "2026-07-17T00:00:00.000Z" },
+      item: {
+        l: {
+          ...card({
+            id: "01ARZ3NDEKTSV4RRFFQ69G5FB5",
+            title: "The startup died on a Tuesday. I want to talk about the Wednesday.",
+            author: RUPA,
+            isAnonymous: false,
+          }),
+          isAnonymous: false as const,
+          author: RUPA,
+        },
+        interactionCount: 41,
+        interactionLabel: "41 builders interacted",
+      },
+    },
+  };
+}
+
 function guestSidebar(): FeedSidebarResponse {
-  return makeFeedSidebarFixture(NOW, { user: null, needsOnboarding: false });
+  return sidebar({ user: null, needsOnboarding: false });
 }
 
 function memberSidebar(): FeedSidebarResponse {
-  return makeFeedSidebarFixture(NOW, { user: mockUser, needsOnboarding: false });
+  return sidebar({ user: mockUser, needsOnboarding: false });
 }
+
+describe("the test data matches the wire", () => {
+  it("satisfies the contract schema, so these tests cannot drift from the endpoint", () => {
+    expect(() => feedSidebarResponseSchema.parse(guestSidebar())).not.toThrow();
+    expect(() => feedSidebarResponseSchema.parse(memberSidebar())).not.toThrow();
+  });
+});
 
 beforeEach(() => {
   vi.clearAllMocks();
@@ -149,8 +272,7 @@ describe("FeedSidebarLeft — viewer card", () => {
   });
 
   it("sends a half-onboarded viewer to finish onboarding", () => {
-    const sidebar = makeFeedSidebarFixture(NOW, { user: mockUser, needsOnboarding: true });
-    renderWithProviders(<FeedSidebarLeft initial={sidebar} />, {
+    renderWithProviders(<FeedSidebarLeft initial={sidebar({ user: mockUser, needsOnboarding: true })} />, {
       session: { user: mockUser, needsOnboarding: true },
     });
 

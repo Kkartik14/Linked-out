@@ -1,8 +1,8 @@
 import { cache } from "react";
 import type { Metadata } from "next";
-import { notFound } from "next/navigation";
 
-import { getL, isApiError } from "@/lib/api";
+import { getL } from "@/lib/api";
+import { publicReadFailure } from "@/lib/public-read";
 import { truncate } from "@/lib/format";
 import { LDetailView } from "@/components/l/l-detail-view";
 import { CommentsSection } from "@/components/comments/comments-section";
@@ -25,14 +25,7 @@ export async function generateMetadata({
 
 export default async function LPage({ params }: { params: Promise<{ id: string }> }) {
   const { id } = await params;
-
-  let l;
-  try {
-    l = await loadL(id);
-  } catch (err) {
-    if (isApiError(err) && err.status === 404) notFound();
-    throw err;
-  }
+  const l = await loadL(id).catch((err: unknown) => publicReadFailure(err, `/ls/${id}`));
 
   return (
     <article className="mx-auto w-full max-w-2xl px-4 py-6">

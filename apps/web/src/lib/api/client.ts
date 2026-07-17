@@ -7,8 +7,6 @@ export interface ApiFetchInit extends RequestInit {
   skipRefresh?: boolean;
   /** Internal: server-side retry cookie after a refresh response sets cookies. */
   cookieHeader?: string;
-  /** Override the API version base. Defaults to `API_BASE_URL` (v1). */
-  baseUrl?: string;
 }
 
 /**
@@ -93,7 +91,7 @@ function setCookiesFrom(headers: Headers): string[] {
  * typed as `T`, or throws `ApiError`.
  */
 export async function apiFetch<T>(path: string, init: ApiFetchInit = {}): Promise<T> {
-  const { skipRefresh, cookieHeader, baseUrl = API_BASE_URL, ...rest } = init;
+  const { skipRefresh, cookieHeader, ...rest } = init;
   const headers = new Headers(rest.headers);
   const forwardsCredentials = rest.credentials !== "omit";
   if (!forwardsCredentials) headers.delete("cookie");
@@ -105,7 +103,7 @@ export async function apiFetch<T>(path: string, init: ApiFetchInit = {}): Promis
     headers.set("content-type", "application/json");
   }
 
-  const res = await fetch(`${baseUrl}${path}`, {
+  const res = await fetch(`${API_BASE_URL}${path}`, {
     ...rest,
     headers,
     credentials: rest.credentials ?? "include",

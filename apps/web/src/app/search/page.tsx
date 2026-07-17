@@ -1,6 +1,7 @@
 import type { Metadata } from "next";
 
 import { searchLs, searchUsers } from "@/lib/api";
+import { redirectIfCredentialRejected } from "@/lib/public-read";
 import { SearchClient } from "@/components/search/search-client";
 
 export function generateMetadata({
@@ -22,9 +23,16 @@ export default async function SearchPage({
   const q = (sp.q ?? "").trim();
   const type = sp.type === "users" ? "users" : "ls";
 
-  const initialLs = q && type === "ls" ? await searchLs(q).catch(() => undefined) : undefined;
-  const initialUsers =
-    q && type === "users" ? await searchUsers(q).catch(() => undefined) : undefined;
+  const returnTo = `/search?q=${encodeURIComponent(q)}`;
+  // A transient failure is left to the client query to retry; only a rejected credential
+  // is fatal here, because every later fetch would fail the same way.
+  const swallow = (err: unknown) => {
+    redirectIfCredentialRejected(err, returnTo);
+    return undefined;
+  };
+
+  const initialLs = q && type === "ls" ? await searchLs(q).catch(swallow) : undefined;
+  const initialUsers = q && type === "users" ? await searchUsers(q).catch(swallow) : undefined;
 
   return (
     <div className="mx-auto w-full max-w-2xl px-4 py-6">

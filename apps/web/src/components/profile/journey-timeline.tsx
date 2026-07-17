@@ -1,13 +1,7 @@
 "use client";
 
 import Link from "next/link";
-// The one v1 island left in the app. v2's JourneyNode carries `createdAt`, but v1 never
-// sends it — it sends the `eventDate ?? createdAt` alias as `date` and *orders by that
-// alias*. Adopting the v2 node against the live v1 route would render a timeline sorted
-// one way and labelled another (a backdated L would sort first but display its publish
-// date). Migrate this file the moment GET /v2/users/:username/journey ships; the category
-// and company lines are already gone, so only the date field and its import change.
-import type { JourneyNode, Paginated } from "@linkedout/contracts";
+import type { JourneyNode, Paginated } from "@linkedout/contracts/v2";
 
 import { getJourney } from "@/lib/api";
 import { InfiniteList } from "@/components/infinite-list";
@@ -28,8 +22,9 @@ function TimelineNode({ node }: { node: JourneyNode }) {
         aria-hidden
         className="bg-primary ring-background absolute top-1.5 -left-[5px] size-2.5 rounded-full ring-4"
       />
-      <time dateTime={node.date} className="text-muted-foreground text-xs">
-        {formatDate(node.date)}
+      {/* v2 orders the journey by (createdAt, id), so the label and the order agree. */}
+      <time dateTime={node.createdAt} className="text-muted-foreground text-xs">
+        {formatDate(node.createdAt)}
       </time>
       <Link href={`/ls/${node.id}`} className="mt-0.5 block font-medium text-balance hover:underline">
         {node.title}

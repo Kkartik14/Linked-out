@@ -236,6 +236,40 @@ async function seedWorld() {
   });
   await db().user.update({ where: { id: kartik.id }, data: { collectionsCreated: 1 } });
 
+  // ─── Interactions that make the discovery rails rank real content ───────────
+  //
+  // GET /feed/sidebar counts *distinct non-author actors* per L. Without these the
+  // endpoint correctly returns empty rails, and the rail specs would assert nothing.
+  //
+  // `createdAt` is set explicitly because the two rails read different windows: Top Ls
+  // uses a rolling seven days, while L of the day uses only the *previous completed UTC
+  // day*. Seeding everything at "now" would leave the daily slot permanently null.
+  const startOfToday = Date.UTC(
+    new Date().getUTCFullYear(),
+    new Date().getUTCMonth(),
+    new Date().getUTCDate(),
+  );
+  // Noon yesterday: comfortably inside the closed previous-UTC-day window whatever time
+  // the suite runs at.
+  const yesterday = new Date(startOfToday - 12 * 60 * 60 * 1000);
+
+  // L of the day: PUBLIC, attributed, onboarded author, interacted with yesterday. It is
+  // the only candidate in that closed window, so the winner is deterministic. Being the
+  // daily winner it is also excluded from Top Ls, which exercises that rule.
+  await db().reaction.create({
+    data: { userId: nadia.id, lId: startup.id, type: 'BEEN_THERE', createdAt: yesterday },
+  });
+
+  // Top Ls, this week. `google` already carries nadia's comment above, which counts as
+  // her interaction, so only the anonymous L needs one adding.
+  //
+  // Deliberately nothing on `nadiaPublic`: the write-actions specs react to it as kartik
+  // and assert the counts they produce, so a seeded reaction there would collide with the
+  // very state those tests exist to observe.
+  await db().reaction.create({
+    data: { userId: kartik.id, lId: anonymous.id, type: 'HELPFUL' },
+  });
+
   return { kartik, nadia, newcomer, google, startup, nadiaPublic, anonymous, privateL, comment, collection };
 }
 

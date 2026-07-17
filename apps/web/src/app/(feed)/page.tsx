@@ -2,6 +2,7 @@ import { feedSortSchema } from "@linkedout/contracts/v2";
 
 import { getFeed, getFeedSidebar, type FeedScope, type FeedSort } from "@/lib/api";
 import { getSession } from "@/lib/session";
+import { publicReadFailure } from "@/lib/public-read";
 import { FeedControls } from "@/components/feed/feed-controls";
 import { FeedList } from "@/components/feed/feed-list";
 import { FeedSidebarLeft, FeedSidebarRight } from "@/components/feed/sidebar/feed-sidebar";
@@ -25,7 +26,7 @@ export default async function HomePage({
     // Ancillary: the rails fail independently of the feed (contract v2 §2). A rejection
     // leaves the page whole, and the rails retry client-side from their own query.
     getFeedSidebar().catch(() => undefined),
-  ]);
+  ]).catch((err: unknown) => publicReadFailure(err, "/"));
 
   return (
     /**
@@ -38,10 +39,19 @@ export default async function HomePage({
     <div className="mx-auto grid w-full max-w-[80rem] grid-cols-1 items-start gap-6 px-4 py-6 lg:grid-cols-[17rem_minmax(0,1fr)] xl:grid-cols-[17rem_minmax(0,42rem)_19rem]">
       <FeedSidebarLeft initial={sidebar} />
 
-      {/* `min-w-0` stops a long unbroken title from widening the grid track. */}
-      <div className="min-w-0">
+      {/*
+       * A labelled region, so the feed is addressable in a page whose other two columns
+       * are `complementary` landmarks — the same L can legitimately appear both here and
+       * in a rail, and "the feed" has to mean something specific to a screen reader
+       * moving between landmarks.
+       *
+       * `min-w-0` stops a long unbroken title from widening the grid track.
+       */}
+      <section aria-labelledby="feed-heading" className="min-w-0">
         <div className="mb-5">
-          <h1 className="text-2xl font-semibold tracking-tight">The Feed</h1>
+          <h1 id="feed-heading" className="text-2xl font-semibold tracking-tight">
+            The Feed
+          </h1>
           <p className="text-muted-foreground text-sm">
             Honest career stories — the Ls, and what they taught.
           </p>
@@ -49,7 +59,7 @@ export default async function HomePage({
 
         <FeedControls scope={scope} sort={sort} canFollow={loggedIn} />
         <FeedList key={`${scope}:${sort}`} initial={initial} scope={scope} sort={sort} />
-      </div>
+      </section>
 
       <FeedSidebarRight initial={sidebar} />
     </div>
