@@ -98,7 +98,7 @@ export function FeedSidebarRight({ initial }: { initial?: FeedSidebarResponse })
     <aside aria-label="Top Ls and L of the day" className={cn("hidden xl:flex", RAIL)}>
       {data ? (
         <>
-          <TopLs items={data.topLs.items} window={data.topLs.window} />
+          <TopLs items={data.topLs.items} windowLabel={data.topLs.windowLabel} />
           <LOfTheDay daily={data.lOfTheDay} />
         </>
       ) : (

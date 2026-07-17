@@ -1,30 +1,7 @@
 import Link from "next/link";
-import type { FeaturedL, InteractionWindow } from "@linkedout/contracts/v2";
+import type { FeaturedL } from "@linkedout/contracts/v2";
 
 import { SidebarSection } from "@/components/feed/sidebar/sidebar-section";
-
-const DAY_MS = 86_400_000;
-
-/**
- * Names the window the backend actually returned, rather than restating the contract's
- * seven days. If the window ever widens, this caption follows it instead of lying.
- *
- * TODO(contract): this is the frontend composing business copy, which the contract gives
- * it no licence to do — §2 supplies `interactionLabel` verbatim precisely so counts and
- * copy are the backend's, and §4 says the frontend "renders the supplied ordering, copy,
- * counts". No window caption is supplied today, so this derives one. It should become a
- * server-supplied `topLs.windowLabel`, at which point this function and `DAY_MS` go away.
- * Kept meanwhile: deleting the caption is a visible product change, not a cleanup.
- */
-function windowCaption(window: InteractionWindow): string {
-  const days = Math.round((Date.parse(window.endsAt) - Date.parse(window.startsAt)) / DAY_MS);
-  // Both bounds are `z.iso.datetime()`, so they always parse to a finite number and no
-  // `Number.isFinite` guard is reachable. Duration is a different question: nothing in
-  // `interactionWindowSchema` orders the bounds or requires a whole day between them, so
-  // an empty, inverted, or sub-day window would caption "Past 0 days" without this.
-  if (days <= 0) return "";
-  return days === 1 ? "Past 24 hours" : `Past ${days} days`;
-}
 
 function FeaturedRow({ item, rank }: { item: FeaturedL; rank: number }) {
   const { l } = item;
@@ -59,11 +36,12 @@ function FeaturedRow({ item, rank }: { item: FeaturedL; rank: number }) {
   );
 }
 
-export function TopLs({ items, window }: { items: FeaturedL[]; window: InteractionWindow }) {
+/** `windowLabel` is server-composed copy, like `interactionLabel`. Rendered verbatim. */
+export function TopLs({ items, windowLabel }: { items: FeaturedL[]; windowLabel: string }) {
   if (items.length === 0) return null;
 
   return (
-    <SidebarSection title="Top Ls" caption={windowCaption(window)}>
+    <SidebarSection title="Top Ls" caption={windowLabel}>
       {/*
        * `items` order is authoritative — rendered as given, never re-ranked. An `ol`, not
        * a `ul`: the rank is the point of this rail, and the number beside each row is
