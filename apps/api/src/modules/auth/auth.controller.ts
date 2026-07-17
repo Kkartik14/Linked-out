@@ -11,10 +11,16 @@ import {
 } from '@nestjs/common';
 import {
   oauthHandoffExchangeInputSchema,
+  sessionResolveInputSchema,
+  sessionRevokeInputSchema,
   type AuthMeResponse,
   type OAuthFailureCode,
   type OAuthHandoffExchangeInput,
   type OAuthHandoffExchangeResponse,
+  type SessionResolveInput,
+  type SessionResolveResponse,
+  type SessionRevokeInput,
+  type SessionRevokeResponse,
 } from '@linkedout/contracts';
 import type { Request, Response } from 'express';
 
@@ -30,12 +36,13 @@ import type { AuthUser } from '../../common/types/auth';
 import { AppConfigService } from '../../config/app-config.service';
 import { UsersService } from '../users/users.service';
 import { AuthService } from './auth.service';
-import { AuthExchangeGuard } from './auth-exchange.guard';
+import { BffCallerGuard, RequireBffCaller } from './bff-caller.guard';
 import { GithubAuthGuard, GoogleAuthGuard } from './oauth.guards';
 import { REFRESH_COOKIE, TokenService } from './token.service';
 import { OAUTH_STATE_COOKIE } from './oauth-state';
 import type { OAuthRequest } from './oauth.guards';
 import { OAuthHandoffService } from './oauth-handoff.service';
+import { BffSessionService } from './bff-session.service';
 
 @Controller({ path: 'auth', version: ['1', '2'] })
 export class AuthController {
@@ -45,6 +52,7 @@ export class AuthController {
     private readonly users: UsersService,
     private readonly config: AppConfigService,
     private readonly handoffs: OAuthHandoffService,
+    private readonly bffSessions: BffSessionService,
   ) {}
 
   @Get('google')
@@ -145,7 +153,8 @@ export class AuthController {
   @Post('oauth/handoff/exchange')
   @Version('1')
   @HttpCode(200)
-  @UseGuards(AuthExchangeGuard)
+  @UseGuards(BffCallerGuard)
+  @RequireBffCaller('auth-exchange')
   @ApiContract(API_ROUTE_CONTRACTS.authOAuthHandoffExchange)
   async exchangeOAuthHandoff(
     @Res({ passthrough: true }) res: Response,
@@ -153,9 +162,48 @@ export class AuthController {
     input: OAuthHandoffExchangeInput,
   ): Promise<OAuthHandoffExchangeResponse> {
     res.setHeader('Cache-Control', 'no-store');
-    const handoff = await this.handoffs.exchange(input.code);
+    const handoff = await this.bffSessions.exchangeOAuthHandoff(input.code);
     if (!handoff) throw AppErrors.invalidHandoff();
     return handoff;
+  }
+
+  /**
+   * Private session introspection for the one-origin BFF (ADR 0001 §4.2).
+   *
+   * Always answers `200` for a valid resolve request: liveness is the body, while transport or
+   * infrastructure failure remains non-2xx. A dedicated BFF capability guards the call, and Nest
+   * issues the user assertion so the web tier never owns identity-signing authority. Deployment
+   * must additionally keep this internal route off the public ingress.
+   */
+  @Post('sessions/resolve')
+  @Version('1')
+  @HttpCode(200)
+  @UseGuards(BffCallerGuard)
+  @RequireBffCaller('session-resolve')
+  @ApiContract(API_ROUTE_CONTRACTS.authSessionsResolve)
+  async resolveSession(
+    @Res({ passthrough: true }) res: Response,
+    @Body(new ZodValidationPipe(sessionResolveInputSchema))
+    input: SessionResolveInput,
+  ): Promise<SessionResolveResponse> {
+    res.setHeader('Cache-Control', 'no-store');
+    return this.bffSessions.resolve(input.cookie);
+  }
+
+  /** Tombstones a browser session before the BFF clears its host-only cookie. */
+  @Post('sessions/revoke')
+  @Version('1')
+  @HttpCode(200)
+  @UseGuards(BffCallerGuard)
+  @RequireBffCaller('session-revoke')
+  @ApiContract(API_ROUTE_CONTRACTS.authSessionsRevoke)
+  async revokeSession(
+    @Res({ passthrough: true }) res: Response,
+    @Body(new ZodValidationPipe(sessionRevokeInputSchema))
+    input: SessionRevokeInput,
+  ): Promise<SessionRevokeResponse> {
+    res.setHeader('Cache-Control', 'no-store');
+    return this.bffSessions.revoke(input.cookie);
   }
 
   private async completeOAuth(

@@ -181,11 +181,29 @@ export function buildOpenApiDocument(): OpenApiDocument {
       '/auth/logout': { post: { security: [] } },
       '/auth/oauth/handoff/exchange': {
         post: {
-          security: [{ authExchangeAssertion: [] }],
+          security: [{ bffCallerAssertion: [] }],
           tags: ['internal-auth'],
           'x-internal': true,
           description:
             'Private BFF exchange; requires network isolation in addition to the assertion.',
+        },
+      },
+      '/auth/sessions/resolve': {
+        post: {
+          security: [{ bffCallerAssertion: [] }],
+          tags: ['internal-auth'],
+          'x-internal': true,
+          description:
+            'Private BFF session resolution and API-assertion issuance; deployment requires network isolation.',
+        },
+      },
+      '/auth/sessions/revoke': {
+        post: {
+          security: [{ bffCallerAssertion: [] }],
+          tags: ['internal-auth'],
+          'x-internal': true,
+          description:
+            'Private idempotent BFF session revocation; deployment requires network isolation.',
         },
       },
 
@@ -406,7 +424,7 @@ export function buildOpenApiDocument(): OpenApiDocument {
       securitySchemes: {
         accessCookie: { type: 'apiKey', in: 'cookie', name: 'lo_access' },
         refreshCookie: { type: 'apiKey', in: 'cookie', name: 'lo_refresh' },
-        authExchangeAssertion: {
+        bffCallerAssertion: {
           type: 'apiKey',
           in: 'header',
           name: 'X-Internal-Auth',

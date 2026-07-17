@@ -46,7 +46,7 @@ const HTTP_METHODS = new Set(['delete', 'get', 'head', 'options', 'patch', 'post
 const KNOWN_GUARDS = new Set([
   'GithubAuthGuard',
   'GoogleAuthGuard',
-  'AuthExchangeGuard',
+  'BffCallerGuard',
   'JwtAuthGuard',
   'OptionalAuthGuard',
   'StrictOptionalAuthGuard',
@@ -125,7 +125,7 @@ function guardNames(Controller, handler) {
 // they share one OpenAPI security block. They differ in what a *bad* cookie does, which OpenAPI
 // cannot express; that difference is pinned by the guard-policy test instead.
 function expectedSecurity(guards) {
-  if (guards.has('AuthExchangeGuard')) return [{ authExchangeAssertion: [] }];
+  if (guards.has('BffCallerGuard')) return [{ bffCallerAssertion: [] }];
   if (guards.has('JwtAuthGuard')) return [{ accessCookie: [] }];
   if (guards.has('OptionalAuthGuard') || guards.has('StrictOptionalAuthGuard')) {
     return [{}, { accessCookie: [] }];
@@ -231,7 +231,7 @@ test('OpenAPI security and success statuses match registered guards and Nest han
   assert.deepEqual(document.components.securitySchemes, {
     accessCookie: { type: 'apiKey', in: 'cookie', name: 'lo_access' },
     refreshCookie: { type: 'apiKey', in: 'cookie', name: 'lo_refresh' },
-    authExchangeAssertion: {
+    bffCallerAssertion: {
       type: 'apiKey',
       in: 'header',
       name: 'X-Internal-Auth',
@@ -355,7 +355,9 @@ test('v2 OpenAPI and route contracts cover exactly the registered v2 operations'
       ...[...API_ROUTE_CONTRACT_BY_KEY.keys()].filter(
         (key) =>
           key !== 'get /tags/popular' &&
-          key !== 'post /auth/oauth/handoff/exchange',
+          key !== 'post /auth/oauth/handoff/exchange' &&
+          key !== 'post /auth/sessions/resolve' &&
+          key !== 'post /auth/sessions/revoke',
       ),
       'get /feed/sidebar',
     ].sort(),

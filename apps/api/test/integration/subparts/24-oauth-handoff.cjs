@@ -6,13 +6,18 @@ const { beforeEach, describe, test } = require('node:test');
 const {
   oauthHandoffExchangeResponseSchema,
 } = require('@linkedout/contracts');
+const {
+  BROWSER_SESSION_ABSOLUTE_TIMEOUT_MS,
+  BrowserSessionAuthority,
+  hashBrowserSessionCookie,
+  hashOAuthHandoffCode,
+} = require('@linkedout/session-authority');
 
 const h = require('../_harness.cjs');
 const {
   OAuthHandoffRepository,
 } = require('../../../dist/modules/auth/oauth-handoff.repository');
 const {
-  hashOAuthHandoffCode,
   OAuthHandoffService,
 } = require('../../../dist/modules/auth/oauth-handoff.service');
 const {
@@ -34,7 +39,7 @@ function exchange(code, assertion = h.authExchangeAssertion()) {
 describe('24 · purpose-scoped OAuth handoffs', () => {
   beforeEach(h.resetDb);
 
-  test('the exchange is private, one-time, and returns only server-bound values', async () => {
+  test('the exchange is private, one-time, and creates the authoritative browser session', async () => {
     const user = await h.createUser();
     const code = await authority().issue(user.id, '/journey?view=recent');
     const stored = await h.ctx.prisma.oAuthHandoff.findUnique({
@@ -53,14 +58,54 @@ describe('24 · purpose-scoped OAuth handoffs', () => {
 
     const wrongPurpose = await exchange(code, h.internalAssertion(user));
     h.expectError(wrongPurpose, 401, 'UNAUTHENTICATED');
+    h.expectError(await exchange(code, h.sessionResolveAssertion()), 401, 'UNAUTHENTICATED');
+    h.expectError(await exchange(code, h.sessionRevokeAssertion()), 401, 'UNAUTHENTICATED');
 
     const success = await exchange(code);
     h.expectShape(success, oauthHandoffExchangeResponseSchema);
-    assert.deepEqual(success.body, { sub: user.id, returnTo: '/journey?view=recent' });
+    assert.equal(success.body.sub, undefined, 'the BFF cannot choose a subject for the session');
+    assert.equal(success.body.returnTo, '/journey?view=recent');
+    assert.match(success.body.cookie, /^[A-Za-z0-9_-]{43}$/);
+    assert.equal(typeof success.body.expiresAt, 'string');
     assert.equal(success.headers.get('cache-control'), 'no-store');
+
+    const session = await h.ctx.prisma.browserSession.findUnique({
+      where: { cookieHash: hashBrowserSessionCookie(success.body.cookie) },
+    });
+    assert.ok(session);
+    assert.equal(session.sub, user.id);
+    assert.notEqual(session.cookieHash, success.body.cookie);
+    assert.equal(
+      new Date(success.body.expiresAt).getTime(),
+      session.createdAt.getTime() + BROWSER_SESSION_ABSOLUTE_TIMEOUT_MS,
+      'the browser cookie survives sliding idle sessions until the absolute cap',
+    );
 
     const replay = await exchange(code);
     h.expectError(replay, 400, 'INVALID_HANDOFF');
+  });
+
+  test('session creation failure rolls back handoff consumption so the code remains retryable', async () => {
+    const user = await h.createUser();
+    const collidingCookie = 'C'.repeat(43);
+    const collidingAuthority = new BrowserSessionAuthority(h.ctx.prisma, {
+      tokenSource: { generate: () => collidingCookie },
+    });
+    await collidingAuthority.create(user.id);
+    const code = await authority().issue(user.id, '/retry-after-outage');
+
+    await assert.rejects(() => collidingAuthority.exchangeOAuthHandoff(code));
+
+    const rolledBack = await h.ctx.prisma.oAuthHandoff.findUniqueOrThrow({
+      where: { codeHash: hashOAuthHandoffCode(code) },
+    });
+    assert.equal(rolledBack.consumedAt, null);
+    assert.equal(await h.ctx.prisma.browserSession.count(), 1, 'no orphan session was inserted');
+
+    const recovered = await new BrowserSessionAuthority(h.ctx.prisma).exchangeOAuthHandoff(code);
+    assert.ok(recovered);
+    assert.equal(recovered.returnTo, '/retry-after-outage');
+    assert.equal(await h.ctx.prisma.browserSession.count(), 2);
   });
 
   test('one concurrent exchange wins and every replay has the same generic outcome', async () => {
@@ -72,6 +117,7 @@ describe('24 · purpose-scoped OAuth handoffs', () => {
 
     assert.equal(attempts.filter(({ status }) => status === 200).length, 1);
     assert.equal(attempts.filter(({ status }) => status === 400).length, 7);
+    assert.equal(await h.ctx.prisma.browserSession.count(), 1);
     for (const rejected of attempts.filter(({ status }) => status === 400)) {
       assert.equal(rejected.body.error.code, 'INVALID_HANDOFF');
     }
@@ -109,7 +155,8 @@ describe('24 · purpose-scoped OAuth handoffs', () => {
       handoffs.issue(user.id, '/two'),
     ]);
     const liveCode = await handoffs.issue(user.id, '/live');
-    assert.ok(await handoffs.exchange(liveCode));
+    const consumed = await exchange(liveCode);
+    assert.equal(consumed.status, 200);
 
     const createdAt = new Date(Date.now() - 120_000);
     await h.ctx.prisma.oAuthHandoff.updateMany({

@@ -6,8 +6,7 @@ import { PrismaModule } from './prisma/prisma.module';
 import { RateLimitInterceptor } from './common/interceptors/rate-limit.interceptor';
 import { PrincipalBindingInterceptor } from './common/interceptors/principal-binding.interceptor';
 import { RequestLoggingInterceptor } from './common/interceptors/request-logging.interceptor';
-import { RateLimitRepository } from './common/rate-limit/rate-limit.repository';
-import { RateLimiter } from './common/rate-limit/rate-limiter';
+import { RateLimitModule } from './common/rate-limit/rate-limit.module';
 import { AuthModule } from './modules/auth/auth.module';
 import { UsersModule } from './modules/users/users.module';
 import { LsModule } from './modules/ls/ls.module';
@@ -26,6 +25,7 @@ import { MetaModule } from './modules/meta/meta.module';
   imports: [
     ConfigModule,
     PrismaModule,
+    RateLimitModule,
     AuthModule,
     UsersModule,
     LsModule,
@@ -41,8 +41,6 @@ import { MetaModule } from './modules/meta/meta.module';
     MetaModule,
   ],
   providers: [
-    RateLimitRepository,
-    RateLimiter,
     { provide: APP_INTERCEPTOR, useClass: RequestLoggingInterceptor },
     { provide: APP_INTERCEPTOR, useClass: PrincipalBindingInterceptor },
     { provide: APP_INTERCEPTOR, useClass: RateLimitInterceptor },

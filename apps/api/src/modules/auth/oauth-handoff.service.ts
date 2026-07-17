@@ -1,22 +1,15 @@
-import { createHash, randomBytes } from 'node:crypto';
+import { randomBytes } from 'node:crypto';
 
 import { Injectable } from '@nestjs/common';
-import {
-  isSafeReturnTo,
-  type OAuthHandoffExchangeResponse,
-} from '@linkedout/contracts';
+import { isSafeReturnTo } from '@linkedout/contracts';
+import { hashOAuthHandoffCode } from '@linkedout/session-authority';
 
 import { OAuthHandoffRepository } from './oauth-handoff.repository';
 
 export const OAUTH_HANDOFF_TTL_MS = 60 * 1000;
 
 const CODE_BYTES = 32;
-const CODE_HASH_DOMAIN = 'linkedout:oauth-handoff:v1\0';
 const MAX_CREATE_ATTEMPTS = 3;
-
-export function hashOAuthHandoffCode(code: string): string {
-  return createHash('sha256').update(CODE_HASH_DOMAIN).update(code).digest('hex');
-}
 
 @Injectable()
 export class OAuthHandoffService {
@@ -42,9 +35,5 @@ export class OAuthHandoffService {
     }
 
     throw new Error('OAuth handoff creation exhausted its collision retry budget.');
-  }
-
-  exchange(code: string): Promise<OAuthHandoffExchangeResponse | null> {
-    return this.repository.consume(hashOAuthHandoffCode(code));
   }
 }

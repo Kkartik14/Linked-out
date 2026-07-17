@@ -20,20 +20,30 @@ and their CI/test boundaries. Newest first.
 
 ### Added
 
-- Added the purpose-scoped OAuth handoff boundary for the one-origin BFF: Nest can persist a
-  60-second, single-use callback result by hash and exchange it atomically for the state-bound
-  `{ sub, returnTo }` using a dedicated `aud: auth-exchange` assertion. The legacy cookie/session
-  callback remains the default until `OAUTH_SESSION_MODE=handoff` is enabled for the cutover.
+- Added the accepted API-owned BFF session lifecycle. OAuth handoff exchange now creates the
+  authoritative server session in the same transaction that consumes the one-time code, then
+  returns `{ cookie, expiresAt, returnTo }`, where `expiresAt` is the browser cookie's 90-day
+  absolute cap rather than the sliding 30-day idle boundary. Session resolution returns a
+  Nest-issued ≤60-second user assertion or `invalid | expired | revoked`; revocation is
+  tombstone-first and idempotent. Purpose-scoped BFF caller assertions use a dedicated
+  `BFF_CALLER_SECRET`, while the distinct Nest-only `INTERNAL_API_SECRET` signs user identity, so
+  the web tier has neither database access nor authority to fabricate `{ sub, sid }`. Verified
+  internal calls use dedicated persisted rate budgets and are never exempted by header presence;
+  rejected assertions have a separate IP abuse budget because guards precede interceptors. All
+  lifecycle routes are internal v1-only, require private ingress at deployment, and the web client
+  refuses plaintext internal transport in production.
 - Extended bounded maintenance cleanup to delete OAuth handoffs only after expiry, retaining
   consumed rows as replay tombstones for the full lifetime of any issued code.
 - Bound every authenticated mutation to the principal that composed it. Unsafe requests now
   require `X-LinkedOut-Principal`; missing, malformed, duplicate, or stale identities fail with
-  `409 PRINCIPAL_MISMATCH` before business logic, covering both legacy cookies and BFF assertions.
+  `409 PRINCIPAL_MISMATCH` before business logic, covering both legacy cookies and API-issued
+  internal assertions.
   This is a strict coordinated cutover: callers must forward the composition-time value unchanged
   and must never replace it with the identity resolved when the request executes.
 - Made `@linkedout/session-authority` consumable from the deliberately separate web workspace by
   replacing its workspace-only database edge with the same local file-link topology used by the
-  shared contracts package. This preserves the ADR's direct BFF-to-session-store authority.
+  shared contracts package. The accepted topology keeps this package behind Nest; the web tier
+  consumes only shared contracts and the BFF-caller signer.
 
 ### Documentation
 
@@ -145,9 +155,10 @@ v1 API remains available during migration.
 
 ### Known limitation
 
-- Authentication still uses a 15-minute access cookie and rotating 30-day refresh session. The
-  one-origin BFF and stable `lo_sid` topology in local ADR 0001 is proposed but not implemented;
-  server-rendered requests cannot yet rotate cookies onto the outer browser response.
+- The API-owned `lo_sid` lifecycle is implemented, but the public BFF proxy/callback/logout route
+  handlers and coordinated cookie cutover are still pending. Until that outer response boundary is
+  deployed, production continues to use the legacy 15-minute access cookie and rotating 30-day
+  refresh session.
 
 ## [1.0.1] — 2026-07-15
 

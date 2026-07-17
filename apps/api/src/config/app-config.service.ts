@@ -63,6 +63,10 @@ export class AppConfigService {
     return this.env.INTERNAL_API_SECRET.length > 0 ? this.env.INTERNAL_API_SECRET : undefined;
   }
 
+  get bffCallerSecret(): string | undefined {
+    return this.env.BFF_CALLER_SECRET.length > 0 ? this.env.BFF_CALLER_SECRET : undefined;
+  }
+
   get oauthSessionMode(): Env['OAUTH_SESSION_MODE'] {
     return this.env.OAUTH_SESSION_MODE;
   }

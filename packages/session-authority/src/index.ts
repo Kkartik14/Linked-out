@@ -9,6 +9,7 @@ export const REVOKED_BROWSER_SESSION_RETENTION_MS = 60 * 1000;
 const COOKIE_BYTES = 32;
 const COOKIE_PATTERN = /^[A-Za-z0-9_-]{43}$/;
 const COOKIE_HASH_DOMAIN = 'linkedout:browser-session:v1:';
+const OAUTH_HANDOFF_CODE_HASH_DOMAIN = 'linkedout:oauth-handoff:v1\0';
 const MAX_CREATE_ATTEMPTS = 3;
 
 export interface BrowserSessionClock {
@@ -29,6 +30,12 @@ export interface BrowserSession {
 
 export interface CreatedBrowserSession extends BrowserSession {
   cookie: string;
+  /** Absolute browser-cookie expiry; server-side idle expiry may be earlier and slides on use. */
+  cookieExpiresAt: Date;
+}
+
+export interface ExchangedOAuthHandoffSession extends CreatedBrowserSession {
+  returnTo: string;
 }
 
 export type BrowserSessionAuthorization =
@@ -100,6 +107,10 @@ export function hashBrowserSessionCookie(cookie: string): string {
   return createHash('sha256').update(COOKIE_HASH_DOMAIN).update(cookie).digest('hex');
 }
 
+export function hashOAuthHandoffCode(code: string): string {
+  return createHash('sha256').update(OAUTH_HANDOFF_CODE_HASH_DOMAIN).update(code).digest('hex');
+}
+
 function expiryFor(createdAt: Date, lastUsedAt: Date): Date {
   return new Date(
     Math.min(
@@ -109,12 +120,16 @@ function expiryFor(createdAt: Date, lastUsedAt: Date): Date {
   );
 }
 
+function cookieExpiryFor(createdAt: Date): Date {
+  return new Date(createdAt.getTime() + BROWSER_SESSION_ABSOLUTE_TIMEOUT_MS);
+}
+
 function isUniqueConflict(error: unknown): boolean {
   return error instanceof Prisma.PrismaClientKnownRequestError && error.code === 'P2002';
 }
 
 /**
- * The authoritative browser-session boundary shared by BFF route handlers.
+ * The authoritative browser-session persistence module used by Nest's BFF session service.
  *
  * Credential states are values; database failures are deliberately not. A caller may render
  * `absent` as a guest and reject invalid/expired credentials, while an unavailable store keeps
@@ -151,6 +166,7 @@ export class BrowserSessionAuthority {
         });
         return {
           cookie,
+          cookieExpiresAt: cookieExpiryFor(row.createdAt),
           sid: row.id,
           sub: row.sub,
           createdAt: row.createdAt,
@@ -163,6 +179,57 @@ export class BrowserSessionAuthority {
     }
 
     throw new Error('Browser session creation exhausted its collision retry budget.');
+  }
+
+  /** Atomically consumes a one-time OAuth handoff and creates its authoritative session. */
+  async exchangeOAuthHandoff(code: string): Promise<ExchangedOAuthHandoffSession | null> {
+    if (!COOKIE_PATTERN.test(code)) return null;
+    const now = this.clock.now();
+    assertValidDate(now, 'BrowserSessionClock.now()');
+    const codeHash = hashOAuthHandoffCode(code);
+
+    for (let attempt = 1; attempt <= MAX_CREATE_ATTEMPTS; attempt += 1) {
+      const cookie = this.tokenSource.generate();
+      assertValidGeneratedCookie(cookie);
+      try {
+        return await this.db.$transaction(async (tx) => {
+          const handoffs = await tx.$queryRaw<Array<{ sub: string; returnTo: string }>>(Prisma.sql`
+            UPDATE "OAuthHandoff"
+            SET "consumedAt" = CURRENT_TIMESTAMP
+            WHERE "codeHash" = ${codeHash}
+              AND "consumedAt" IS NULL
+              AND CURRENT_TIMESTAMP < "expiresAt"
+            RETURNING "sub", "returnTo"
+          `);
+          const handoff = handoffs[0];
+          if (!handoff) return null;
+
+          const row = await tx.browserSession.create({
+            data: {
+              cookieHash: hashBrowserSessionCookie(cookie),
+              sub: handoff.sub,
+              createdAt: now,
+              lastUsedAt: now,
+            },
+            select: { id: true, sub: true, createdAt: true, lastUsedAt: true },
+          });
+          return {
+            cookie,
+            cookieExpiresAt: cookieExpiryFor(row.createdAt),
+            sid: row.id,
+            sub: row.sub,
+            createdAt: row.createdAt,
+            lastUsedAt: row.lastUsedAt,
+            expiresAt: expiryFor(row.createdAt, row.lastUsedAt),
+            returnTo: handoff.returnTo,
+          };
+        });
+      } catch (error) {
+        if (!isUniqueConflict(error) || attempt === MAX_CREATE_ATTEMPTS) throw error;
+      }
+    }
+
+    throw new Error('OAuth session exchange exhausted its collision retry budget.');
   }
 
   async authorize(cookie: string | undefined): Promise<BrowserSessionAuthorization> {

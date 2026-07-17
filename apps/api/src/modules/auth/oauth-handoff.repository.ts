@@ -3,11 +3,6 @@ import { Prisma } from '@linkedout/db';
 
 import { PrismaService } from '../../prisma/prisma.service';
 
-export interface ConsumedOAuthHandoff {
-  sub: string;
-  returnTo: string;
-}
-
 @Injectable()
 export class OAuthHandoffRepository {
   constructor(private readonly prisma: PrismaService) {}
@@ -31,17 +26,5 @@ export class OAuthHandoffRepository {
       }
       throw error;
     }
-  }
-
-  async consume(codeHash: string): Promise<ConsumedOAuthHandoff | null> {
-    const rows = await this.prisma.db.$queryRaw<ConsumedOAuthHandoff[]>(Prisma.sql`
-      UPDATE "OAuthHandoff"
-      SET "consumedAt" = CURRENT_TIMESTAMP
-      WHERE "codeHash" = ${codeHash}
-        AND "consumedAt" IS NULL
-        AND CURRENT_TIMESTAMP < "expiresAt"
-      RETURNING "sub", "returnTo"
-    `);
-    return rows[0] ?? null;
   }
 }

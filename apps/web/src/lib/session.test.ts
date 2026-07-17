@@ -16,15 +16,26 @@ vi.mock("next/navigation", () => ({
   }),
 }));
 
+vi.mock("next/server", () => ({ connection: vi.fn(async () => undefined) }));
+
 import { getSession, requireViewer } from "@/lib/session";
 import { getMe } from "@/lib/api";
 import { redirect } from "next/navigation";
+import { connection } from "next/server";
 
 afterEach(() => {
   vi.clearAllMocks();
 });
 
 describe("getSession — distinguishing states instead of flattening to logged-out (AUTH-06)", () => {
+  it("establishes request scope before handling API availability failures", async () => {
+    const requestContextSignal = new Error("NEXT_DYNAMIC_SERVER_USAGE");
+    vi.mocked(connection).mockRejectedValueOnce(requestContextSignal);
+
+    await expect(getSession()).rejects.toBe(requestContextSignal);
+    expect(getMe).not.toHaveBeenCalled();
+  });
+
   it("reports an authenticated viewer", async () => {
     vi.mocked(getMe).mockResolvedValue({ user: mockUser, needsOnboarding: false });
     await expect(getSession()).resolves.toEqual({

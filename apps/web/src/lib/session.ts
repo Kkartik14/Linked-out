@@ -1,5 +1,6 @@
 import { cache } from "react";
 import { redirect } from "next/navigation";
+import { connection } from "next/server";
 import type { MetaEnumsResponse } from "@linkedout/contracts/v2";
 
 import { getMe, getMeta, isApiError } from "@/lib/api";
@@ -21,6 +22,9 @@ import type { Session } from "@/components/session-provider";
  *    confident sign-out and is exactly the downgrade `public-read.ts` already refuses to make.
  */
 export const getSession = cache(async (): Promise<Session> => {
+  // Session identity is request data. Establish that boundary before the availability catch
+  // so Next's prerender control signal can never be mistaken for an upstream outage.
+  await connection();
   try {
     const me = await getMe();
     return me.user

@@ -40,14 +40,9 @@ function withTimeout(signal: AbortSignal | null | undefined, ms: number): AbortS
  */
 async function serverCookieHeader(): Promise<string | null> {
   if (typeof window !== "undefined") return null;
-  try {
-    const { cookies } = await import("next/headers");
-    const value = (await cookies()).toString();
-    return value || null;
-  } catch {
-    // Not inside a request scope (e.g. static generation) — nothing to forward.
-    return null;
-  }
+  const { cookies } = await import("next/headers");
+  const value = (await cookies()).toString();
+  return value || null;
 }
 
 async function safeJson(res: Response): Promise<unknown> {

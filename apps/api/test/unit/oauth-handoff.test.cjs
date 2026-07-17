@@ -5,12 +5,15 @@ const test = require('node:test');
 
 const { AuthController } = require('../../dist/modules/auth/auth.controller');
 const {
-  AuthExchangeGuard,
-} = require('../../dist/modules/auth/auth-exchange.guard');
+  BffCallerGuard,
+} = require('../../dist/modules/auth/bff-caller.guard');
 const {
   OAuthHandoffService,
 } = require('../../dist/modules/auth/oauth-handoff.service');
-const { InternalAssertionSigner } = require('@linkedout/internal-auth');
+const {
+  ApiAssertionSigner,
+  BffCallerAssertionSigner,
+} = require('@linkedout/internal-auth');
 
 const INTERNAL_SECRET = 'unit-internal-secret-at-least-32-bytes';
 const USER = { id: '01ARZ3NDEKTSV4RRFFQ69G5FAV', username: 'kartik' };
@@ -22,9 +25,22 @@ function appError(error, status, code) {
 }
 
 function httpContext(header) {
+  const response = {
+    headers: {},
+    setHeader(name, value) {
+      this.headers[name] = value;
+    },
+  };
   return {
+    response,
+    getHandler: () => httpContext,
     switchToHttp: () => ({
-      getRequest: () => ({ headers: header === undefined ? {} : { 'x-internal-auth': header } }),
+      getRequest: () => ({
+        headers: header === undefined ? {} : { 'x-internal-auth': header },
+        ip: '127.0.0.1',
+        socket: {},
+      }),
+      getResponse: () => response,
     }),
   };
 }
@@ -46,23 +62,55 @@ function responseRecorder() {
   };
 }
 
-test('AuthExchangeGuard accepts only the purpose-scoped BFF assertion', () => {
-  const guard = new AuthExchangeGuard({ internalApiSecret: INTERNAL_SECRET });
-  const signer = new InternalAssertionSigner(INTERNAL_SECRET);
+test('BffCallerGuard accepts only the handler’s purpose-scoped BFF assertion', async () => {
+  let rejectedAttempts = 0;
+  const guard = new BffCallerGuard(
+    { bffCallerSecret: INTERNAL_SECRET },
+    { get: () => 'auth-exchange' },
+    {
+      async take() {
+        rejectedAttempts += 1;
+        return { allowed: true };
+      },
+    },
+  );
+  const signer = new BffCallerAssertionSigner(INTERNAL_SECRET);
 
-  assert.equal(guard.canActivate(httpContext(signer.signAuthExchange())), true);
-  assert.throws(
-    () => guard.canActivate(httpContext(signer.signApi({ sub: USER.id, sid: USER.id }))),
+  assert.equal(await guard.canActivate(httpContext(signer.signAuthExchange())), true);
+  await assert.rejects(
+    async () => guard.canActivate(httpContext(signer.signSessionResolve())),
     (error) => appError(error, 401, 'UNAUTHENTICATED'),
   );
-  assert.throws(
-    () => guard.canActivate(httpContext(undefined)),
+  await assert.rejects(
+    async () => guard.canActivate(httpContext(
+      new ApiAssertionSigner(INTERNAL_SECRET).sign({ sub: USER.id, sid: USER.id }).assertion,
+    )),
     (error) => appError(error, 401, 'UNAUTHENTICATED'),
   );
-  assert.throws(
-    () => guard.canActivate(httpContext(['one', 'two'])),
+  await assert.rejects(
+    async () => guard.canActivate(httpContext(undefined)),
     (error) => appError(error, 401, 'UNAUTHENTICATED'),
   );
+  await assert.rejects(
+    async () => guard.canActivate(httpContext(['one', 'two'])),
+    (error) => appError(error, 401, 'UNAUTHENTICATED'),
+  );
+  assert.equal(rejectedAttempts, 4);
+});
+
+test('BffCallerGuard rate-limits rejected assertions before returning auth details', async () => {
+  const context = httpContext('forged');
+  const guard = new BffCallerGuard(
+    { bffCallerSecret: INTERNAL_SECRET },
+    { get: () => 'session-resolve' },
+    { async take() { return { allowed: false, retryAfterSeconds: 23 }; } },
+  );
+
+  await assert.rejects(
+    async () => guard.canActivate(context),
+    (error) => appError(error, 429, 'RATE_LIMITED'),
+  );
+  assert.equal(context.response.headers['Retry-After'], '23');
 });
 
 test('handoff mode creates no legacy session or browser credential', async () => {
@@ -88,6 +136,7 @@ test('handoff mode creates no legacy session or browser credential', async () =>
         return 'A'.repeat(43);
       },
     },
+    {},
   );
   const response = responseRecorder();
 
@@ -124,6 +173,7 @@ test('legacy callback mode remains available during the compatibility window', a
       webUrl: 'https://linkedout.example',
     },
     { issue: async () => { issuedHandoff = true; } },
+    {},
   );
   const response = responseRecorder();
 
@@ -163,6 +213,7 @@ test('handoff persistence failures remain infrastructure failures', async () => 
     {},
     {},
     { exchange: async () => { throw outage; } },
+    { exchangeOAuthHandoff: async () => { throw outage; } },
   );
   const response = responseRecorder();
 

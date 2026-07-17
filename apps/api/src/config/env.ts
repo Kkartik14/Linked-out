@@ -36,6 +36,11 @@ const optionalUrl = z
     message: 'Must be a valid URL.',
   });
 
+const optionalInternalSecret = z.string().default('').refine(
+  (value) => value.length === 0 || Buffer.byteLength(value, 'utf8') >= 32,
+  { message: 'Must contain at least 32 bytes.' },
+);
+
 function normalizeHostname(hostname: string): string {
   let normalized = hostname.toLowerCase();
   while (normalized.endsWith('.')) normalized = normalized.slice(0, -1);
@@ -110,10 +115,8 @@ export const envSchema = z
 
     JWT_ACCESS_SECRET: z.string().min(16),
     JWT_REFRESH_SECRET: z.string().min(16),
-    INTERNAL_API_SECRET: z.string().default('').refine(
-      (value) => value.length === 0 || Buffer.byteLength(value, 'utf8') >= 32,
-      { message: 'INTERNAL_API_SECRET must contain at least 32 bytes.' },
-    ),
+    INTERNAL_API_SECRET: optionalInternalSecret,
+    BFF_CALLER_SECRET: optionalInternalSecret,
     OAUTH_SESSION_MODE: z.enum(['legacy', 'handoff']).default('legacy'),
     COOKIE_DOMAIN: z.string().default(''),
 
@@ -130,22 +133,37 @@ export const envSchema = z
     R2_ENDPOINT: optionalUrl,
   })
   .superRefine((env, ctx) => {
-    if (env.OAUTH_SESSION_MODE === 'handoff' && env.INTERNAL_API_SECRET.length === 0) {
-      ctx.addIssue({
-        code: 'custom',
-        path: ['INTERNAL_API_SECRET'],
-        message: 'INTERNAL_API_SECRET is required when OAUTH_SESSION_MODE is handoff.',
-      });
+    if (env.OAUTH_SESSION_MODE === 'handoff') {
+      for (const field of ['INTERNAL_API_SECRET', 'BFF_CALLER_SECRET'] as const) {
+        if (env[field].length === 0) {
+          ctx.addIssue({
+            code: 'custom',
+            path: [field],
+            message: `${field} is required when OAUTH_SESSION_MODE is handoff.`,
+          });
+        }
+      }
+    }
+    for (const field of ['INTERNAL_API_SECRET', 'BFF_CALLER_SECRET'] as const) {
+      if (
+        env[field].length > 0 &&
+        (env[field] === env.JWT_ACCESS_SECRET || env[field] === env.JWT_REFRESH_SECRET)
+      ) {
+        ctx.addIssue({
+          code: 'custom',
+          path: [field],
+          message: `${field} must be distinct from legacy JWT secrets.`,
+        });
+      }
     }
     if (
       env.INTERNAL_API_SECRET.length > 0 &&
-      (env.INTERNAL_API_SECRET === env.JWT_ACCESS_SECRET ||
-        env.INTERNAL_API_SECRET === env.JWT_REFRESH_SECRET)
+      env.INTERNAL_API_SECRET === env.BFF_CALLER_SECRET
     ) {
       ctx.addIssue({
         code: 'custom',
-        path: ['INTERNAL_API_SECRET'],
-        message: 'INTERNAL_API_SECRET must be distinct from legacy JWT secrets.',
+        path: ['BFF_CALLER_SECRET'],
+        message: 'BFF_CALLER_SECRET must be distinct from INTERNAL_API_SECRET.',
       });
     }
     if (env.NODE_ENV !== 'production') return;
@@ -162,6 +180,7 @@ export const envSchema = z
       'R2_ENDPOINT',
       'COOKIE_DOMAIN',
       'INTERNAL_API_SECRET',
+      'BFF_CALLER_SECRET',
     ] as const;
 
     for (const field of requiredProductionFields) {

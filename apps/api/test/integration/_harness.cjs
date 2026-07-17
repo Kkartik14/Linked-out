@@ -19,7 +19,10 @@ const assert = require('node:assert/strict');
 
 const { ulid } = require('ulid');
 const { createPrismaClient } = require('@linkedout/db');
-const { InternalAssertionSigner } = require('@linkedout/internal-auth');
+const {
+  ApiAssertionSigner,
+  BffCallerAssertionSigner,
+} = require('@linkedout/internal-auth');
 const { PRINCIPAL_BINDING_HEADER } = require('@linkedout/contracts');
 
 const { guardedReset } = require('../../../../scripts/db-safety-guard.cjs');
@@ -34,6 +37,7 @@ const DATABASE_URL =
 const ACCESS_SECRET = 'test-access-secret-0123456789abcdefghij';
 const REFRESH_SECRET = 'test-refresh-secret-0123456789abcdefghij';
 const INTERNAL_API_SECRET = 'test-internal-secret-0123456789abcdefgh';
+const BFF_CALLER_SECRET = 'test-bff-caller-secret-0123456789abcdef';
 
 const PORT = Number(process.env.TEST_API_PORT ?? 4010);
 const NO_UPLOADS_PORT = PORT + 1;
@@ -101,19 +105,35 @@ function forgedAccessCookie(user) {
 }
 
 function internalAssertion(user, options = {}) {
-  const signer = new InternalAssertionSigner(
+  const signer = new ApiAssertionSigner(
     options.secret ?? INTERNAL_API_SECRET,
     options.now ? { now: () => options.now } : undefined,
   );
-  return signer.signApi({ sub: user.id, sid: options.sid ?? ulid() });
+  return signer.sign({ sub: user.id, sid: options.sid ?? ulid() }).assertion;
 }
 
 function authExchangeAssertion(options = {}) {
-  const signer = new InternalAssertionSigner(
-    options.secret ?? INTERNAL_API_SECRET,
+  const signer = new BffCallerAssertionSigner(
+    options.secret ?? BFF_CALLER_SECRET,
     options.now ? { now: () => options.now } : undefined,
   );
   return signer.signAuthExchange();
+}
+
+function sessionResolveAssertion(options = {}) {
+  const signer = new BffCallerAssertionSigner(
+    options.secret ?? BFF_CALLER_SECRET,
+    options.now ? { now: () => options.now } : undefined,
+  );
+  return signer.signSessionResolve();
+}
+
+function sessionRevokeAssertion(options = {}) {
+  const signer = new BffCallerAssertionSigner(
+    options.secret ?? BFF_CALLER_SECRET,
+    options.now ? { now: () => options.now } : undefined,
+  );
+  return signer.signSessionRevoke();
 }
 
 function hashRefresh(token) {
@@ -341,6 +361,7 @@ function baseEnv(port, extra) {
     JWT_ACCESS_SECRET: ACCESS_SECRET,
     JWT_REFRESH_SECRET: REFRESH_SECRET,
     INTERNAL_API_SECRET,
+    BFF_CALLER_SECRET,
     COOKIE_DOMAIN: '',
     GOOGLE_CLIENT_ID: 'test-google-client-id',
     GOOGLE_CLIENT_SECRET: 'test-google-client-secret',
@@ -446,11 +467,15 @@ module.exports = {
   forgedAccessCookie,
   internalAssertion,
   authExchangeAssertion,
+  sessionResolveAssertion,
+  sessionRevokeAssertion,
   issueRefreshSession,
   hashRefresh,
   signJwt,
   ACCESS_SECRET,
   REFRESH_SECRET,
+  INTERNAL_API_SECRET,
+  BFF_CALLER_SECRET,
   WEB_URL,
   R2_PUBLIC_BASE_URL: R2_PUBLIC_BASE_URL(),
 };

@@ -162,7 +162,8 @@ test('OAuth handoff contracts keep identity and navigation server-bound', () => 
   assert.throws(() => oauthHandoffExchangeInputSchema.parse({ code: 'short' }));
 
   const response = {
-    sub: '01ARZ3NDEKTSV4RRFFQ69G5FAV',
+    cookie: 'A'.repeat(43),
+    expiresAt: '2026-07-18T12:00:00.000Z',
     returnTo: '/journey?view=recent',
   };
   assert.deepEqual(oauthHandoffExchangeResponseSchema.parse(response), response);
@@ -170,7 +171,7 @@ test('OAuth handoff contracts keep identity and navigation server-bound', () => 
     oauthHandoffExchangeResponseSchema.parse({ ...response, returnTo: 'https://evil.example' }),
   );
   assert.throws(() =>
-    oauthHandoffExchangeResponseSchema.parse({ ...response, sub: 'not-a-ulid' }),
+    oauthHandoffExchangeResponseSchema.parse({ ...response, sub: '01ARZ3NDEKTSV4RRFFQ69G5FAV' }),
   );
 });
 
