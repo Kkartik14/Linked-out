@@ -69,9 +69,11 @@ Delete it when the BFF/session boundary lands and a broken session is cleared at
 
 - **Types come from `@linkedout/contracts/v2`** (contract §0) — imported directly,
   never hand-written. It's a `file:` workspace dependency (`../../packages/contracts`).
-- **One API seam:** `src/lib/api/` — `client.ts` (credentials, error-envelope decoding,
-  request timeouts, and a single-flight 401→refresh→retry) and `endpoints.ts` (typed calls,
-  cursor pagination). All backend traffic flows through here.
+- **Two explicit backend seams:** ordinary application traffic flows through `src/lib/api/` —
+  `client.ts` (credentials, error-envelope decoding, request timeouts, and a single-flight
+  401→refresh→retry) plus `endpoints.ts` (typed calls and cursor pagination). The separate
+  `src/lib/bff/` seam is server-only lifecycle traffic from the future public BFF to private Nest;
+  it uses purpose-scoped caller assertions, never browser credentials or client components.
 - **Refresh is browser-only.** `Set-Cookie` is a forbidden response header and `Cookie` a
   forbidden request header, so no userland code can read or replay a rotation: the browser's
   own cookie jar carries it and `credentials: "include"` puts it on the retry. On the server
