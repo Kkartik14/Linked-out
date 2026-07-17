@@ -15,6 +15,9 @@ const {
   hashOAuthHandoffCode,
   OAuthHandoffService,
 } = require('../../../dist/modules/auth/oauth-handoff.service');
+const {
+  PrismaCleanupPersistence,
+} = require('../../../dist/maintenance/prisma-cleanup.persistence');
 
 function authority() {
   const repository = new OAuthHandoffRepository({ db: h.ctx.prisma });
@@ -96,5 +99,36 @@ describe('24 · purpose-scoped OAuth handoffs', () => {
       body: { code: 'B'.repeat(43), returnTo: '/attacker-controlled' },
     });
     h.expectError(overBroad, 400, 'VALIDATION_ERROR');
+  });
+
+  test('bounded cleanup removes expired handoffs but retains live replay tombstones', async () => {
+    const user = await h.createUser();
+    const handoffs = authority();
+    const expiredCodes = await Promise.all([
+      handoffs.issue(user.id, '/one'),
+      handoffs.issue(user.id, '/two'),
+    ]);
+    const liveCode = await handoffs.issue(user.id, '/live');
+    assert.ok(await handoffs.exchange(liveCode));
+
+    const createdAt = new Date(Date.now() - 120_000);
+    await h.ctx.prisma.oAuthHandoff.updateMany({
+      where: { codeHash: { in: expiredCodes.map(hashOAuthHandoffCode) } },
+      data: {
+        createdAt,
+        expiresAt: new Date(createdAt.getTime() + 60_000),
+      },
+    });
+
+    const cleanup = new PrismaCleanupPersistence(h.ctx.prisma);
+    assert.equal(await cleanup.deleteExpiredBatch('oauthHandoffs', new Date(), 1), 1);
+    assert.equal(await cleanup.deleteExpiredBatch('oauthHandoffs', new Date(), 1), 1);
+    assert.equal(await cleanup.deleteExpiredBatch('oauthHandoffs', new Date(), 1), 0);
+    assert.equal(await h.ctx.prisma.oAuthHandoff.count(), 1);
+    assert.ok(
+      await h.ctx.prisma.oAuthHandoff.findUnique({
+        where: { codeHash: hashOAuthHandoffCode(liveCode) },
+      }),
+    );
   });
 });

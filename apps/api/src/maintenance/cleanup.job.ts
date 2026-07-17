@@ -11,6 +11,7 @@ const IDENTITY_DRIFT_SAMPLE_LIMIT = 100;
 export type ExpiredEntity =
   | 'sessions'
   | 'browserSessions'
+  | 'oauthHandoffs'
   | 'verificationTokens'
   | 'rateLimitBuckets';
 export type AvatarCleanupMode = 'dry-run' | 'apply' | 'skip';
@@ -175,6 +176,7 @@ export class CleanupJob {
     const database: Record<ExpiredEntity, DatabaseEntityResult> = {
       sessions: await this.cleanupExpiredEntity('sessions', options),
       browserSessions: await this.cleanupExpiredEntity('browserSessions', options),
+      oauthHandoffs: await this.cleanupExpiredEntity('oauthHandoffs', options),
       verificationTokens: await this.cleanupExpiredEntity('verificationTokens', options),
       rateLimitBuckets: await this.cleanupExpiredEntity('rateLimitBuckets', options),
     };

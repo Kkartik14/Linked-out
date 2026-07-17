@@ -21,6 +21,8 @@ and their CI/test boundaries. Newest first.
   60-second, single-use callback result by hash and exchange it atomically for the state-bound
   `{ sub, returnTo }` using a dedicated `aud: auth-exchange` assertion. The legacy cookie/session
   callback remains the default until `OAUTH_SESSION_MODE=handoff` is enabled for the cutover.
+- Extended bounded maintenance cleanup to delete OAuth handoffs only after expiry, retaining
+  consumed rows as replay tombstones for the full lifetime of any issued code.
 
 ### Documentation
 

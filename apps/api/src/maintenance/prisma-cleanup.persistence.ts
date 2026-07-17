@@ -38,6 +38,20 @@ export class PrismaCleanupPersistence implements CleanupPersistence {
         `;
       case 'browserSessions':
         return this.deleteExpiredBrowserSessionBatch(cutoff, limit);
+      case 'oauthHandoffs':
+        return this.db.$executeRaw`
+          WITH doomed AS (
+            SELECT "id"
+            FROM "OAuthHandoff"
+            WHERE "expiresAt" <= ${cutoff}
+            ORDER BY "expiresAt", "id"
+            LIMIT ${limit}
+            FOR UPDATE SKIP LOCKED
+          )
+          DELETE FROM "OAuthHandoff" AS target
+          USING doomed
+          WHERE target."id" = doomed."id"
+        `;
       case 'verificationTokens':
         return this.db.$executeRaw`
           WITH doomed AS (
