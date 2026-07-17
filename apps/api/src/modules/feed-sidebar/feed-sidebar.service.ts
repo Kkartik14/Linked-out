@@ -107,12 +107,14 @@ export class FeedSidebarService {
       }),
     );
     const cardById = new Map(cards.map((card) => [card.id, card]));
-    const topCards = topCandidates
-      .map((candidate) => cardById.get(candidate.id))
-      .filter((card) => card !== undefined);
-    const interactionCountByLId = new Map(
-      topCandidates.map((candidate) => [candidate.id, candidate.interactionCount]),
-    );
+    // Carry each ranked candidate's count alongside its card rather than re-joining them by id
+    // later: the count is what ranked the L, so it cannot go missing for a card that survived.
+    const topFeatured = topCandidates
+      .map((candidate) => {
+        const card = cardById.get(candidate.id);
+        return card ? { card, interactionCount: candidate.interactionCount } : null;
+      })
+      .filter((featured) => featured !== null);
     const dailyCard = dailyCandidate ? cardById.get(dailyCandidate.id) : undefined;
     const lOfTheDay =
       dailyCandidate && dailyCard && !dailyCard.isAnonymous && dailyCard.author
@@ -161,14 +163,11 @@ export class FeedSidebarService {
           startsAt: topStartsAt.toISOString(),
           endsAt: generatedAt.toISOString(),
         },
-        items: topCards.map((l) => {
-          const interactionCount = interactionCountByLId.get(l.id) ?? 0;
-          return {
-            l,
-            interactionCount,
-            interactionLabel: interactionLabel(interactionCount),
-          };
-        }),
+        items: topFeatured.map(({ card, interactionCount }) => ({
+          l: card,
+          interactionCount,
+          interactionLabel: interactionLabel(interactionCount),
+        })),
       },
       lOfTheDay,
     };

@@ -109,7 +109,7 @@ type SuggestedUser = {
 
 type FeaturedL = {
   l: LCard;
-  interactionCount: number;
+  interactionCount: number; // >= 1; a featured L always has an eligible interaction
   interactionLabel: string;
 };
 
@@ -119,6 +119,14 @@ type InteractionWindow = { startsAt: string; endsAt: string };
 Render `reason.text` and `interactionLabel` verbatim. Use `viewer.canFollow`; do not recreate follow
 permission. `interactionCount` means distinct external builders, not raw reactions + comments and
 not the internal lifetime popularity score.
+
+`interactionLabel` is derivable from `interactionCount` today, and that redundancy is deliberate
+rather than an oversight. The label is business copy, which this API owns (the frontend is a dumb
+client): its wording and pluralization change without a contract version, and the count is the
+machine-readable value for sorting, tests, and analytics. Clients render the label and never
+recompose it from the count — a client that did would silently keep the old copy after the server
+changed it. `SuggestedUser.reason` carries the same count-plus-text pairing for the same reason.
+The two are composed from a single value at one site, so they cannot disagree.
 
 ### Viewer and people invariants
 
