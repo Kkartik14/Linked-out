@@ -23,17 +23,6 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { usePrincipal } from "@/components/session-provider";
 import { queryKeys } from "@/lib/query-keys";
 
-const SECTION_TYPES: LType[] = [
-  "L",
-  "STORY",
-  "BATTLE",
-  "SCAR",
-  "PLOT_TWIST",
-  "CHECKPOINT",
-  "LESSON",
-  "WIN",
-];
-
 function LsList({ username, type, empty }: { username: string; type?: LType; empty: string }) {
   const principal = usePrincipal();
   return (
@@ -98,6 +87,8 @@ export function ProfileTabs({
   const meta = useMeta();
   const [tab, setTab] = React.useState("journey");
   const emptyMsg = isSelf ? "Nothing here yet — share your first L." : "Nothing here yet.";
+  // `/meta/enums` is the source of truth for the LType set and its order.
+  const sectionTypes = meta.lType.map((o) => o.value);
 
   return (
     <Tabs value={tab} onValueChange={setTab} className="mt-6">
@@ -105,7 +96,7 @@ export function ProfileTabs({
         <TabsList className="w-max">
           <TabsTrigger value="journey">Journey</TabsTrigger>
           <TabsTrigger value="all">All</TabsTrigger>
-          {SECTION_TYPES.map((t) => (
+          {sectionTypes.map((t) => (
             <TabsTrigger key={t} value={t}>
               {typeSectionLabel(meta, t)}
             </TabsTrigger>
@@ -122,7 +113,7 @@ export function ProfileTabs({
         <LsList username={username} empty={emptyMsg} />
       </TabsContent>
 
-      {SECTION_TYPES.map((t) => (
+      {sectionTypes.map((t) => (
         <TabsContent key={t} value={t} className="mt-6">
           <LsList username={username} type={t} empty={emptyMsg} />
         </TabsContent>

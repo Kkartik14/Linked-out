@@ -1,6 +1,5 @@
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { initials } from "@/lib/format";
-import { cn } from "@/lib/utils";
 
 /**
  * Presentation-only avatar with an initials fallback (no external image needed)
@@ -29,9 +28,7 @@ export function UserAvatar({
       {statusDot ? (
         <span
           aria-hidden
-          className={cn(
-            "absolute -right-0.5 -bottom-0.5 rounded-full text-[10px] leading-none",
-          )}
+          className="absolute -right-0.5 -bottom-0.5 rounded-full text-[10px] leading-none"
         >
           {statusDot}
         </span>

@@ -6,14 +6,22 @@ describe("initials", () => {
   it("uses first + last for a full name", () => {
     expect(initials("Kartik Gupta")).toBe("KG");
   });
+  it("uses first + LAST for a three-token name, not the first two", () => {
+    expect(initials("Ada Byron Lovelace")).toBe("AL");
+  });
   it("uses two letters for a single token", () => {
     expect(initials("Cher")).toBe("CH");
+  });
+  it("uses the one letter it has for a single-character token", () => {
+    expect(initials("x")).toBe("X");
   });
   it("falls back to the username", () => {
     expect(initials(null, "anaya")).toBe("AN");
   });
   it("falls back to ? when nothing is known", () => {
     expect(initials(null)).toBe("?");
+    expect(initials("   ")).toBe("?");
+    expect(initials(null, "")).toBe("?");
   });
 });
 
@@ -21,10 +29,18 @@ describe("truncate", () => {
   it("leaves short strings untouched", () => {
     expect(truncate("short", 10)).toBe("short");
   });
+  it("leaves a string of exactly max untouched", () => {
+    // Boundary: `<=`, not `<`. At `<` this returns "abcde…".
+    expect(truncate("abcde", 5)).toBe("abcde");
+  });
   it("cuts on a word boundary with an ellipsis", () => {
-    const result = truncate("the quick brown fox jumps", 12);
-    expect(result.endsWith("…")).toBe(true);
-    expect(result.length).toBeLessThanOrEqual(13);
+    // Exact output, not just "ends with an ellipsis": drop the word-boundary cut and this
+    // returns "the quick br…", which the old shape-only assertion happily accepted.
+    expect(truncate("the quick brown fox jumps", 12)).toBe("the quick…");
+    expect(truncate("the quick brown", 9)).toBe("the…");
+  });
+  it("cuts mid-word only when there is no earlier boundary", () => {
+    expect(truncate("abcdef", 5)).toBe("abcde…");
   });
 });
 
