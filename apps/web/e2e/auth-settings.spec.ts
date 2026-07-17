@@ -106,14 +106,31 @@ test.describe("auth surface", () => {
     expect(row.username).toBeNull();
   });
 
-  test("an expired session degrades to logged-out rather than erroring", async ({ page, context }) => {
+  // v1 silently downgraded a rejected credential to a guest response. v2 deliberately does
+  // not (contract §2 — "not silently treated as guest"), so every optional-auth read 401s
+  // on a stale cookie, including the public feed. The app cannot clear an httpOnly cookie
+  // from a Server Component (ADR 0001 §1.1), so the only recoverable answer is to offer
+  // re-authentication rather than render an error page.
+  test("a rejected credential is sent to log in, not silently served as a guest", async ({
+    page,
+    context,
+  }) => {
     await context.addCookies([
       { name: "lo_access", value: "not-a-jwt", domain: "localhost", path: "/", httpOnly: true },
     ]);
     await page.goto("/");
 
+    await expect(page).toHaveURL(/\/login\?returnTo=/);
+    await expect(page.getByRole("heading", { name: "Welcome to LinkedOut" })).toBeVisible();
+  });
+
+  test("a visitor presenting no credential at all still reads the public feed", async ({ page }) => {
+    await page.goto("/");
+
     await expect(page.getByRole("heading", { name: "The Feed" })).toBeVisible();
-    await expect(page.getByText(world.google.title)).toBeVisible();
+    await expect(
+      page.getByRole("region", { name: "The Feed" }).getByText(world.google.title),
+    ).toBeVisible();
   });
 
   // Pending acceptance criterion for ADR 0001 §6 (AUTH-01). Runs as `fixme` (skipped) until

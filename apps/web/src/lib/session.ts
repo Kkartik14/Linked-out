@@ -1,5 +1,5 @@
 import { cache } from "react";
-import type { AuthMeResponse, MetaEnumsResponse } from "@linkedout/contracts";
+import type { AuthMeResponse, MetaEnumsResponse } from "@linkedout/contracts/v2";
 import { getMe, getMeta } from "@/lib/api";
 import { DEFAULT_META } from "@/lib/meta-fallback";
 

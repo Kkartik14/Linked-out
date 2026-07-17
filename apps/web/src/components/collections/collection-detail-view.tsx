@@ -6,7 +6,7 @@ import { useRouter } from "next/navigation";
 import { Pencil, Trash2, X } from "lucide-react";
 import { useMutation } from "@tanstack/react-query";
 import { toast } from "sonner";
-import type { CollectionDetail, LCard as LCardType } from "@linkedout/contracts";
+import type { CollectionDetail, LCard as LCardType } from "@linkedout/contracts/v2";
 
 import {
   deleteCollection,

@@ -1,10 +1,19 @@
 import { Injectable } from '@nestjs/common';
-import { Prisma, type ExtendedPrismaClient, type Visibility } from '@linkedout/db';
+import {
+  Prisma,
+  type ExtendedPrismaClient,
+  type ReactionType,
+  type Visibility,
+} from '@linkedout/db';
 
 import { PrismaService } from '../../prisma/prisma.service';
 import { USER_SUMMARY_SELECT } from '../../common/mappers/user-summary.mapper';
 import { encodeCursor } from '../../common/pagination/cursor';
 import { buildPage, type EntityPage } from '../../common/pagination/paginate';
+import {
+  L_AUTHOR_INCLUDE,
+  type LWithAuthor,
+} from '../../common/read-models/l-read-model';
 
 const COLLECTION_INCLUDE = {
   owner: { select: USER_SUMMARY_SELECT },
@@ -171,6 +180,49 @@ export class CollectionsRepository {
 
   lOwner(lId: string): Promise<{ authorId: string } | null> {
     return this.prisma.db.l.findUnique({ where: { id: lId }, select: { authorId: true } });
+  }
+
+  ownerIdByUsername(username: string): Promise<{ id: string } | null> {
+    return this.prisma.db.user.findUnique({ where: { username }, select: { id: true } });
+  }
+
+  viewerFollows(viewerId: string, ownerId: string): Promise<{ id: string } | null> {
+    return this.prisma.db.follow.findUnique({
+      where: { followerId_followingId: { followerId: viewerId, followingId: ownerId } },
+      select: { id: true },
+    });
+  }
+
+  async visibleLs(
+    ids: string[],
+    visibilities: Visibility[],
+    includeAnonymous: boolean,
+  ): Promise<LWithAuthor[]> {
+    if (ids.length === 0) return [];
+    const rows = await this.prisma.db.l.findMany({
+      where: {
+        id: { in: ids },
+        visibility: { in: visibilities },
+        ...(includeAnonymous ? {} : { isAnonymous: false }),
+      },
+      include: L_AUTHOR_INCLUDE,
+    });
+    const byId = new Map(rows.map((row) => [row.id, row]));
+    return ids.flatMap((id) => {
+      const row = byId.get(id);
+      return row ? [row] : [];
+    });
+  }
+
+  viewerReactions(
+    viewerId: string,
+    lIds: string[],
+  ): Promise<Array<{ lId: string; type: ReactionType }>> {
+    if (lIds.length === 0) return Promise.resolve([]);
+    return this.prisma.db.reaction.findMany({
+      where: { userId: viewerId, lId: { in: lIds } },
+      select: { lId: true, type: true },
+    });
   }
 
   /**

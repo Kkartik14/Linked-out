@@ -7,7 +7,8 @@ import type {
   CollectionDetail,
   Comment,
   CreateCommentInput,
-  CreateLInput,
+  FeedQuery as ContractFeedQuery,
+  FeedSidebarResponse,
   FeedSort as ContractFeedSort,
   FollowResult,
   JourneyNode,
@@ -17,16 +18,31 @@ import type {
   MetaEnumsResponse,
   Notification,
   Paginated,
-  UpdateLInput,
   UpdateUserInput,
-  PopularTagsResponse,
   ReactionResult,
   ReactionType,
   UserProfile,
   UserSummary,
-} from "@linkedout/contracts";
-import { isSafeReturnTo } from "@linkedout/contracts";
+} from "@linkedout/contracts/v2";
+import {
+  createLInputSchema,
+  isSafeReturnTo,
+  updateLInputSchema,
+} from "@linkedout/contracts/v2";
+import type { z } from "zod";
 import { apiFetch } from "./client";
+
+/**
+ * Request bodies are the schema's INPUT type, not `z.infer` (which is the *output*).
+ *
+ * `createLInputSchema` gives `type`, `visibility` and `isAnonymous` a `.default()`, so on
+ * the output side all three are required — and typing a body with `z.infer` would oblige
+ * this client to send values the backend is supposed to choose (contract v2 §1 documents
+ * them as optional). A dumb client does not pick the privacy default; it omits the field
+ * and lets the server apply `PUBLIC`.
+ */
+type CreateLBody = z.input<typeof createLInputSchema>;
+type UpdateLBody = z.input<typeof updateLInputSchema>;
 
 type QueryValue = string | number | boolean | undefined | null;
 type OkResponse = { ok: true };
@@ -42,7 +58,7 @@ function qs(params: Record<string, QueryValue>): string {
   return s ? `?${s}` : "";
 }
 
-function json(body: unknown): { method?: string; body: string } {
+function json(body: unknown): { body: string } {
   return { body: JSON.stringify(body) };
 }
 
@@ -67,33 +83,49 @@ export const getMeta = () =>
     credentials: "omit",
     next: { revalidate: 86_400 },
   });
-export const getPopularTags = (q?: string, limit = 10) =>
-  apiFetch<PopularTagsResponse>(`/tags/popular${qs({ q, limit })}`);
 
 // ── Feed ─────────────────────────────────────────────────────────────────────
+/** Which feed route to call. Frontend-only: the backend expresses this as two paths. */
 export type FeedScope = "global" | "following";
 export type FeedSort = ContractFeedSort;
 
-export interface FeedQuery {
+/**
+ * A call to `getFeed`: the contract's wire query plus the one thing that is not on the wire.
+ *
+ * `scope` picks the route (`/feed` vs `/feed/following`), so it is genuinely a frontend
+ * concern and has to live somewhere. It does not live in a hand-written twin of
+ * `FeedQuery` — that name is already taken by the contract one import path away, and
+ * re-declaring `sort`/`cursor`/`limit` here is how the two silently drift. `Partial` because
+ * this is the *request* side: the contract's type is the parsed output, where `sort` and
+ * `limit` are already defaulted, and a dumb client omits them rather than choosing them.
+ */
+export interface FeedRequest extends Partial<ContractFeedQuery> {
   scope?: FeedScope;
-  sort?: FeedSort;
-  filter?: string; // lowercased LCategory
-  cursor?: string;
-  limit?: number;
 }
 
-export function getFeed(opts: FeedQuery = {}): Promise<Paginated<LCard>> {
+export function getFeed(opts: FeedRequest = {}): Promise<Paginated<LCard>> {
   const path = opts.scope === "following" ? "/feed/following" : "/feed";
   return apiFetch<Paginated<LCard>>(
-    `${path}${qs({ sort: opts.sort, filter: opts.filter, cursor: opts.cursor, limit: opts.limit })}`,
+    `${path}${qs({ sort: opts.sort, cursor: opts.cursor, limit: opts.limit })}`,
   );
 }
 
+/**
+ * The feed page's discovery rails: viewer, people to follow, Top Ls, L of the day
+ * (contract v2 §2). One optional-auth aggregate; the wire does not encode left/right.
+ *
+ * Fails independently of the centre feed — callers hide the rails rather than the page.
+ * That is only true if it actually fails: a shorter budget than the default keeps a slow
+ * backend from holding the feed page open for something the page is allowed to drop.
+ */
+export const getFeedSidebar = () =>
+  apiFetch<FeedSidebarResponse>("/feed/sidebar", { timeoutMs: 3_000 });
+
 // ── Ls (core object) ─────────────────────────────────────────────────────────
 export const getL = (id: string) => apiFetch<LDetail>(`/ls/${id}`);
-export const createL = (body: CreateLInput) =>
+export const createL = (body: CreateLBody) =>
   apiFetch<LDetail>("/ls", { method: "POST", ...json(body) });
-export const patchL = (id: string, body: UpdateLInput) =>
+export const patchL = (id: string, body: UpdateLBody) =>
   apiFetch<LDetail>(`/ls/${id}`, { method: "PATCH", ...json(body) });
 export const deleteL = (id: string) => apiFetch<OkResponse>(`/ls/${id}`, { method: "DELETE" });
 
@@ -128,10 +160,6 @@ export const getJourney = (username: string, cursor?: string, limit?: number) =>
   apiFetch<Paginated<JourneyNode>>(`/users/${username}/journey${qs({ cursor, limit })}`);
 export const getUserCollections = (username: string, cursor?: string, limit?: number) =>
   apiFetch<Paginated<Collection>>(`/users/${username}/collections${qs({ cursor, limit })}`);
-export const getFollowers = (username: string, cursor?: string, limit?: number) =>
-  apiFetch<Paginated<UserSummary>>(`/users/${username}/followers${qs({ cursor, limit })}`);
-export const getFollowing = (username: string, cursor?: string, limit?: number) =>
-  apiFetch<Paginated<UserSummary>>(`/users/${username}/following${qs({ cursor, limit })}`);
 export const follow = (username: string) =>
   apiFetch<FollowResult>(`/users/${username}/follow`, { method: "PUT" });
 export const unfollow = (username: string) =>
@@ -155,8 +183,9 @@ export const removeLFromCollection = (id: string, lId: string) =>
   apiFetch<CollectionDetail>(`/collections/${id}/ls/${lId}`, { method: "DELETE" });
 
 // ── Search ───────────────────────────────────────────────────────────────────
-export const searchLs = (q: string, filter?: string, cursor?: string, limit?: number) =>
-  apiFetch<Paginated<LCard>>(`/search${qs({ q, type: "ls", filter, cursor, limit })}`);
+/** v2 search is always relevance-ranked and has no category filter. */
+export const searchLs = (q: string, cursor?: string, limit?: number) =>
+  apiFetch<Paginated<LCard>>(`/search${qs({ q, type: "ls", cursor, limit })}`);
 export const searchUsers = (q: string, cursor?: string, limit?: number) =>
   apiFetch<Paginated<UserSummary>>(`/search${qs({ q, type: "users", cursor, limit })}`);
 

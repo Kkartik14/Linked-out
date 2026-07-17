@@ -3,7 +3,11 @@
 import * as React from "react";
 import { useRouter } from "next/navigation";
 import { toast } from "sonner";
-import type { AvatarContentType, JourneyStatus, UserProfile } from "@linkedout/contracts";
+import {
+  avatarContentTypeSchema,
+  journeyStatusSchema,
+  type UserProfile,
+} from "@linkedout/contracts/v2";
 
 import { errorMessage, patchMe, presignAvatar } from "@/lib/api";
 import { useMeta } from "@/components/meta-provider";
@@ -21,7 +25,6 @@ import {
 } from "@/components/ui/select";
 
 const NO_STATUS = "NONE";
-const ALLOWED_TYPES: AvatarContentType[] = ["image/jpeg", "image/png", "image/webp"];
 const MAX_BYTES = 5 * 1024 * 1024;
 
 export function SettingsForm({ user }: { user: UserProfile }) {
@@ -34,6 +37,7 @@ export function SettingsForm({ user }: { user: UserProfile }) {
   const [image, setImage] = React.useState(user.image);
   const [saving, setSaving] = React.useState(false);
   const [uploading, setUploading] = React.useState(false);
+  const fileInputRef = React.useRef<HTMLInputElement | null>(null);
 
   async function handleSave(e: React.FormEvent) {
     e.preventDefault();
@@ -42,7 +46,7 @@ export function SettingsForm({ user }: { user: UserProfile }) {
       await patchMe({
         name: name.trim() || null,
         bio: bio.trim() || null,
-        status: status === NO_STATUS ? null : (status as JourneyStatus),
+        status: status === NO_STATUS ? null : journeyStatusSchema.parse(status),
       });
       toast.success("Profile updated.");
       router.refresh();
@@ -54,7 +58,9 @@ export function SettingsForm({ user }: { user: UserProfile }) {
   }
 
   async function handleFile(file: File) {
-    if (!ALLOWED_TYPES.includes(file.type as AvatarContentType)) {
+    // `file.type` is untrusted browser input: validate it with the contract schema.
+    const contentType = avatarContentTypeSchema.safeParse(file.type);
+    if (!contentType.success) {
       toast.error("Use a JPEG, PNG, or WebP image.");
       return;
     }
@@ -65,7 +71,7 @@ export function SettingsForm({ user }: { user: UserProfile }) {
     setUploading(true);
     try {
       const presign = await presignAvatar({
-        contentType: file.type as AvatarContentType,
+        contentType: contentType.data,
         contentLength: file.size,
       });
       const put = await fetch(presign.uploadUrl, {
@@ -90,21 +96,31 @@ export function SettingsForm({ user }: { user: UserProfile }) {
       <div className="flex items-center gap-4">
         <UserAvatar name={name || user.name} username={user.username} image={image} className="size-16 text-lg" />
         <div className="flex flex-col gap-1">
-          <Button asChild variant="outline" size="sm" disabled={uploading}>
-            <label className="cursor-pointer">
-              {uploading ? "Uploading…" : "Change avatar"}
-              <input
-                type="file"
-                accept="image/jpeg,image/png,image/webp"
-                className="sr-only"
-                onChange={(e) => {
-                  const file = e.target.files?.[0];
-                  if (file) void handleFile(file);
-                  e.target.value = "";
-                }}
-              />
-            </label>
+          {/* A real <button>: `disabled` on a Slot'd <label> is inert, so the
+              control stayed clickable mid-upload and accepted a second file. */}
+          <Button
+            type="button"
+            variant="outline"
+            size="sm"
+            disabled={uploading}
+            onClick={() => fileInputRef.current?.click()}
+          >
+            {uploading ? "Uploading…" : "Change avatar"}
           </Button>
+          <input
+            ref={fileInputRef}
+            type="file"
+            accept="image/jpeg,image/png,image/webp"
+            className="sr-only"
+            disabled={uploading}
+            tabIndex={-1}
+            aria-hidden
+            onChange={(e) => {
+              const file = e.target.files?.[0];
+              if (file) void handleFile(file);
+              e.target.value = "";
+            }}
+          />
           <span className="text-muted-foreground text-xs">JPEG, PNG, or WebP · up to 5 MB</span>
         </div>
       </div>
@@ -136,9 +152,9 @@ export function SettingsForm({ user }: { user: UserProfile }) {
       </div>
 
       <div className="grid gap-2">
-        <Label>Journey status</Label>
+        <Label htmlFor="journey-status">Journey status</Label>
         <Select value={status} onValueChange={setStatus}>
-          <SelectTrigger className="sm:w-64">
+          <SelectTrigger id="journey-status" className="sm:w-64">
             <SelectValue />
           </SelectTrigger>
           <SelectContent>

@@ -2,7 +2,7 @@ import { defineConfig, devices } from "@playwright/test";
 
 const apiPort = process.env.E2E_API_PORT ?? "4010";
 const webPort = process.env.PLAYWRIGHT_WEB_PORT ?? "3100";
-const apiBaseUrl = `http://localhost:${apiPort}/v1`;
+const apiBaseUrl = `http://localhost:${apiPort}/v2`;
 const webBaseUrl = `http://localhost:${webPort}`;
 
 const testDatabaseUrl =
@@ -75,6 +75,9 @@ export default defineConfig({
       url: webBaseUrl,
       reuseExistingServer: false,
       timeout: 120_000,
+      // NEXT_PUBLIC_* is inlined at build time, so the `test:e2e` script is what actually
+      // decides this. Repeated here so a hand-run `playwright test` against an
+      // already-built app agrees with the build rather than silently differing.
       env: { NEXT_PUBLIC_API_BASE_URL: apiBaseUrl },
     },
   ],

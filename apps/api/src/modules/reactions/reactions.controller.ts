@@ -10,7 +10,7 @@ import { ReactionsService } from './reactions.service';
 
 const reactionTypePipe = new ZodValidationPipe(reactionTypeSchema);
 
-@Controller('ls/:id/reactions')
+@Controller({ path: 'ls/:id/reactions', version: ['1', '2'] })
 @UseGuards(JwtAuthGuard)
 export class ReactionsController {
   constructor(private readonly reactions: ReactionsService) {}

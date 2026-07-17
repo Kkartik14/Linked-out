@@ -11,9 +11,11 @@ import {
   type PopularTagsQuery,
   type PopularTagsResponse,
 } from '@linkedout/contracts';
+import type { MetaEnumsResponse as MetaEnumsResponseV2 } from '@linkedout/contracts/v2';
 
 import { MetaRepository } from './meta.repository';
 import { OPEN_API_DOCUMENT, type OpenApiDocument } from './openapi';
+import { OPEN_API_V2_DOCUMENT } from './openapi-v2';
 
 function deepFreeze<T>(value: T): T {
   if (value !== null && typeof value === 'object' && !Object.isFrozen(value)) {
@@ -51,6 +53,12 @@ const META_ENUMS_RESPONSE: MetaEnumsResponse = deepFreeze({
   reputation: REPUTATION_META.map((m) => ({ key: m.key, label: m.label })),
 });
 
+const { lCategory, ...META_ENUMS_RESPONSE_V2 } = META_ENUMS_RESPONSE;
+void lCategory;
+const FROZEN_META_ENUMS_RESPONSE_V2 = deepFreeze(
+  META_ENUMS_RESPONSE_V2,
+) satisfies MetaEnumsResponseV2;
+
 @Injectable()
 export class MetaService {
   constructor(private readonly repo: MetaRepository) {}
@@ -59,8 +67,16 @@ export class MetaService {
     return META_ENUMS_RESPONSE;
   }
 
+  getEnumsV2(): MetaEnumsResponseV2 {
+    return FROZEN_META_ENUMS_RESPONSE_V2;
+  }
+
   getOpenApi(): OpenApiDocument {
     return OPEN_API_DOCUMENT;
+  }
+
+  getV2OpenApi(): OpenApiDocument {
+    return OPEN_API_V2_DOCUMENT;
   }
 
   async popularTags(query: PopularTagsQuery): Promise<PopularTagsResponse> {

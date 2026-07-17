@@ -43,6 +43,7 @@ async function wipe(tx) {
   await tx.collectionL.deleteMany();
   await tx.collection.deleteMany();
   await tx.follow.deleteMany();
+  await tx.dailyLSelection.deleteMany();
   await tx.l.deleteMany();
   await tx.account.deleteMany();
   await tx.session.deleteMany();

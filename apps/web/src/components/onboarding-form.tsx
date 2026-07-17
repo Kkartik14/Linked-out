@@ -3,13 +3,12 @@
 import * as React from "react";
 import { useRouter } from "next/navigation";
 import { toast } from "sonner";
+import { usernameInputSchema } from "@linkedout/contracts/v2";
 
 import { errorMessage, isApiError, patchMe } from "@/lib/api";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-
-const USERNAME_RE = /^[a-z0-9_]{3,30}$/;
 
 export function OnboardingForm({
   returnTo,
@@ -24,7 +23,7 @@ export function OnboardingForm({
   const [error, setError] = React.useState<string | null>(null);
   const [busy, setBusy] = React.useState(false);
 
-  const valid = USERNAME_RE.test(username);
+  const valid = usernameInputSchema.safeParse(username).success;
 
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
@@ -68,6 +67,7 @@ export function OnboardingForm({
             autoCorrect="off"
             maxLength={30}
             aria-invalid={username.length > 0 && !valid}
+            aria-describedby={error ? "username-error" : undefined}
           />
         </div>
         <p className="text-muted-foreground text-xs">
@@ -86,7 +86,11 @@ export function OnboardingForm({
         />
       </div>
 
-      {error ? <p className="text-destructive text-sm">{error}</p> : null}
+      {error ? (
+        <p id="username-error" role="alert" className="text-destructive text-sm">
+          {error}
+        </p>
+      ) : null}
 
       <Button type="submit" disabled={busy || !valid}>
         {busy ? "Setting up…" : "Continue"}

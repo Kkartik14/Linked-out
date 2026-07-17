@@ -7,6 +7,11 @@ Two layers, deliberately separate.
 | **Unit** (`test/unit/`) | `pnpm --filter @linkedout/api test:unit` | Rebuilds first so imports from `dist/` cannot be stale, then tests services, guards, pipes, mappers and cursor helpers in isolation with fake repositories. No database or network I/O. |
 | **Integration** (`test/integration/`) | `pnpm --filter @linkedout/api test:integration` | The **real** NestJS server over HTTP against a **real** Postgres. Nothing is mocked. |
 
+`test:unit:built` is the same unit suite without the rebuild, for when `dist/` is already current
+— CI uses it because the workflow builds once and shares the artifact. Both run
+`scripts/check-unit-test-inventory.cjs` first: `node --test` exits 0 when its glob matches
+nothing, so without that check a renamed or moved file would leave the suite green and empty.
+
 ## Running the integration suite
 
 The one-shot command from the repo root sets everything up, including the mandatory guard env:
@@ -74,31 +79,35 @@ the single verified URL for both datasource variables. Guard coverage lives in
 
 ## How it is organised
 
-`index.test.cjs` boots the server once, then requires each file under `subparts/`. One
-process, one server, serial execution — so the database can be truncated deterministically
-between tests.
+`index.test.cjs` boots the server once, then requires every file under `subparts/` — discovered
+by glob and sorted, so the numeric prefix still fixes the order and a new subpart cannot be
+forgotten. One process, one server, serial execution — so the database can be truncated
+deterministically between tests.
 
 | Subpart | Covers |
 |---|---|
-| `01-meta` | `/meta/enums`, `/openapi.json`, `/tags/popular` |
+| `01-meta` | v1/v2 enum metadata and OpenAPI; v1-only `/tags/popular` |
 | `02-auth` | `/auth/me`, refresh rotation, logout, OAuth redirects, expired/forged cookies |
-| `03-ls-create` | `POST /ls` — defaults, limits, reputation, onboarding gate |
+| `03-ls-create` | v1 `POST /ls` — defaults, limits, reputation, onboarding gate |
 | `04-ls-visibility` | The full PUBLIC / FOLLOWERS / PRIVATE viewer matrix |
-| `05-ls-update-delete` | Ownership, battle `resolvedAt` rules, reputation withdrawal, cascades |
-| `06-feed` | `/feed` + `/feed/following`: sorts, filters, keyset pagination |
+| `05-ls-update-delete` | v1 ownership, battle `resolvedAt` rules, reputation withdrawal, cascades |
+| `06-feed` | v1/v2 global + following feeds: sorts, versioned filters, keyset pagination |
 | `07-reactions` | Idempotency, counters, popularity weights, `buildersHelped` |
 | `08-comments` | One-level threading, `commentCount`, cascade delete |
 | `09-follows` | Idempotency, self-follow, counts, notification once |
-| `10-collections` | CRUD, ordering/position, viewer-aware `lCount` |
+| `10-collections` | v1/v2 CRUD/detail, ordering/position, viewer-aware `lCount` |
 | `11-notifications` | Folding via `dedupeKey`, server-composed copy, read state |
-| `12-search` | Postgres FTS ranking, visibility, hostile queries |
+| `12-search` | v1/v2 Postgres FTS/user ranking, visibility, versioned filters, hostile queries |
 | `13-users-profile` | Profile, `PATCH /users/me`, username rules, avatar-URL ownership |
-| `14-journey-saved` | Journey ordering by `eventDate ?? createdAt`; `/me/saved` |
+| `14-journey-saved` | v1 effective-date and v2 created-at journeys; v1/v2 `/me/saved` |
 | `16-uploads` | Presign shape, size/type limits, `UPLOADS_DISABLED` |
 | `17-anonymity` | Strong anonymity: no author, profile/journey, or collection attribution path |
 | `18-contract-invariants` | Envelopes, cursors, ULIDs, ISO timestamps, CORS, error codes |
 | `19-rate-limit` | 120 reads/min, 30 writes/min, `Retry-After`, per-identity buckets |
 | `20-concurrency-edges` | Counter integrity under concurrent writes; coercion edges |
+| `21-feed-sidebar-v2` | `GET /v2/feed/sidebar`: viewer states, ranking, windows, daily selection |
+| `22-clean-l-v2` | The v2 clean L shape, strict bodies, and the v2 OpenAPI surface |
+| `23-v2-auth-uniformity` | Contract §0: v2 rejects a bad credential everywhere; v1 stays lenient |
 
 ## The contract is the oracle
 

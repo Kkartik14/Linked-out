@@ -13,18 +13,13 @@ import { AvatarObjectUnavailableError, UsernameConflictError } from './users.err
 import type { FollowCounts, UpdateUserData } from './users.types';
 import { toUserProfile } from './users.mapper';
 
-function buildUpdate(input: UpdateUserInput, avatarObjectKey: string | null | undefined): UpdateUserData {
+function buildUpdate(input: UpdateUserInput, avatar: UpdateUserData['avatar']): UpdateUserData {
   return {
     username: input.username,
     name: input.name,
     bio: input.bio,
     status: input.status,
-    avatar:
-      input.image === undefined
-        ? undefined
-        : input.image === null
-          ? null
-          : { publicUrl: input.image, objectKey: avatarObjectKey! },
+    avatar,
   };
 }
 
@@ -51,12 +46,17 @@ export class UsersService {
   }
 
   async updateMe(user: AuthUser, input: UpdateUserInput): Promise<UserProfile> {
-    let avatarObjectKey: string | null | undefined;
-    if (input.image !== undefined && input.image !== null) {
-      avatarObjectKey = this.requireOwnedAvatarObjectKey(user.id, input.image);
-    } else {
-      avatarObjectKey = input.image;
-    }
+    // Resolved as one value, where the URL is known to be present, so the URL and its object
+    // key cannot be carried separately and rejoined later. Previously they were, and the join
+    // needed `objectKey: avatarObjectKey!` — an assertion whose invariant lived only in this
+    // caller's branches, so a second caller would have written `undefined` typed as `string`.
+    const avatar: UpdateUserData['avatar'] =
+      input.image === undefined || input.image === null
+        ? input.image
+        : {
+            publicUrl: input.image,
+            objectKey: this.requireOwnedAvatarObjectKey(user.id, input.image),
+          };
     if (input.username !== undefined) {
       if (!usernameInputSchema.safeParse(input.username).success) {
         throw AppErrors.usernameInvalid();
@@ -64,7 +64,7 @@ export class UsersService {
     }
     let updated;
     try {
-      updated = await this.repo.update(user.id, buildUpdate(input, avatarObjectKey));
+      updated = await this.repo.update(user.id, buildUpdate(input, avatar));
     } catch (error) {
       if (error instanceof UsernameConflictError) {
         throw AppErrors.usernameTaken();

@@ -9,6 +9,7 @@ import {
   Put,
   Query,
   UseGuards,
+  Version,
 } from '@nestjs/common';
 import {
   paginationQuerySchema,
@@ -22,9 +23,11 @@ import {
 } from '@linkedout/contracts';
 
 import { ApiContract, API_ROUTE_CONTRACTS } from '../../common/contracts/api-route-contracts';
+import { API_ROUTE_CONTRACTS_V2 } from '../../common/contracts/api-route-contracts-v2';
 import { CurrentUser, OptionalUser } from '../../common/decorators/current-user.decorator';
 import { JwtAuthGuard } from '../../common/guards/jwt-auth.guard';
 import { OptionalAuthGuard } from '../../common/guards/optional-auth.guard';
+import { StrictOptionalAuthGuard } from '../../common/guards/strict-optional-auth.guard';
 import { ZodValidationPipe } from '../../common/pipes/zod-validation.pipe';
 import type { AuthUser } from '../../common/types/auth';
 import { CollectionsService } from './collections.service';
@@ -39,6 +42,7 @@ export class CollectionsController {
   constructor(private readonly collections: CollectionsService) {}
 
   @Post('collections')
+  @Version(['1', '2'])
   @UseGuards(JwtAuthGuard)
   @ApiContract(API_ROUTE_CONTRACTS.collectionCreate)
   create(
@@ -59,6 +63,7 @@ export class CollectionsController {
   }
 
   @Patch('collections/:id')
+  @Version(['1', '2'])
   @UseGuards(JwtAuthGuard)
   @ApiContract(API_ROUTE_CONTRACTS.collectionUpdate)
   rename(
@@ -70,6 +75,7 @@ export class CollectionsController {
   }
 
   @Delete('collections/:id')
+  @Version(['1', '2'])
   @UseGuards(JwtAuthGuard)
   @ApiContract(API_ROUTE_CONTRACTS.collectionDelete)
   remove(@CurrentUser() user: AuthUser, @Param('id') id: string): Promise<{ ok: true }> {
@@ -100,9 +106,22 @@ export class CollectionsController {
   }
 
   @Get('users/:username/collections')
+  @Version('1')
   @UseGuards(OptionalAuthGuard)
   @ApiContract(API_ROUTE_CONTRACTS.userCollections)
-  listByOwner(
+  listByOwnerV1(
+    @OptionalUser() user: AuthUser | undefined,
+    @Param('username') username: string,
+    @Query(listPipe) query: PaginationQuery,
+  ): Promise<Paginated<Collection>> {
+    return this.collections.listByOwner(username, query, user?.id);
+  }
+
+  @Get('users/:username/collections')
+  @Version('2')
+  @UseGuards(StrictOptionalAuthGuard)
+  @ApiContract(API_ROUTE_CONTRACTS_V2.userCollections)
+  listByOwnerV2(
     @OptionalUser() user: AuthUser | undefined,
     @Param('username') username: string,
     @Query(listPipe) query: PaginationQuery,

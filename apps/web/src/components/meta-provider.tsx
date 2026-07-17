@@ -3,11 +3,10 @@
 import * as React from "react";
 import type {
   JourneyStatus,
-  LCategory,
   LType,
   MetaEnumsResponse,
   ReactionType,
-} from "@linkedout/contracts";
+} from "@linkedout/contracts/v2";
 import { DEFAULT_META } from "@/lib/meta-fallback";
 
 const MetaContext = React.createContext<MetaEnumsResponse>(DEFAULT_META);
@@ -27,11 +26,6 @@ export function useMeta(): MetaEnumsResponse {
 }
 
 // ── Pure selectors (take meta, return display strings) ───────────────────────
-export function categoryLabel(meta: MetaEnumsResponse, cat: LCategory | null | undefined): string | null {
-  if (!cat) return null;
-  return meta.lCategory.find((x) => x.value === cat)?.label ?? cat;
-}
-
 export function typeLabel(meta: MetaEnumsResponse, type: LType): string {
   return meta.lType.find((x) => x.value === type)?.label ?? type;
 }

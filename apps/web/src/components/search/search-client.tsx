@@ -3,7 +3,7 @@
 import * as React from "react";
 import { usePathname, useRouter, useSearchParams } from "next/navigation";
 import { Search } from "lucide-react";
-import type { LCard as LCardType, Paginated, UserSummary } from "@linkedout/contracts";
+import type { LCard as LCardType, Paginated, UserSummary } from "@linkedout/contracts/v2";
 
 import { searchLs, searchUsers } from "@/lib/api";
 import { InfiniteList } from "@/components/infinite-list";
@@ -11,29 +11,28 @@ import { LCard } from "@/components/l/l-card";
 import { LCardSkeleton } from "@/components/l/l-card-skeleton";
 import { UserSummaryCard } from "@/components/user-summary-card";
 import { EmptyState } from "@/components/empty-state";
-import { useMeta } from "@/components/meta-provider";
 import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import { cn } from "@/lib/utils";
 import { usePrincipal } from "@/components/session-provider";
 import { queryKeys } from "@/lib/query-keys";
 
+/**
+ * v2 search takes `q` and `type` only: L results are always relevance-ranked, and the
+ * category filter chips are gone with the rest of the category concept.
+ */
 export function SearchClient({
   q,
   type,
-  filter,
   initialLs,
   initialUsers,
 }: {
   q: string;
   type: "ls" | "users";
-  filter: string | null;
   initialLs?: Paginated<LCardType>;
   initialUsers?: Paginated<UserSummary>;
 }) {
   const router = useRouter();
   const pathname = usePathname();
   const searchParams = useSearchParams();
-  const meta = useMeta();
   const principal = usePrincipal();
 
   const [query, setQuery] = React.useState(q);
@@ -70,32 +69,16 @@ export function SearchClient({
         />
       </form>
 
-      <Tabs value={type} onValueChange={(v) => navigate({ type: v === "ls" ? null : v })} className="mt-4">
+      <Tabs
+        value={type}
+        onValueChange={(v) => navigate({ type: v === "ls" ? null : v })}
+        className="mt-4"
+      >
         <TabsList>
           <TabsTrigger value="ls">Ls</TabsTrigger>
           <TabsTrigger value="users">People</TabsTrigger>
         </TabsList>
       </Tabs>
-
-      {type === "ls" ? (
-        <div className="mt-3 flex flex-wrap gap-1.5">
-          <FilterChip active={!filter} onClick={() => navigate({ filter: null })}>
-            All
-          </FilterChip>
-          {meta.lCategory.map((c) => {
-            const value = c.value.toLowerCase();
-            return (
-              <FilterChip
-                key={c.value}
-                active={filter === value}
-                onClick={() => navigate({ filter: filter === value ? null : value })}
-              >
-                {c.label}
-              </FilterChip>
-            );
-          })}
-        </div>
-      ) : null}
 
       <div className="mt-6">
         {!q ? (
@@ -114,9 +97,9 @@ export function SearchClient({
           />
         ) : (
           <InfiniteList<LCardType>
-            key={`ls:${q}:${filter ?? "all"}`}
-            queryKey={queryKeys.search.ls(principal, q, filter)}
-            queryFn={(cursor) => searchLs(q, filter ?? undefined, cursor)}
+            key={`ls:${q}`}
+            queryKey={queryKeys.search.ls(principal, q)}
+            queryFn={(cursor) => searchLs(q, cursor)}
             initial={initialLs}
             getItemKey={(l) => l.id}
             renderItem={(l) => <LCard l={l} />}
@@ -132,31 +115,5 @@ export function SearchClient({
         )}
       </div>
     </div>
-  );
-}
-
-function FilterChip({
-  active,
-  onClick,
-  children,
-}: {
-  active: boolean;
-  onClick: () => void;
-  children: React.ReactNode;
-}) {
-  return (
-    <button
-      type="button"
-      onClick={onClick}
-      aria-pressed={active}
-      className={cn(
-        "focus-visible:ring-ring/50 rounded-full border px-3 py-1 text-xs transition-colors outline-none focus-visible:ring-[3px]",
-        active
-          ? "bg-foreground text-background border-foreground"
-          : "text-muted-foreground hover:bg-accent hover:text-foreground",
-      )}
-    >
-      {children}
-    </button>
   );
 }

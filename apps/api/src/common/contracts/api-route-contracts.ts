@@ -30,7 +30,7 @@ import {
 import { z, type ZodType } from 'zod';
 
 const okSchema = z.object({ ok: z.literal(true) });
-const openApiDocumentSchema = z.record(z.string(), z.unknown());
+const openApiDocumentSchema = z.record(z.string(), z.json());
 const redirectResponseSchema = z.void();
 
 const paginatedLCardSchema = paginatedSchema(lCardSchema);
@@ -80,29 +80,41 @@ export const API_COMPONENT_SCHEMAS = {
   UserSummary: userSummarySchema,
 } as const satisfies Record<string, ZodType>;
 
-type ComponentSchemaName = keyof typeof API_COMPONENT_SCHEMAS;
+export type ComponentSchemaName = keyof typeof API_COMPONENT_SCHEMAS;
 
-interface ContractSchema<TSchema extends ZodType = ZodType> {
-  readonly name?: ComponentSchemaName;
+interface ContractSchema<
+  TComponentName extends string = ComponentSchemaName,
+  TSchema extends ZodType = ZodType,
+> {
+  readonly name?: TComponentName;
   readonly schema: TSchema;
   readonly description: string;
 }
 
-interface ContractBody<TSchema extends ZodType = ZodType> {
-  readonly name: ComponentSchemaName;
+interface ContractBody<
+  TComponentName extends string = ComponentSchemaName,
+  TSchema extends ZodType = ZodType,
+> {
+  readonly name: TComponentName;
   readonly schema: TSchema;
   readonly required: boolean;
 }
 
-export interface ApiRouteContract<
+export interface NamedApiRouteContract<
+  TComponentName extends string,
   TResponseSchema extends ZodType = ZodType,
   TBodySchema extends ZodType = ZodType,
 > {
   readonly key: string;
   readonly status: number;
-  readonly response: ContractSchema<TResponseSchema>;
-  readonly body?: ContractBody<TBodySchema>;
+  readonly response: ContractSchema<TComponentName, TResponseSchema>;
+  readonly body?: ContractBody<TComponentName, TBodySchema>;
 }
+
+export type ApiRouteContract<
+  TResponseSchema extends ZodType = ZodType,
+  TBodySchema extends ZodType = ZodType,
+> = NamedApiRouteContract<ComponentSchemaName, TResponseSchema, TBodySchema>;
 
 function componentSchema<const TName extends ComponentSchemaName>(name: TName) {
   return { name, schema: API_COMPONENT_SCHEMAS[name] } as const;
@@ -126,32 +138,32 @@ function jsonBody<const TName extends ComponentSchemaName>(name: TName, required
 function route<
   const TKey extends string,
   const TStatus extends number,
-  TResponseSchema extends ZodType,
+  TResponse extends ContractSchema,
 >(
   key: TKey,
   status: TStatus,
-  response: ContractSchema<TResponseSchema>,
+  response: TResponse,
 ): {
   readonly key: TKey;
   readonly status: TStatus;
-  readonly response: ContractSchema<TResponseSchema>;
+  readonly response: TResponse;
   readonly body?: undefined;
 };
 function route<
   const TKey extends string,
   const TStatus extends number,
-  TResponseSchema extends ZodType,
-  TBodySchema extends ZodType,
+  TResponse extends ContractSchema,
+  TBody extends ContractBody,
 >(
   key: TKey,
   status: TStatus,
-  response: ContractSchema<TResponseSchema>,
-  body: ContractBody<TBodySchema>,
+  response: TResponse,
+  body: TBody,
 ): {
   readonly key: TKey;
   readonly status: TStatus;
-  readonly response: ContractSchema<TResponseSchema>;
-  readonly body: ContractBody<TBodySchema>;
+  readonly response: TResponse;
+  readonly body: TBody;
 };
 function route(
   key: string,
@@ -335,7 +347,8 @@ if (API_ROUTE_CONTRACT_BY_KEY.size !== Object.keys(API_ROUTE_CONTRACTS).length) 
 export const API_CONTRACT_METADATA = Symbol('linkedout:api-contract');
 
 type MaybePromise<T> = T | Promise<T>;
-type ContractOutput<TContract extends ApiRouteContract> = z.output<
+type AnyApiRouteContract = NamedApiRouteContract<string>;
+type ContractOutput<TContract extends AnyApiRouteContract> = z.output<
   TContract['response']['schema']
 >;
 
@@ -343,7 +356,7 @@ type ContractOutput<TContract extends ApiRouteContract> = z.output<
  * Binds a controller method to its canonical route contract. The typed descriptor also checks
  * the handler's declared return type against the response Zod schema during `tsc`.
  */
-export function ApiContract<const TContract extends ApiRouteContract>(contract: TContract) {
+export function ApiContract<const TContract extends AnyApiRouteContract>(contract: TContract) {
   return function <
     TArgs extends unknown[],
     TReturn extends MaybePromise<ContractOutput<TContract>>,

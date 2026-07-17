@@ -2,7 +2,7 @@
 
 import Link from "next/link";
 import { useQuery } from "@tanstack/react-query";
-import type { Reputation, UserProfile } from "@linkedout/contracts";
+import type { Reputation, UserProfile } from "@linkedout/contracts/v2";
 
 import { getProfile } from "@/lib/api";
 import { queryKeys } from "@/lib/query-keys";

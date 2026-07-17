@@ -11,12 +11,6 @@ const IDENTITY_DRIFT_SAMPLE_LIMIT = 100;
 export type ExpiredEntity = 'sessions' | 'verificationTokens' | 'rateLimitBuckets';
 export type AvatarCleanupMode = 'dry-run' | 'apply' | 'skip';
 
-const EXPIRING_ENTITIES: readonly ExpiredEntity[] = [
-  'sessions',
-  'verificationTokens',
-  'rateLimitBuckets',
-];
-
 export interface CleanupPersistence {
   /** Delete no more than `limit` rows whose expiry is at or before `cutoff`. */
   deleteExpiredBatch(entity: ExpiredEntity, cutoff: Date, limit: number): Promise<number>;
@@ -171,10 +165,14 @@ export class CleanupJob {
         `Avatar identity drift detected in ${identityAudit.drifted} User row(s); reconcile and drain old API replicas before apply mode.`,
       );
     }
-    const database = {} as Record<ExpiredEntity, DatabaseEntityResult>;
-    for (const entity of EXPIRING_ENTITIES) {
-      database[entity] = await this.cleanupExpiredEntity(entity, options);
-    }
+    // Written out rather than accumulated over a list: `{} as Record<ExpiredEntity, …>` asserted
+    // a totality the loop could not deliver, so adding a fourth ExpiredEntity would type-check
+    // while its key held `undefined` at runtime. As a literal, a missing key is a compile error.
+    const database: Record<ExpiredEntity, DatabaseEntityResult> = {
+      sessions: await this.cleanupExpiredEntity('sessions', options),
+      verificationTokens: await this.cleanupExpiredEntity('verificationTokens', options),
+      rateLimitBuckets: await this.cleanupExpiredEntity('rateLimitBuckets', options),
+    };
 
     const avatars =
       options.avatarMode === 'skip'
@@ -234,10 +232,15 @@ export class CleanupJob {
     let lastScannedKey: string | undefined;
 
     while (true) {
+      // `maxAvatarObjects` is a validated positive integer, a page never yields more than the
+      // `remaining` it was asked for, and the loop re-enters only past the limit check at the
+      // bottom — which breaks once the budget is spent. So the budget is always live here.
+      // This asserts that rather than re-checking it: the previous check was unreachable, and
+      // its body set `limitReached` without the `nextStartAfter` the bottom check pairs with,
+      // so had it ever run it would have reported a resumable scan with nowhere to resume from.
       const remaining = options.maxAvatarObjects - result.scanned;
-      if (remaining === 0) {
-        result.limitReached = continuationToken !== undefined;
-        break;
+      if (remaining <= 0) {
+        throw new Error('Avatar cleanup scanned past its own object budget.');
       }
       const requestedPageSize = Math.min(options.avatarPageSize, remaining);
       const page = await avatarStore.listAvatarObjects(

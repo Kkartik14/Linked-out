@@ -10,8 +10,8 @@ describe("notification query keys (FRONTEND-01)", () => {
   });
 
   it("scopes every key by principal", () => {
-    expect(queryKeys.feed.infinite("u1", "global", "latest", null)).not.toEqual(
-      queryKeys.feed.infinite("u2", "global", "latest", null),
+    expect(queryKeys.feed.infinite("u1", "global", "latest")).not.toEqual(
+      queryKeys.feed.infinite("u2", "global", "latest"),
     );
     expect(queryKeys.notifications.preview("u1")).not.toEqual(
       queryKeys.notifications.preview("u2"),
@@ -33,5 +33,35 @@ describe("notification query keys (FRONTEND-01)", () => {
     ]) {
       expect(key.slice(0, root.length)).toEqual([...root]);
     }
+  });
+});
+
+describe("v2 feed and search keys", () => {
+  it("no longer varies the feed key by a removed category filter", () => {
+    // v2 feeds have no `filter`; scope and sort are the only axes left.
+    expect(queryKeys.feed.infinite("u1", "global", "latest")).toEqual([
+      "feed",
+      "u1",
+      "global",
+      "latest",
+    ]);
+    expect(queryKeys.feed.infinite("u1", "global", "latest")).not.toEqual(
+      queryKeys.feed.infinite("u1", "following", "latest"),
+    );
+    expect(queryKeys.feed.infinite("u1", "global", "latest")).not.toEqual(
+      queryKeys.feed.infinite("u1", "global", "popular"),
+    );
+  });
+
+  it("keys L search by query alone, since relevance is the only ranking", () => {
+    expect(queryKeys.search.ls("u1", "burnout")).toEqual(["search", "u1", "ls", "burnout"]);
+    expect(queryKeys.search.ls("u1", "burnout")).not.toEqual(queryKeys.search.ls("u1", "layoff"));
+  });
+});
+
+describe("feed sidebar key", () => {
+  it("scopes the sidebar per principal, because the response carries viewer state", () => {
+    expect(queryKeys.feedSidebar.detail("u1")).not.toEqual(queryKeys.feedSidebar.detail("u2"));
+    expect(queryKeys.feedSidebar.detail("anon")).toEqual(["feed-sidebar", "anon"]);
   });
 });

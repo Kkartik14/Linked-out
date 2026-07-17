@@ -1,22 +1,18 @@
 "use client";
 
-import * as React from "react";
 import { useRouter } from "next/navigation";
-import { X } from "lucide-react";
-import { useQuery } from "@tanstack/react-query";
 import { useForm, useWatch } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { toast } from "sonner";
 import { z } from "zod";
 import {
+  createLInputSchema,
   lTypeSchema,
   visibilitySchema,
-  type CreateLInput,
-  type LCategory,
   type LDetail,
-} from "@linkedout/contracts";
+} from "@linkedout/contracts/v2";
 
-import { createL, errorMessage, fieldErrors, getPopularTags, patchL } from "@/lib/api";
+import { createL, errorMessage, fieldErrors, patchL } from "@/lib/api";
 import { useMeta } from "@/components/meta-provider";
 import {
   Form,
@@ -30,7 +26,6 @@ import {
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
 import { Button } from "@/components/ui/button";
-import { Badge } from "@/components/ui/badge";
 import { Switch } from "@/components/ui/switch";
 import {
   Select,
@@ -40,111 +35,44 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 
-const NO_CATEGORY = "NONE";
-const LIMITS = {
-  title: 140,
-  story: 10_000,
-  company: 100,
-  tags: 5,
-  tag: 30,
-} as const;
+const SHAPE = createLInputSchema.shape;
 
+/**
+ * Read the wire's own bounds rather than restating them, so raising a limit in the contract
+ * needs no edit here. `maxLength` is nullable for a `ZodString` with no `.max()`; these have
+ * one, and throwing at import is the right failure if that ever stops being true — a silent
+ * fallback would quietly let the counter disagree with what the API accepts.
+ */
+function maxLengthOf(field: "title" | "story"): number {
+  const max = SHAPE[field].maxLength;
+  if (max === null) throw new Error(`createLInputSchema.${field} has no max length`);
+  return max;
+}
+
+const LIMITS = { title: maxLengthOf("title"), story: maxLengthOf("story") } as const;
+
+/**
+ * Mirrors `createLInputSchema` from the v2 contract, restated here only to attach the
+ * human-facing messages the API's stable field codes don't carry, and to trim before
+ * validating. Every bound comes from the contract above. The v2 L has no category,
+ * company, tags, or event date — those concepts are gone from the wire.
+ */
 const formSchema = z.object({
   title: z.string().trim().min(1, "Give your L a title.").max(LIMITS.title),
   story: z.string().trim().min(1, "Tell the story.").max(LIMITS.story),
   type: lTypeSchema,
-  category: z.string(),
-  company: z.string().trim().max(LIMITS.company),
-  tags: z.array(z.string().min(1).max(LIMITS.tag)).max(LIMITS.tags),
-  eventDate: z.string(),
   visibility: visibilitySchema,
   isAnonymous: z.boolean(),
 });
 type FormValues = z.infer<typeof formSchema>;
 
-function TagsInput({ value, onChange }: { value: string[]; onChange: (tags: string[]) => void }) {
-  const [draft, setDraft] = React.useState("");
-  const [error, setError] = React.useState<string | null>(null);
-  const full = value.length >= LIMITS.tags;
-  const query = draft.trim().toLowerCase().replace(/^#/, "");
-  const suggestions = useQuery({
-    queryKey: ["popular-tags", query],
-    queryFn: () => getPopularTags(query, 5),
-    enabled: query.length > 0 && query.length <= LIMITS.tag && !full,
-  });
-
-  function add(nextTag = draft) {
-    const tag = nextTag.trim().toLowerCase().replace(/^#/, "");
-    if (!tag || full) {
-      setDraft("");
-      setError(null);
-      return;
-    }
-    if (tag.length > LIMITS.tag) {
-      setError(`Tags must be ${LIMITS.tag} characters or fewer.`);
-      return;
-    }
-    if (!value.includes(tag)) onChange([...value, tag]);
-    setDraft("");
-    setError(null);
-  }
-
-  const options = (suggestions.data?.tags ?? [])
-    .map((item) => item.tag)
-    .filter((tag) => tag.includes(query) && !value.includes(tag))
-    .slice(0, 5);
-
-  return (
-    <div className="flex flex-col gap-2">
-      {value.length > 0 ? (
-        <div className="flex flex-wrap gap-1.5">
-          {value.map((tag) => (
-            <Badge key={tag} variant="secondary" className="gap-1">
-              #{tag}
-              <button
-                type="button"
-                onClick={() => onChange(value.filter((t) => t !== tag))}
-                aria-label={`Remove tag ${tag}`}
-                className="hover:text-foreground"
-              >
-                <X className="size-3" />
-              </button>
-            </Badge>
-          ))}
-        </div>
-      ) : null}
-      <Input
-        value={draft}
-        onChange={(e) => setDraft(e.target.value)}
-        onKeyDown={(e) => {
-          if (e.key === "Enter" || e.key === ",") {
-            e.preventDefault();
-            add();
-          }
-        }}
-        onBlur={() => add()}
-        placeholder={full ? `Maximum of ${LIMITS.tags} tags` : "Add a tag, press Enter"}
-        disabled={full}
-      />
-      {error ? <p className="text-destructive text-xs">{error}</p> : null}
-      {options.length > 0 ? (
-        <div className="flex flex-wrap gap-1.5">
-          {options.map((tag) => (
-            <button
-              key={tag}
-              type="button"
-              onMouseDown={(e) => e.preventDefault()}
-              onClick={() => add(tag)}
-              className="text-muted-foreground hover:bg-accent hover:text-foreground rounded-full border px-2 py-0.5 text-xs"
-            >
-              #{tag}
-            </button>
-          ))}
-        </div>
-      ) : null}
-    </div>
-  );
-}
+/**
+ * What the API applies when a field is omitted. The composer shows a control for each, so
+ * it must preselect *something* — but which value is the backend's call (contract v2 §1),
+ * so take it from the schema instead of hardcoding `PUBLIC` here. A privacy default is
+ * exactly the thing a dumb client should not be choosing.
+ */
+const WIRE_DEFAULTS = createLInputSchema.parse({ title: "_", story: "_" });
 
 export function LComposer({ initial }: { initial?: LDetail }) {
   const meta = useMeta();
@@ -157,53 +85,37 @@ export function LComposer({ initial }: { initial?: LDetail }) {
           title: initial.title,
           story: initial.story,
           type: initial.type,
-          category: initial.category ?? NO_CATEGORY,
-          company: initial.company ?? "",
-          tags: initial.tags,
-          eventDate: initial.eventDate ? initial.eventDate.slice(0, 10) : "",
           visibility: initial.visibility,
           isAnonymous: initial.isAnonymous,
         }
       : {
           title: "",
           story: "",
-          type: "L",
-          category: NO_CATEGORY,
-          company: "",
-          tags: [],
-          eventDate: "",
-          visibility: "PUBLIC",
-          isAnonymous: false,
+          type: WIRE_DEFAULTS.type,
+          visibility: WIRE_DEFAULTS.visibility,
+          isAnonymous: WIRE_DEFAULTS.isAnonymous,
         },
   });
 
   async function onSubmit(values: FormValues) {
-    const input: CreateLInput = {
-      title: values.title,
-      story: values.story,
-      type: values.type,
-      category: values.category === NO_CATEGORY ? null : (values.category as LCategory),
-      company: values.company ? values.company : null,
-      tags: values.tags,
-      eventDate: values.eventDate ? new Date(values.eventDate) : null,
-      visibility: values.visibility,
-      isAnonymous: values.isAnonymous,
-    };
-
     try {
-      const saved = initial ? await patchL(initial.id, input) : await createL(input);
+      const saved = initial ? await patchL(initial.id, values) : await createL(values);
       toast.success(initial ? "Changes saved." : "Your L is live.");
       router.push(`/ls/${saved.id}`);
       router.refresh();
     } catch (err) {
       const fieldMap = fieldErrors(err);
+      const values = form.getValues();
+      // Field names come back from the server, so they're external input: narrow with a
+      // guard rather than asserting `as keyof FormValues` before the check that earns it.
+      const isFormField = (field: string): field is keyof FormValues =>
+        Object.hasOwn(values, field);
+
       let mapped = false;
       for (const [field, message] of Object.entries(fieldMap)) {
-        const key = field.split("[")[0] as keyof FormValues;
-        if (key in form.getValues()) {
-          form.setError(key, { message });
-          mapped = true;
-        }
+        if (!isFormField(field)) continue;
+        form.setError(field, { message });
+        mapped = true;
       }
       if (!mapped) toast.error(errorMessage(err, "Could not save your L."));
     }
@@ -248,7 +160,7 @@ export function LComposer({ initial }: { initial?: LDetail }) {
                 </span>
               </div>
               <FormControl>
-                <Textarea rows={8} placeholder="What happened, and how it felt…" {...field} />
+                <Textarea rows={10} placeholder="What happened, and how it felt…" {...field} />
               </FormControl>
               <FormMessage />
             </FormItem>
@@ -284,10 +196,10 @@ export function LComposer({ initial }: { initial?: LDetail }) {
 
           <FormField
             control={form.control}
-            name="category"
+            name="visibility"
             render={({ field }) => (
               <FormItem>
-                <FormLabel>Category (optional)</FormLabel>
+                <FormLabel>Visibility</FormLabel>
                 <Select value={field.value} onValueChange={field.onChange}>
                   <FormControl>
                     <SelectTrigger>
@@ -295,88 +207,19 @@ export function LComposer({ initial }: { initial?: LDetail }) {
                     </SelectTrigger>
                   </FormControl>
                   <SelectContent>
-                    <SelectItem value={NO_CATEGORY}>None</SelectItem>
-                    {meta.lCategory.map((o) => (
+                    {meta.visibility.map((o) => (
                       <SelectItem key={o.value} value={o.value}>
                         {o.label}
                       </SelectItem>
                     ))}
                   </SelectContent>
                 </Select>
-                <FormDescription>How it&apos;s filtered in the feed.</FormDescription>
-                <FormMessage />
-              </FormItem>
-            )}
-          />
-
-          <FormField
-            control={form.control}
-            name="company"
-            render={({ field }) => (
-              <FormItem>
-                <FormLabel>Company (optional)</FormLabel>
-                <FormControl>
-                  <Input placeholder="e.g. Google" {...field} />
-                </FormControl>
-                <FormMessage />
-              </FormItem>
-            )}
-          />
-
-          <FormField
-            control={form.control}
-            name="eventDate"
-            render={({ field }) => (
-              <FormItem>
-                <FormLabel>When it happened (optional)</FormLabel>
-                <FormControl>
-                  <Input type="date" {...field} />
-                </FormControl>
+                {visibilityDesc ? <FormDescription>{visibilityDesc}</FormDescription> : null}
                 <FormMessage />
               </FormItem>
             )}
           />
         </div>
-
-        <FormField
-          control={form.control}
-          name="tags"
-          render={({ field }) => (
-            <FormItem>
-              <FormLabel>Tags (optional)</FormLabel>
-              <FormControl>
-                <TagsInput value={field.value} onChange={field.onChange} />
-              </FormControl>
-              <FormMessage />
-            </FormItem>
-          )}
-        />
-
-        <FormField
-          control={form.control}
-          name="visibility"
-          render={({ field }) => (
-            <FormItem>
-              <FormLabel>Visibility</FormLabel>
-              <Select value={field.value} onValueChange={field.onChange}>
-                <FormControl>
-                  <SelectTrigger className="sm:w-64">
-                    <SelectValue />
-                  </SelectTrigger>
-                </FormControl>
-                <SelectContent>
-                  {meta.visibility.map((o) => (
-                    <SelectItem key={o.value} value={o.value}>
-                      {o.label}
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
-              {visibilityDesc ? <FormDescription>{visibilityDesc}</FormDescription> : null}
-              <FormMessage />
-            </FormItem>
-          )}
-        />
 
         <FormField
           control={form.control}

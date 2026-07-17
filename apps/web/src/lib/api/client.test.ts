@@ -89,7 +89,12 @@ describe("apiFetch", () => {
     });
   });
 
-  it("refreshes once on TOKEN_EXPIRED and retries with rotated cookies", async () => {
+  // The rotated cookie is deliberately NOT asserted on the retry: `Set-Cookie` is a
+  // forbidden response header and `Cookie` a forbidden request header, so in a real browser
+  // no userland code can read the rotation or replay it. The browser's own jar carries it,
+  // and `credentials: "include"` is what puts it on the wire — which is the one thing worth
+  // pinning here. Asserting a cookie header would only pass against a fabricated Response.
+  it("refreshes once on TOKEN_EXPIRED, then retries the original request", async () => {
     vi.mocked(fetch)
       .mockResolvedValueOnce(
         jsonResponse(
@@ -97,26 +102,36 @@ describe("apiFetch", () => {
           { status: 401 },
         ),
       )
-      .mockResolvedValueOnce(
-        {
-          ok: true,
-          status: 200,
-          headers: {
-            getSetCookie: () => ["access_token=fresh; Path=/", "refresh_token=next; Path=/"],
-            get: () => null,
-          },
-          json: async () => ({ ok: true }),
-        } as unknown as Response,
-      )
+      .mockResolvedValueOnce(jsonResponse({ ok: true }))
       .mockResolvedValueOnce(jsonResponse({ data: "retried" }));
 
     await expect(apiFetch("/auth/me")).resolves.toEqual({ data: "retried" });
 
     expect(vi.mocked(fetch)).toHaveBeenCalledTimes(3);
     expect(String(vi.mocked(fetch).mock.calls[1]![0])).toMatch(/\/auth\/refresh$/);
-    const retryHeaders = new Headers(vi.mocked(fetch).mock.calls[2]![1]?.headers);
-    expect(retryHeaders.get("cookie")).toContain("access_token=fresh");
-    expect(retryHeaders.get("cookie")).toContain("refresh_token=next");
+    expect(vi.mocked(fetch).mock.calls[1]![1]).toMatchObject({
+      method: "POST",
+      credentials: "include",
+    });
+
+    // The retry is the original request, and it must still carry credentials.
+    expect(String(vi.mocked(fetch).mock.calls[2]![0])).toMatch(/\/auth\/me$/);
+    expect(vi.mocked(fetch).mock.calls[2]![1]).toMatchObject({ credentials: "include" });
+  });
+
+  it("gives up rather than looping when the retry is also expired", async () => {
+    // A fresh Response per call: a body can only be read once.
+    vi.mocked(fetch).mockImplementation(async () =>
+      jsonResponse({ error: { code: "TOKEN_EXPIRED", message: "expired" } }, { status: 401 }),
+    );
+
+    await expect(apiFetch("/auth/me")).rejects.toMatchObject({
+      status: 401,
+      code: "TOKEN_EXPIRED",
+    });
+
+    // original + refresh + retry, and then it stops: no second refresh.
+    expect(vi.mocked(fetch)).toHaveBeenCalledTimes(3);
   });
 
   it("shares one refresh rotation across a burst of expired browser requests", async () => {
@@ -127,15 +142,7 @@ describe("apiFetch", () => {
       if (url.endsWith("/auth/refresh")) {
         refreshCalls += 1;
         await Promise.resolve();
-        return {
-          ok: true,
-          status: 200,
-          headers: {
-            getSetCookie: () => ["access_token=fresh; Path=/", "refresh_token=next; Path=/"],
-            get: () => null,
-          },
-          json: async () => ({ ok: true }),
-        } as unknown as Response;
+        return jsonResponse({ ok: true });
       }
       const count = attempts.get(url) ?? 0;
       attempts.set(url, count + 1);

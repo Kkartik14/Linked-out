@@ -21,7 +21,16 @@ pnpm install
 pnpm dev            # http://localhost:3000  (expects the API at NEXT_PUBLIC_API_BASE_URL)
 ```
 
-Point `NEXT_PUBLIC_API_BASE_URL` (in `.env.local`) at your API — default `http://localhost:4000/v1`.
+Point `NEXT_PUBLIC_API_BASE_URL` (in `.env.local`) at your API — default `http://localhost:4000/v2`.
+
+> **After the backend rebuilds `@linkedout/contracts`, re-run `pnpm install` here.** pnpm
+> materialises the `file:` dependency as a *copy*, not a live symlink, so a rebuilt
+> contracts package is invisible to this workspace until you reinstall. The symptom is a
+> phantom type error, or a missing export that plainly exists in `packages/contracts`.
+
+> **After the backend adds a migration, run `pnpm --filter @linkedout/db migrate:deploy`.**
+> Nothing migrates your dev database automatically, and the API answers a route whose
+> tables are behind with a `500` — which reads like a frontend bug and is not one.
 
 ## Scripts
 
@@ -32,25 +41,77 @@ Point `NEXT_PUBLIC_API_BASE_URL` (in `.env.local`) at your API — default `http
 | `pnpm typecheck` | `tsc --noEmit` |
 | `pnpm lint` | ESLint (flat config) |
 | `pnpm test` | Vitest (unit + component) |
-| `pnpm test:e2e` | Playwright (needs `pnpm build` + `pnpm exec playwright install chromium` first) |
+| `pnpm test:e2e` | Playwright (run `pnpm exec playwright install chromium` once first; the script builds with the e2e API base URL itself) |
+
+## The contract
+
+The app speaks **v2 only**. Runtime types and validation come from
+`@linkedout/contracts/v2`; the backend publishes generated OpenAPI at `/v2/openapi.json`.
+`NEXT_PUBLIC_API_BASE_URL` carries the `/v2` prefix and there is no second base URL.
+
+The v2 L has **no `category`, `company`, `tags`, or `eventDate`**, there is no category
+filter on the feed or search, and `/tags/popular` does not exist. `JourneyNode` carries
+`createdAt` and the journey is ordered by `(createdAt, id)`.
+
+### Rejected credentials
+
+v2's optional-auth reads do **not** downgrade a presented-but-invalid credential to a guest
+response — they reject it with `401` (contract §2). A stale or corrupt `lo_access` cookie
+therefore fails even a public read.
+
+The frontend cannot clear an httpOnly cookie from a Server Component (there is no routing
+boundary to set a response header — ADR 0001 §1.1), so it cannot heal the session itself.
+`src/lib/public-read.ts` sends those viewers to `/login`, which is the one recoverable
+answer that neither pretends the credential is valid nor silently re-fetches as a guest.
+Delete it when the BFF/session boundary lands and a broken session is cleared at the edge.
 
 ## Architecture notes
 
-- **Types come from `@linkedout/contracts`** (contract.md §0) — imported directly,
+- **Types come from `@linkedout/contracts/v2`** (contract §0) — imported directly,
   never hand-written. It's a `file:` workspace dependency (`../../packages/contracts`).
-- **One API seam:** `src/lib/api/` — `client.ts` (credentials, error-envelope
-  decoding, 401→refresh→retry with server-side cookie rotation, cursor pagination)
-  and `endpoints.ts` (typed calls). All backend traffic flows through here.
+- **One API seam:** `src/lib/api/` — `client.ts` (credentials, error-envelope decoding,
+  request timeouts, and a single-flight 401→refresh→retry) and `endpoints.ts` (typed calls,
+  cursor pagination). All backend traffic flows through here.
+- **Refresh is browser-only.** `Set-Cookie` is a forbidden response header and `Cookie` a
+  forbidden request header, so no userland code can read or replay a rotation: the browser's
+  own cookie jar carries it and `credentials: "include"` puts it on the retry. On the server
+  an expired session simply surfaces its `401` — there is no server-side rotation, because a
+  Server Component has no response to set cookies on (ADR 0001 §1.1). `src/lib/public-read.ts`
+  is what turns that `401` into navigation; `AUTH-01` in `e2e/auth-settings.spec.ts` is
+  `test.fixme` pending the BFF/session boundary.
 - **No client-side business logic:** permissions come from `viewer.*` flags,
-  reputation/enum copy from `GET /meta/enums`, notification strings rendered
-  server-side and shown verbatim. Anonymous Ls (`author === null`) render an
-  "Anonymous builder" placeholder and never link to a profile.
+  reputation/enum copy from `GET /meta/enums`, and notification strings, suggestion
+  reasons and interaction labels are rendered server-side and shown verbatim. Ranked
+  lists are rendered in the order the API returned them. Anonymous Ls (`author === null`)
+  render an "Anonymous builder" placeholder and never link to a profile.
 - **Data fetching:** Server Components fetch initial data; Client Components use
   TanStack Query (seeded with the server page) for load-more + optimistic UI.
+- **Query keys** are principal-scoped (`src/lib/query-keys.ts`) so one account's cache is
+  never read under another's, and finite/infinite queries over one resource never share a
+  key.
+
+### The feed rails
+
+`GET /feed/sidebar` is one optional-auth aggregate carrying the viewer, people to follow,
+Top Ls, and L of the day. The wire does not encode left/right — placement is ours:
+
+- **Left** — viewer box, then People to Follow in its own container.
+- **Right** — Top Ls, then L of the day.
+- Both rails read one shared principal-scoped query, so they cost a single request.
+- **Hidden below `lg`/`xl` rather than stacked.** The centre column is an infinite feed, so
+  anything after it is unreachable, and stacking four discovery boxes above it would bury
+  the product behind its own sidebar.
+- **No polling.** `refreshAfter` becomes a derived `staleTime`; the rails refresh on
+  remount and after a follow, never under a reader's eyes.
+- The request **fails independently of the feed**: the rails hide, the page stays whole.
+
+The feed route is three landmarks — two `complementary` rails around a `region` named
+"The Feed". The same L can legitimately appear in both the feed and a rail, so anything
+addressing "the feed" (a screen reader, a test) needs that name to mean something.
 
 ## Routes
 
-`/` feed · `/ls/[id]` detail + comments · `/ls/[id]/edit` · `/new` composer ·
+`/` feed + discovery rails · `/ls/[id]` detail + comments · `/ls/[id]/edit` · `/new` composer ·
 `/u/[username]` profile (journey, sections, collections) · `/collections/[id]` ·
 `/search` · `/notifications` · `/saved` · `/settings` ·
 `/login` · `/auth/callback` · `/onboarding`.

@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import { screen } from "@testing-library/react";
-import type { LCard as LCardType } from "@linkedout/contracts";
+import type { LCard as LCardType } from "@linkedout/contracts/v2";
 
 import { LCard } from "@/components/l/l-card";
 import { renderWithProviders } from "@/test/utils";
@@ -11,10 +11,6 @@ function makeCard(overrides: Partial<LCardType> = {}): LCardType {
     title: "Rejected after the final round at Google",
     storyPreview: "Four rounds in, strong signals, and then silence…",
     type: "STORY",
-    category: "INTERVIEWS",
-    company: "Google",
-    tags: ["interview"],
-    eventDate: null,
     visibility: "PUBLIC",
     isAnonymous: false,
     resolvedAt: null,
@@ -50,5 +46,30 @@ describe("LCard", () => {
   it("marks an unresolved battle as Ongoing", () => {
     renderWithProviders(<LCard l={makeCard({ type: "BATTLE", resolvedAt: null })} />);
     expect(screen.getByText("Ongoing")).toBeInTheDocument();
+  });
+
+  // v2 removed category, company, tags, and eventDate from the wire. The app now talks to
+  // v2 only, so nothing should send them — but a card that renders whatever it is handed
+  // would fail open if that ever stopped being true. Assert it ignores them.
+  // `Object.assign` widens the type honestly (LCardType & the extras) instead of asserting
+  // a foreign shape *is* an LCardType, which would defeat the contract this test defends.
+  it("renders no category, company, event date, or tags, even if the wire carries them", () => {
+    const withLegacyFields = Object.assign(makeCard(), {
+      category: "INTERVIEWS",
+      company: "Google",
+      tags: ["interview", "faang"],
+      eventDate: "2026-05-10T00:00:00.000Z",
+    });
+
+    renderWithProviders(<LCard l={withLegacyFields} />);
+
+    expect(screen.queryByText("Interviews")).not.toBeInTheDocument();
+    expect(screen.queryByText("Google")).not.toBeInTheDocument();
+    expect(screen.queryByText("#interview")).not.toBeInTheDocument();
+    expect(screen.queryByText("#faang")).not.toBeInTheDocument();
+    expect(screen.queryByText("May 10, 2026")).not.toBeInTheDocument();
+    // Tag chips were the only thing linking a card into search.
+    const hrefs = screen.getAllByRole("link").map((a) => a.getAttribute("href") ?? "");
+    expect(hrefs.some((h) => h.startsWith("/search"))).toBe(false);
   });
 });

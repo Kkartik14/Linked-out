@@ -7,21 +7,18 @@ on:
   push:
     branches: [main]
 
-# One in-flight run per branch/PR; a new push cancels the previous run.
+# One in-flight run per branch/PR; a new push cancels the previous run — except on main,
+# where cancelling would leave the superseded commit permanently statusless and contradict
+# the "always carries a green (or red) status" intent above.
 concurrency:
   group: ci-${{ github.workflow }}-${{ github.ref }}
-  cancel-in-progress: true
+  cancel-in-progress: ${{ github.ref != 'refs/heads/main' }}
 
 permissions:
   contents: read
 
-env:
-  # The e2e/integration harnesses default to these secrets; pin them so the API the
-  # tests boot and the cookies the harness mints agree.
-  E2E_JWT_ACCESS_SECRET: e2e-access-secret-0123456789abcdef
-
 jobs:
-  # ── Static checks + web unit tests. No database needed. ──────────────────────
+  # ── Backend static checks. Also produces the build every other job consumes. ──
   checks:
     name: checks
     runs-on: ubuntu-latest
@@ -40,22 +37,20 @@ jobs:
         with:
           node-version-file: .node-version
           cache: pnpm
-          cache-dependency-path: |
-            pnpm-lock.yaml
-            apps/web/pnpm-lock.yaml
+          cache-dependency-path: pnpm-lock.yaml
 
       - name: Install backend workspace
         run: pnpm install --frozen-lockfile
 
-      # Build BEFORE installing the web workspace: apps/web consumes
-      # @linkedout/contracts as a file: dependency, which pnpm materialises as a copy
-      # at install time. If contracts/dist doesn't exist yet, that copy has no types
-      # and every web import fails to resolve. Building first fills in the dist.
+      # apps/web consumes @linkedout/contracts as a file: dependency, which pnpm
+      # materialises at install time. If contracts/dist doesn't exist yet, that copy has
+      # no types and every web import fails to resolve — so this build must precede any
+      # web install. web-checks and e2e-tests both wait on this job for that reason.
       - name: Build packages + API
         run: pnpm build
 
-      # Build the backend workspace once per workflow. Database/e2e jobs download these exact
-      # outputs instead of compiling the same commit two more times (no Turbo required).
+      # Build the backend workspace once per workflow. Database/e2e/web jobs download these
+      # exact outputs instead of compiling the same commit again (no Turbo required).
       - name: Upload backend build
         uses: actions/upload-artifact@v4
         with:
@@ -68,19 +63,65 @@ jobs:
           if-no-files-found: error
           retention-days: 1
 
-      - name: Install web workspace
-        run: pnpm install --frozen-lockfile
-        working-directory: apps/web
-
       - name: Typecheck (contracts, db, api)
         run: pnpm typecheck
 
       - name: Lint (contracts, db, api)
         run: pnpm lint
 
+  # ── Web static checks + unit tests. No database needed. ──────────────────────
+  # A separate job from `checks` on purpose: apps/web and the backend are owned by
+  # different teams (local/claude.md §0), and when they shared a job a backend lint error
+  # meant the frontend got no signal at all. This only needs contracts/dist, which is why
+  # it can start as soon as `checks` has uploaded the artifact.
+  web-checks:
+    name: web-checks
+    needs: checks
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: pnpm/action-setup@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version-file: .node-version
+          cache: pnpm
+          cache-dependency-path: apps/web/pnpm-lock.yaml
+
+      # Download BEFORE installing web: contracts/dist must exist when pnpm materialises
+      # the file: dependency.
+      - name: Download backend build
+        uses: actions/download-artifact@v4
+        with:
+          name: backend-build
+          path: .
+
+      - name: Install web workspace
+        run: pnpm install --frozen-lockfile
+        working-directory: apps/web
+
+      # `--frozen-lockfile` is satisfied by a lockfile that pins contracts' OWN dependency
+      # graph from an earlier commit: pnpm skips resolution and reports success, so a
+      # contracts dep bump would be tested against the stale graph. Re-resolving and
+      # diffing is what makes that visible.
+      - name: Web lockfile is fresh against contracts
+        run: |
+          cp apps/web/pnpm-lock.yaml "${RUNNER_TEMP}/web-lock.bak"
+          pnpm --dir apps/web install --lockfile-only --ignore-scripts
+          if ! diff -q "${RUNNER_TEMP}/web-lock.bak" apps/web/pnpm-lock.yaml >/dev/null; then
+            echo "::error file=apps/web/pnpm-lock.yaml::Stale against packages/contracts. Run 'pnpm --dir apps/web install' and commit the lockfile."
+            diff -u "${RUNNER_TEMP}/web-lock.bak" apps/web/pnpm-lock.yaml || true
+            exit 1
+          fi
+          cp "${RUNNER_TEMP}/web-lock.bak" apps/web/pnpm-lock.yaml
+
       - name: Typecheck (web)
         run: pnpm --dir apps/web typecheck
 
+      # The script carries --max-warnings=0: several rules that matter most here
+      # (react-hooks/exhaustive-deps above all) ship at warn level.
       - name: Lint (web)
         run: pnpm --dir apps/web lint
 
@@ -188,6 +229,11 @@ jobs:
       TEST_DATABASE_URL: postgresql://linkedout:linkedout@localhost:5432/linkedout_test?schema=public
       DATABASE_URL: postgresql://linkedout:linkedout@localhost:5432/linkedout_test?schema=public
       DIRECT_URL: postgresql://linkedout:linkedout@localhost:5432/linkedout_test?schema=public
+      # Read only by apps/web's Playwright harness (playwright.config.ts, e2e/backend.cjs) to
+      # mint cookies the API it boots will accept. The API integration harness is unrelated —
+      # it hardcodes its own secrets. Pinned rather than left to default so a change to the
+      # harness default cannot silently desynchronise the two processes here.
+      E2E_JWT_ACCESS_SECRET: e2e-access-secret-0123456789abcdef
     steps:
       - uses: actions/checkout@v4
 
@@ -234,8 +280,13 @@ jobs:
       - name: e2e tests (Playwright + real API + real Postgres)
         run: pnpm --dir apps/web test:e2e
 
-      - name: Upload Playwright artifacts on failure
-        if: failure()
+      # `always()`, not `failure()`: playwright.config.ts retries twice in CI, so a test can
+      # fail, fail, pass — and the job goes green with the flake leaving no trace. The
+      # retry traces (trace: "on-first-retry") are the only record that it happened, and on
+      # a green run `failure()` would throw them away. Nothing to upload on a clean run, so
+      # `if-no-files-found: ignore` keeps this quiet.
+      - name: Upload Playwright artifacts
+        if: always()
         uses: actions/upload-artifact@v4
         with:
           name: playwright-results

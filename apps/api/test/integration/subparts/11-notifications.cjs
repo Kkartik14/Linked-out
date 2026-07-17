@@ -134,23 +134,44 @@ describe('11 · notifications (contract §4.11)', () => {
     assert.deepEqual((await inbox()).body.data, []);
   });
 
-  test('a reply notifies both the L author and the parent commenter', async () => {
+  test('a reply notifies both the L author and the parent commenter, each with its own copy', async () => {
     const parent = await h.post(`/ls/${l.id}/comments`, {
       cookie: actor.cookie,
       body: { body: 'parent' },
     });
-    const third = await h.createUser({ username: 'third' });
+    const third = await h.createUser({ username: 'third', name: 'Alan Turing' });
     await h.post(`/comments/${parent.body.id}/replies`, {
       cookie: third.cookie,
       body: { body: 'reply' },
     });
 
-    const authorInbox = await inbox();
-    assert.equal(authorInbox.body.data.length, 2, 'the L author hears about the comment and reply');
+    const authorInbox = h.expectShape(await inbox(), listSchema);
+    assert.equal(authorInbox.data.length, 2, 'the L author hears about the comment and reply');
+    assert.equal(authorInbox.data[0].message, 'Alan Turing commented on your L.');
 
-    const actorInbox = await inbox(actor);
-    assert.equal(actorInbox.body.data.length, 1, 'the parent commenter hears about the reply');
-    assert.equal(actorInbox.body.data[0].actor.username, 'third');
+    // The parent commenter does not own this L. Telling them someone "commented on your L"
+    // names a story that is not theirs and hides that the reply was to their comment.
+    const actorInbox = h.expectShape(await inbox(actor), listSchema);
+    assert.equal(actorInbox.data.length, 1, 'the parent commenter hears about the reply');
+    assert.equal(actorInbox.data[0].actor.username, 'third');
+    assert.equal(actorInbox.data[0].message, 'Alan Turing replied to your comment.');
+  });
+
+  test('replying to the L author’s own comment tells them it is their L, exactly once', async () => {
+    const parent = await h.post(`/ls/${l.id}/comments`, {
+      cookie: author.cookie,
+      body: { body: 'my own comment' },
+    });
+    await h.post(`/comments/${parent.body.id}/replies`, {
+      cookie: actor.cookie,
+      body: { body: 'reply' },
+    });
+
+    // The author is both the L owner and the parent commenter: one notification, not two, and
+    // the L-owner wording wins because the L really is theirs.
+    const page = h.expectShape(await inbox(), listSchema);
+    assert.equal(page.data.length, 1, 'the single recipient is not notified twice');
+    assert.equal(page.data[0].message, 'Grace Hopper commented on your L.');
   });
 
   test('NEW_FOLLOWER uses the actor’s display name, falling back to username', async () => {

@@ -14,12 +14,12 @@ describe("API error helpers", () => {
     const error = new ApiError(400, "VALIDATION_ERROR", "Invalid", [
       { field: "title", code: "required", message: "Title is required." },
       { field: "title", code: "too_long", message: "Title is too long." },
-      { field: "tags[0]", code: "too_long", message: "Tag is too long." },
+      { field: "story", code: "too_long", message: "Story is too long." },
     ]);
 
     expect(fieldErrors(error)).toEqual({
       title: "Title is required.",
-      "tags[0]": "Tag is too long.",
+      story: "Story is too long.",
     });
   });
 

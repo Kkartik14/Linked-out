@@ -58,6 +58,11 @@ export interface JourneyPageCursor {
   id: string;
 }
 
+export interface CreatedAtJourneyPageCursor {
+  createdAt: string;
+  id: string;
+}
+
 export type OwnedLWriteResult<T> =
   | { status: 'ok'; row: T }
   | { status: 'not_found' }

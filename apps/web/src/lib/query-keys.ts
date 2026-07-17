@@ -14,51 +14,55 @@
  *     `InfiniteData`). Sharing a key corrupts both (FRONTEND-01), so they get distinct
  *     leaves here by construction.
  *
- * Get the principal from `usePrincipal()` (see `components/session-provider`).
+ * Get the principal from `usePrincipal()` (see `components/session-provider`) — the `p`
+ * parameter every factory below takes. It is a plain `string`, deliberately: a `Principal`
+ * alias for `string` read like a guarantee and enforced nothing, since any string is
+ * assignable to it. Branding it would enforce something, but only if minted in
+ * `usePrincipal()`, which is outside this file's remit; until that lands, the honest signal
+ * is the parameter name plus these rules, not a type that only looks like a type.
  */
-
-export type Principal = string;
 
 export const queryKeys = {
   feed: {
-    infinite: (p: Principal, scope: string, sort: string, filter: string | null) =>
-      ["feed", p, scope, sort, filter] as const,
+    infinite: (p: string, scope: string, sort: string) => ["feed", p, scope, sort] as const,
+  },
+  /** The feed page's discovery rails. Principal-scoped: the response carries viewer state. */
+  feedSidebar: {
+    detail: (p: string) => ["feed-sidebar", p] as const,
   },
   search: {
-    ls: (p: Principal, query: string, filter: string | null) =>
-      ["search", p, "ls", query, filter] as const,
-    users: (p: Principal, query: string) => ["search", p, "users", query] as const,
+    ls: (p: string, query: string) => ["search", p, "ls", query] as const,
+    users: (p: string, query: string) => ["search", p, "users", query] as const,
   },
   users: {
-    ls: (p: Principal, username: string, type: string) =>
+    ls: (p: string, username: string, type: string) =>
       ["user-ls", p, username, type] as const,
-    journey: (p: Principal, username: string) => ["journey", p, username] as const,
-    collections: (p: Principal, username: string) =>
+    journey: (p: string, username: string) => ["journey", p, username] as const,
+    collections: (p: string, username: string) =>
       ["user-collections", p, username] as const,
   },
   ls: {
-    reactions: (p: Principal, lId: string) => ["ls", p, lId, "reactions"] as const,
-    commentCount: (p: Principal, lId: string) => ["ls", p, lId, "comment-count"] as const,
+    reactions: (p: string, lId: string) => ["ls", p, lId, "reactions"] as const,
+    commentCount: (p: string, lId: string) => ["ls", p, lId, "comment-count"] as const,
   },
   comments: {
-    all: (p: Principal) => ["comments", p] as const,
-    list: (p: Principal, lId: string) => ["comments", p, "list", lId] as const,
-    replies: (p: Principal, commentId: string) =>
+    list: (p: string, lId: string) => ["comments", p, "list", lId] as const,
+    replies: (p: string, commentId: string) =>
       ["comments", p, "replies", commentId] as const,
   },
   profiles: {
-    detail: (p: Principal, username: string) => ["profiles", p, username] as const,
+    detail: (p: string, username: string) => ["profiles", p, username] as const,
   },
   saved: {
-    all: (p: Principal) => ["saved", p] as const,
+    all: (p: string) => ["saved", p] as const,
   },
   notifications: {
     /** Root for a principal — invalidate this to refresh preview + page + unread count. */
-    all: (p: Principal) => ["notifications", p] as const,
-    unreadCount: (p: Principal) => ["notifications", p, "unread-count"] as const,
+    all: (p: string) => ["notifications", p] as const,
+    unreadCount: (p: string) => ["notifications", p, "unread-count"] as const,
     /** Header dropdown: a finite page. */
-    preview: (p: Principal) => ["notifications", p, "preview"] as const,
+    preview: (p: string) => ["notifications", p, "preview"] as const,
     /** Full page: an infinite query — deliberately distinct from `preview`. */
-    infinite: (p: Principal) => ["notifications", p, "infinite"] as const,
+    infinite: (p: string) => ["notifications", p, "infinite"] as const,
   },
 } as const;

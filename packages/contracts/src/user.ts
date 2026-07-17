@@ -15,7 +15,7 @@ export const userSummarySchema = z.object({
   name: z.string().nullable(),
   image: z.string().nullable(),
   status: journeyStatusSchema.nullable(),
-});
+}).strict();
 export type UserSummary = z.infer<typeof userSummarySchema>;
 
 export const reputationSchema = z.object({
@@ -24,7 +24,7 @@ export const reputationSchema = z.object({
   buildersHelped: z.number().int(),
   lsShared: z.number().int(),
   collectionsCreated: z.number().int(),
-});
+}).strict();
 export type Reputation = z.infer<typeof reputationSchema>;
 
 /** Full public profile (GET /users/:username). */
@@ -39,13 +39,13 @@ export const userProfileSchema = z.object({
   counts: z.object({
     followers: z.number().int(),
     following: z.number().int(),
-  }),
+  }).strict(),
   viewer: z.object({
     isFollowing: z.boolean(),
     isSelf: z.boolean(),
-  }),
+  }).strict(),
   createdAt: isoTimestampSchema,
-});
+}).strict();
 export type UserProfile = z.infer<typeof userProfileSchema>;
 
 export const usernameInputSchema = z

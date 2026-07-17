@@ -5,7 +5,6 @@ import { Plus } from "lucide-react";
 import { useRouter } from "next/navigation";
 import { useMutation, useQueryClient, type QueryKey } from "@tanstack/react-query";
 import { toast } from "sonner";
-import type { Collection } from "@linkedout/contracts";
 
 import { createCollection, errorMessage } from "@/lib/api";
 import { Button } from "@/components/ui/button";
@@ -21,11 +20,9 @@ import { Label } from "@/components/ui/label";
 
 export function CreateCollectionButton({
   queryKey,
-  onCreated,
   label = "New collection",
 }: {
-  queryKey?: QueryKey;
-  onCreated?: (collection: Collection) => void;
+  queryKey: QueryKey;
   label?: string;
 }) {
   const queryClient = useQueryClient();
@@ -35,12 +32,11 @@ export function CreateCollectionButton({
 
   const create = useMutation({
     mutationFn: (nextTitle: string) => createCollection(nextTitle),
-    onSuccess: (collection) => {
+    onSuccess: () => {
       setTitle("");
       setOpen(false);
       toast.success("Collection created.");
-      if (queryKey) void queryClient.invalidateQueries({ queryKey });
-      onCreated?.(collection);
+      void queryClient.invalidateQueries({ queryKey });
       router.refresh();
     },
     onError: (err) => toast.error(errorMessage(err, "Could not create the collection.")),

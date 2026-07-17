@@ -5,8 +5,12 @@ export const ulidSchema = z
   .string()
   .regex(/^[0-9A-HJKMNP-TV-Za-hjkmnp-tv-z]{26}$/, 'Invalid id');
 
-/** ISO 8601 UTC timestamp string, as returned in responses. */
-export const isoTimestampSchema = z.string();
+/**
+ * ISO 8601 UTC timestamp string, as returned in responses — what `Date#toISOString` emits.
+ * Validated, not merely documented: a bare `z.string()` here accepted `"yesterday"`, so the
+ * contract could not catch a mapper that leaked a raw or wrongly-formatted date to the wire.
+ */
+export const isoTimestampSchema = z.iso.datetime();
 
 /**
  * A date on the way *in*. Accepts an ISO 8601 string (or a `Date` from a typed caller)

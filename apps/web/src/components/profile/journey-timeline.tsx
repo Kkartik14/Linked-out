@@ -1,12 +1,12 @@
 "use client";
 
 import Link from "next/link";
-import type { JourneyNode, Paginated } from "@linkedout/contracts";
+import type { JourneyNode, Paginated } from "@linkedout/contracts/v2";
 
 import { getJourney } from "@/lib/api";
 import { InfiniteList } from "@/components/infinite-list";
 import { EmptyState } from "@/components/empty-state";
-import { categoryLabel, typeLabel, useMeta } from "@/components/meta-provider";
+import { typeLabel, useMeta } from "@/components/meta-provider";
 import { Badge } from "@/components/ui/badge";
 import { Skeleton } from "@/components/ui/skeleton";
 import { formatDate } from "@/lib/format";
@@ -15,7 +15,6 @@ import { queryKeys } from "@/lib/query-keys";
 
 function TimelineNode({ node }: { node: JourneyNode }) {
   const meta = useMeta();
-  const cat = categoryLabel(meta, node.category);
 
   return (
     <div className="border-border relative border-l pt-1 pb-6 pl-6">
@@ -23,8 +22,9 @@ function TimelineNode({ node }: { node: JourneyNode }) {
         aria-hidden
         className="bg-primary ring-background absolute top-1.5 -left-[5px] size-2.5 rounded-full ring-4"
       />
-      <time dateTime={node.date} className="text-muted-foreground text-xs">
-        {formatDate(node.date)}
+      {/* v2 orders the journey by (createdAt, id), so the label and the order agree. */}
+      <time dateTime={node.createdAt} className="text-muted-foreground text-xs">
+        {formatDate(node.createdAt)}
       </time>
       <Link href={`/ls/${node.id}`} className="mt-0.5 block font-medium text-balance hover:underline">
         {node.title}
@@ -36,8 +36,6 @@ function TimelineNode({ node }: { node: JourneyNode }) {
             {node.resolvedAt ? "Resolved" : "Ongoing"}
           </Badge>
         ) : null}
-        {cat ? <span className="text-muted-foreground">{cat}</span> : null}
-        {node.company ? <span className="text-muted-foreground">· {node.company}</span> : null}
       </div>
     </div>
   );

@@ -5,23 +5,36 @@ import type {
   Collection,
   CollectionDetail,
   CreateCollectionInput,
+  LCard,
   Paginated,
   PaginationQuery,
+  ReactionType,
   UpdateCollectionInput,
 } from '@linkedout/contracts';
+import type {
+  AddLToCollectionInput as AddLToCollectionInputV2,
+  CollectionDetail as CollectionDetailV2,
+  LCard as LCardV2,
+} from '@linkedout/contracts/v2';
 
 import { AppErrors } from '../../common/errors/app-exception';
 import { decodeCursorId } from '../../common/pagination/cursor';
+import {
+  groupViewerReactions,
+  lAudiencePolicy,
+  mapLRows,
+  type LWithAuthor,
+} from '../../common/read-models/l-read-model';
 import type { AuthUser } from '../../common/types/auth';
-import { LsService } from '../ls/ls.service';
-import { UsersService } from '../users/users.service';
+import { toLCard } from '../ls/ls.mapper';
+import { toV2LCard } from '../ls/ls-v2.mapper';
 import {
   CollectionNotFoundError,
   CollectionSlugConflictError,
   CollectionsRepository,
   type CollectionWithMeta,
 } from './collections.repository';
-import { toCollection, toCollectionDetail } from './collections.mapper';
+import { toCollection, toCollectionDetail, toV2CollectionDetail } from './collections.mapper';
 
 function slugify(title: string): string {
   const base = title
@@ -34,11 +47,7 @@ function slugify(title: string): string {
 
 @Injectable()
 export class CollectionsService {
-  constructor(
-    private readonly repo: CollectionsRepository,
-    private readonly ls: LsService,
-    private readonly users: UsersService,
-  ) {}
+  constructor(private readonly repo: CollectionsRepository) {}
 
   async create(user: AuthUser, input: CreateCollectionInput): Promise<Collection> {
     if (!user.username) throw AppErrors.onboardingRequired();
@@ -58,9 +67,11 @@ export class CollectionsService {
   }
 
   async getDetail(id: string, viewerId: string | undefined): Promise<CollectionDetail> {
-    const collection = await this.repo.findById(id);
-    if (!collection) throw AppErrors.collectionNotFound();
-    return this.detailFor(collection, viewerId);
+    return this.detailFor(await this.requireCollection(id), viewerId);
+  }
+
+  async getDetailV2(id: string, viewerId: string | undefined): Promise<CollectionDetailV2> {
+    return this.detailForV2(await this.requireCollection(id), viewerId);
   }
 
   async rename(user: AuthUser, id: string, input: UpdateCollectionInput): Promise<Collection> {
@@ -98,20 +109,24 @@ export class CollectionsService {
     lId: string,
     input: AddLToCollectionInput,
   ): Promise<CollectionDetail> {
-    await this.assertOwner(id, user.id);
-    const owner = await this.repo.lOwner(lId);
-    if (!owner) throw AppErrors.lNotFound();
-    if (owner.authorId !== user.id) {
-      throw AppErrors.forbidden('You can only add your own Ls to a collection.');
-    }
-    await this.repo.addL(id, lId, input.position);
-    return this.getDetail(id, user.id);
+    return this.addLAndRead(user, id, lId, input.position, () => this.getDetail(id, user.id));
+  }
+
+  async addLV2(
+    user: AuthUser,
+    id: string,
+    lId: string,
+    input: AddLToCollectionInputV2,
+  ): Promise<CollectionDetailV2> {
+    return this.addLAndRead(user, id, lId, input.position, () => this.getDetailV2(id, user.id));
   }
 
   async removeL(user: AuthUser, id: string, lId: string): Promise<CollectionDetail> {
-    await this.assertOwner(id, user.id);
-    await this.repo.removeL(id, lId);
-    return this.getDetail(id, user.id);
+    return this.removeLAndRead(user, id, lId, () => this.getDetail(id, user.id));
+  }
+
+  async removeLV2(user: AuthUser, id: string, lId: string): Promise<CollectionDetailV2> {
+    return this.removeLAndRead(user, id, lId, () => this.getDetailV2(id, user.id));
   }
 
   async listByOwner(
@@ -119,13 +134,15 @@ export class CollectionsService {
     query: PaginationQuery,
     viewerId: string | undefined,
   ): Promise<Paginated<Collection>> {
-    const ownerId = await this.users.requireUserId(username);
+    const owner = await this.repo.ownerIdByUsername(username);
+    if (!owner) throw AppErrors.userNotFound();
+    const ownerId = owner.id;
     const page = await this.repo.listByOwner(ownerId, query.limit, decodeCursorId(query.cursor));
-    const visibilities = await this.ls.allowedVisibilitiesFor(viewerId, ownerId);
+    const policy = await this.audiencePolicy(viewerId, ownerId);
     const counts = await this.repo.visibleLCounts(
       page.rows.map((collection) => collection.id),
-      visibilities,
-      viewerId === ownerId,
+      policy.visibilities,
+      policy.includeAnonymous,
     );
     const data = page.rows.map((collection) =>
       toCollection(collection, counts.get(collection.id) ?? 0, viewerId),
@@ -138,14 +155,92 @@ export class CollectionsService {
     viewerId: string | undefined,
   ): Promise<CollectionDetail> {
     const ids = await this.repo.orderedLIds(collection.id);
-    const visibilities = await this.ls.allowedVisibilitiesFor(viewerId, collection.ownerId);
-    const cards = await this.ls.getCardsByIdsFiltered(
-      ids,
-      viewerId,
-      visibilities,
-      viewerId === collection.ownerId,
-    );
+    const policy = await this.audiencePolicy(viewerId, collection.ownerId);
+    const rows = await this.repo.visibleLs(ids, policy.visibilities, policy.includeAnonymous);
+    const cards = await this.toCards(rows, viewerId);
     return toCollectionDetail(collection, cards, viewerId);
+  }
+
+  private async detailForV2(
+    collection: CollectionWithMeta,
+    viewerId: string | undefined,
+  ): Promise<CollectionDetailV2> {
+    const ids = await this.repo.orderedLIds(collection.id);
+    const policy = await this.audiencePolicy(viewerId, collection.ownerId);
+    const rows = await this.repo.visibleLs(ids, policy.visibilities, policy.includeAnonymous);
+    const cards = await this.toV2Cards(rows, viewerId);
+    return toV2CollectionDetail(collection, cards, viewerId);
+  }
+
+  private async addLAndRead<T>(
+    user: AuthUser,
+    id: string,
+    lId: string,
+    position: number | undefined,
+    read: () => Promise<T>,
+  ): Promise<T> {
+    await this.assertOwner(id, user.id);
+    const owner = await this.repo.lOwner(lId);
+    if (!owner) throw AppErrors.lNotFound();
+    if (owner.authorId !== user.id) {
+      throw AppErrors.forbidden('You can only add your own Ls to a collection.');
+    }
+    await this.repo.addL(id, lId, position);
+    return read();
+  }
+
+  private async removeLAndRead<T>(
+    user: AuthUser,
+    id: string,
+    lId: string,
+    read: () => Promise<T>,
+  ): Promise<T> {
+    await this.assertOwner(id, user.id);
+    await this.repo.removeL(id, lId);
+    return read();
+  }
+
+  private async requireCollection(id: string): Promise<CollectionWithMeta> {
+    const collection = await this.repo.findById(id);
+    if (!collection) throw AppErrors.collectionNotFound();
+    return collection;
+  }
+
+  private async toCards(
+    rows: LWithAuthor[],
+    viewerId: string | undefined,
+  ): Promise<LCard[]> {
+    return mapLRows(rows, viewerId, await this.reactionMap(viewerId, rows), toLCard);
+  }
+
+  private async toV2Cards(
+    rows: LWithAuthor[],
+    viewerId: string | undefined,
+  ): Promise<LCardV2[]> {
+    return mapLRows(rows, viewerId, await this.reactionMap(viewerId, rows), toV2LCard);
+  }
+
+  private async reactionMap(
+    viewerId: string | undefined,
+    rows: LWithAuthor[],
+  ): Promise<Map<string, ReactionType[]>> {
+    if (!viewerId || rows.length === 0) return new Map();
+    return groupViewerReactions(
+      await this.repo.viewerReactions(
+        viewerId,
+        rows.map((row) => row.id),
+      ),
+    );
+  }
+
+  private async audiencePolicy(
+    viewerId: string | undefined,
+    ownerId: string,
+  ) {
+    const isFollowing = Boolean(
+      viewerId && viewerId !== ownerId && (await this.repo.viewerFollows(viewerId, ownerId)),
+    );
+    return lAudiencePolicy(viewerId, ownerId, isFollowing);
   }
 
   private async assertOwner(id: string, userId: string): Promise<void> {

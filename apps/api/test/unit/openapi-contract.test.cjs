@@ -6,6 +6,7 @@ const test = require('node:test');
 require('reflect-metadata');
 
 const { RequestMethod } = require('@nestjs/common');
+const { z } = require('zod');
 const {
   GUARDS_METADATA,
   HEADERS_METADATA,
@@ -14,6 +15,7 @@ const {
   MODULE_METADATA,
   PATH_METADATA,
   ROUTE_ARGS_METADATA,
+  VERSION_METADATA,
 } = require('@nestjs/common/constants');
 const { RouteParamtypes } = require('@nestjs/common/enums/route-paramtypes.enum');
 const {
@@ -23,6 +25,7 @@ const {
   reactionTypeSchema,
   searchTypeSchema,
 } = require('@linkedout/contracts');
+const contractsV2 = require('@linkedout/contracts/v2');
 
 const { AppModule } = require('../../dist/app.module');
 const { ZodValidationPipe } = require('../../dist/common/pipes/zod-validation.pipe');
@@ -31,6 +34,10 @@ const {
   API_ROUTE_CONTRACTS,
   API_ROUTE_CONTRACT_BY_KEY,
 } = require('../../dist/common/contracts/api-route-contracts');
+const {
+  API_ROUTE_CONTRACTS_V2,
+  API_ROUTE_CONTRACT_BY_KEY_V2,
+} = require('../../dist/common/contracts/api-route-contracts-v2');
 const { MetaController } = require('../../dist/modules/meta/meta.controller');
 const { MetaService } = require('../../dist/modules/meta/meta.service');
 
@@ -40,6 +47,7 @@ const KNOWN_GUARDS = new Set([
   'GoogleAuthGuard',
   'JwtAuthGuard',
   'OptionalAuthGuard',
+  'StrictOptionalAuthGuard',
 ]);
 // Refresh validates this cookie inside the handler rather than through a Nest guard.
 const DIRECT_COOKIE_SECURITY = new Map([
@@ -111,9 +119,14 @@ function guardNames(Controller, handler) {
   return new Set(names);
 }
 
+// Both optional-auth guards describe the same wire contract — the cookie may be omitted — so
+// they share one OpenAPI security block. They differ in what a *bad* cookie does, which OpenAPI
+// cannot express; that difference is pinned by the guard-policy test instead.
 function expectedSecurity(guards) {
   if (guards.has('JwtAuthGuard')) return [{ accessCookie: [] }];
-  if (guards.has('OptionalAuthGuard')) return [{}, { accessCookie: [] }];
+  if (guards.has('OptionalAuthGuard') || guards.has('StrictOptionalAuthGuard')) {
+    return [{}, { accessCookie: [] }];
+  }
   return [];
 }
 
@@ -124,7 +137,15 @@ function expectedSuccessStatus(method, handler, guards) {
   return method === RequestMethod.POST ? 201 : 200;
 }
 
-async function controllerOperations() {
+function versionsFor(Controller, handler) {
+  const declared =
+    Reflect.getMetadata(VERSION_METADATA, handler) ??
+    Reflect.getMetadata(VERSION_METADATA, Controller) ??
+    '1';
+  return new Set([declared].flat());
+}
+
+async function controllerOperations(version = '1') {
   const operations = new Map();
   for (const Controller of await registeredControllers(AppModule)) {
     const controllerPaths = [Reflect.getMetadata(PATH_METADATA, Controller) ?? ''].flat();
@@ -133,6 +154,7 @@ async function controllerOperations() {
       const method = Reflect.getMetadata(METHOD_METADATA, handler);
       const handlerMetadata = Reflect.getMetadata(PATH_METADATA, handler);
       if (method === undefined || handlerMetadata === undefined) continue;
+      if (!versionsFor(Controller, handler).has(version)) continue;
 
       const guards = guardNames(Controller, handler);
       for (const controllerPath of controllerPaths) {
@@ -148,6 +170,7 @@ async function controllerOperations() {
             methodName,
             method: httpMethod,
             path,
+            guards,
             security: DIRECT_COOKIE_SECURITY.get(key) ?? expectedSecurity(guards),
             status: expectedSuccessStatus(method, handler, guards),
           });
@@ -272,6 +295,115 @@ test('one route contract drives each handler body pipe and OpenAPI success respo
   );
 });
 
+test('v2 OpenAPI and route contracts cover exactly the registered v2 operations', async () => {
+  const document = new MetaService({}).getV2OpenApi();
+  const documented = documentedOperations(document);
+  const registered = await controllerOperations('2');
+
+  assert.deepEqual([...documented.keys()].sort(), [...registered.keys()].sort());
+  assert.deepEqual(
+    [...API_ROUTE_CONTRACT_BY_KEY_V2.keys()].sort(),
+    [...registered.keys()].sort(),
+  );
+  assert.deepEqual(
+    [...API_ROUTE_CONTRACT_BY_KEY_V2.keys()].sort(),
+    [
+      ...[...API_ROUTE_CONTRACT_BY_KEY.keys()].filter((key) => key !== 'get /tags/popular'),
+      'get /feed/sidebar',
+    ].sort(),
+    'v2 carries every v1 operation except the explicitly removed popular-tags route',
+  );
+
+  for (const operation of registered.values()) {
+    const contract = API_ROUTE_CONTRACT_BY_KEY_V2.get(operation.key);
+    assert.strictEqual(
+      Reflect.getMetadata(API_CONTRACT_METADATA, operation.handler),
+      contract,
+      `${operation.key} handler binds the canonical v2 route contract`,
+    );
+    const documentedOperation = documented.get(operation.key);
+    assert.deepEqual(
+      documentedOperation.security ?? document.security ?? [],
+      operation.security,
+      `${operation.key} security`,
+    );
+    assert.ok(documentedOperation.responses[String(contract.status)]);
+    if (contract.response.name) {
+      assert.equal(
+        documentedOperation.responses[String(contract.status)].content['application/json'].schema.$ref,
+        `#/components/schemas/${contract.response.name}`,
+      );
+    }
+    for (const status of ['400', '401', '404', '429', '500']) {
+      assert.equal(
+        documentedOperation.responses[status].content['application/json'].schema.$ref,
+        '#/components/schemas/ErrorEnvelope',
+        `${operation.key} documents the ${status} error envelope`,
+      );
+    }
+
+    const bodyArguments = Object.entries(
+      Reflect.getMetadata(ROUTE_ARGS_METADATA, operation.Controller, operation.methodName) ?? {},
+    ).filter(([metadataKey]) => metadataKey.startsWith(`${RouteParamtypes.BODY}:`));
+    if (contract.body) {
+      assert.equal(bodyArguments.length, 1, `${operation.key} has one declared v2 request body`);
+      const validationPipes = bodyArguments[0][1].pipes.filter(
+        (pipe) => pipe instanceof ZodValidationPipe,
+      );
+      assert.equal(validationPipes.length, 1);
+      assert.strictEqual(validationPipes[0].contractSchema, contract.body.schema);
+    } else {
+      assert.equal(bodyArguments.length, 0, `${operation.key} has no undocumented v2 body`);
+    }
+  }
+
+  assert.equal(document.info.version, '2.0.0');
+  assert.deepEqual(document.servers, [{ url: '/v2' }]);
+  assert.ok(document.components.schemas.FeedSidebarResponse);
+  assert.equal(
+    document.paths['/feed/sidebar'].get.responses['200'].headers['Cache-Control'].schema.const,
+    'private, no-store, max-age=0',
+  );
+  assert.equal(document.paths['/feed'].get.parameters.some((parameter) => parameter.name === 'filter'), false);
+  assert.equal(document.paths['/search'].get.parameters.some((parameter) => parameter.name === 'filter'), false);
+  assert.equal(document.paths['/tags/popular'], undefined);
+  assert.equal(
+    new Set(Object.values(API_ROUTE_CONTRACTS_V2)).size,
+    Object.keys(API_ROUTE_CONTRACTS_V2).length,
+    'v2 route contracts do not alias distinct operations',
+  );
+});
+
+// The guard split enforces "invalid credentials are a 401, never a silent guest" at the
+// executable v2 route-contract boundary. It is per-route metadata, so nothing but an explicit
+// sweep catches a new v2 read that reaches for the lenient guard out of habit.
+test('every v2 optional-auth read rejects a bad credential; v1 keeps its lenient downgrade', async () => {
+  const optionalAuthOperations = (operations) =>
+    [...operations.values()].filter(
+      ({ guards }) => guards.has('OptionalAuthGuard') || guards.has('StrictOptionalAuthGuard'),
+    );
+
+  const v2OptionalAuth = optionalAuthOperations(await controllerOperations('2'));
+  const v1OptionalAuth = optionalAuthOperations(await controllerOperations('1'));
+
+  // Guards against the assertions below passing because the filter matched nothing.
+  assert.ok(v2OptionalAuth.length > 0, 'v2 exposes optional-auth reads');
+  assert.ok(v1OptionalAuth.length > 0, 'v1 exposes optional-auth reads');
+
+  assert.deepEqual(
+    v2OptionalAuth.filter(({ guards }) => guards.has('OptionalAuthGuard')).map(({ key }) => key),
+    [],
+    'v2 optional-auth reads use StrictOptionalAuthGuard, so a presented-but-invalid credential 401s',
+  );
+  assert.deepEqual(
+    v1OptionalAuth
+      .filter(({ guards }) => guards.has('StrictOptionalAuthGuard'))
+      .map(({ key }) => key),
+    [],
+    'v1 optional-auth reads keep the lenient downgrade live v1 consumers depend on',
+  );
+});
+
 test('OpenAPI is built once and reused across requests', () => {
   const service = new MetaService({});
   assert.strictEqual(service.getOpenApi(), service.getOpenApi());
@@ -336,5 +468,50 @@ test('OpenAPI query and path parameters stay aligned with shared contracts', () 
       const cursor = operation.parameters?.find((parameter) => parameter.name === 'cursor');
       if (cursor) assert.equal(cursor.schema.minLength, 1, `${method} ${path} cursor minLength`);
     }
+  }
+});
+
+test('v2 OpenAPI derives query and path constraints from runtime Zod schemas', () => {
+  const document = new MetaService({}).getV2OpenApi();
+  const feedQueryJson = z.toJSONSchema(contractsV2.feedQuerySchema, {
+    unrepresentable: 'any',
+    io: 'input',
+  });
+  const searchQueryJson = z.toJSONSchema(contractsV2.searchQuerySchema, {
+    unrepresentable: 'any',
+    io: 'input',
+  });
+
+  for (const name of ['limit', 'cursor', 'sort']) {
+    const parameter = getParameter(document, '/feed', 'get', name);
+    assert.deepEqual(parameter.schema, feedQueryJson.properties[name]);
+    assert.equal(parameter.required, false);
+  }
+  for (const name of ['limit', 'cursor', 'q', 'type']) {
+    const parameter = getParameter(document, '/search', 'get', name);
+    assert.deepEqual(parameter.schema, searchQueryJson.properties[name]);
+    assert.equal(parameter.required, name === 'q');
+  }
+  assert.deepEqual(
+    getParameter(document, '/ls/{id}', 'get', 'id').schema,
+    z.toJSONSchema(contractsV2.ulidSchema, { unrepresentable: 'any' }),
+  );
+  assert.deepEqual(
+    getParameter(document, '/users/{username}/ls', 'get', 'username').schema,
+    z.toJSONSchema(contractsV2.usernameInputSchema, { unrepresentable: 'any' }),
+  );
+
+  for (const [path, method, name] of [
+    ['/users/{username}', 'get', 'username'],
+    ['/users/{username}/follow', 'put', 'username'],
+    ['/collections/{id}', 'patch', 'id'],
+    ['/ls/{id}/comments', 'get', 'id'],
+    ['/notifications/{id}/read', 'post', 'id'],
+  ]) {
+    assert.deepEqual(
+      getParameter(document, path, method, name).schema,
+      { type: 'string' },
+      `${method} ${path} does not overstate validation on its shared v1/v2 handler`,
+    );
   }
 });

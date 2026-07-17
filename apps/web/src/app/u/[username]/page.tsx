@@ -1,8 +1,8 @@
 import { cache } from "react";
 import type { Metadata } from "next";
-import { notFound } from "next/navigation";
 
-import { getJourney, getProfile, isApiError } from "@/lib/api";
+import { getJourney, getProfile } from "@/lib/api";
+import { publicReadFailure, redirectIfCredentialRejected } from "@/lib/public-read";
 import { ProfileHeader } from "@/components/profile/profile-header";
 import { ProfileTabs } from "@/components/profile/profile-tabs";
 
@@ -32,15 +32,18 @@ export default async function ProfilePage({
 }) {
   const { username } = await params;
 
-  let profile;
-  try {
-    profile = await loadProfile(username);
-  } catch (err) {
-    if (isApiError(err) && err.status === 404) notFound();
-    throw err;
-  }
-
-  const journeyInitial = await getJourney(username).catch(() => undefined);
+  // Both take `username` from the route, so neither waits on the other — awaiting them in
+  // sequence would bill every profile view for a round trip it doesn't need.
+  const [profile, journeyInitial] = await Promise.all([
+    loadProfile(username).catch((err: unknown) => publicReadFailure(err, `/u/${username}`)),
+    // The journey is a section of this page, not an independently-failing rail: a rejected
+    // credential must not become an empty timeline (contract v2 §2 — a bad credential is
+    // never silently a guest). Only a genuinely absent journey renders as undefined.
+    getJourney(username).catch((err: unknown) => {
+      redirectIfCredentialRejected(err, `/u/${username}`);
+      return undefined;
+    }),
+  ]);
 
   return (
     <div className="mx-auto w-full max-w-2xl px-4 py-6">

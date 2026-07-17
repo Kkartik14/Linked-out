@@ -5,6 +5,7 @@ import { FolderPlus } from "lucide-react";
 import { useRouter } from "next/navigation";
 import { useInfiniteQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { toast } from "sonner";
+import type { UserProfile } from "@linkedout/contracts/v2";
 
 import {
   addLToCollection,
@@ -25,16 +26,25 @@ import {
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 
-export function SaveToCollectionButton({
-  lId,
-  existingCollectionIds,
-  className,
-}: {
+type SaveToCollectionProps = {
   lId: string;
   existingCollectionIds: string[];
   className?: string;
-}) {
+};
+
+/** Resolves the viewer before any hook runs, so the inner component always has one. */
+export function SaveToCollectionButton(props: SaveToCollectionProps) {
   const { user } = useSession();
+  if (!user) return null;
+  return <SaveToCollection {...props} user={user} />;
+}
+
+function SaveToCollection({
+  lId,
+  existingCollectionIds,
+  className,
+  user,
+}: SaveToCollectionProps & { user: UserProfile }) {
   const principal = usePrincipal();
   const router = useRouter();
   const queryClient = useQueryClient();
@@ -43,19 +53,17 @@ export function SaveToCollectionButton({
 
   const existing = React.useMemo(() => new Set(existingCollectionIds), [existingCollectionIds]);
   const collections = useInfiniteQuery({
-    queryKey: queryKeys.users.collections(principal, user?.username ?? "anonymous"),
-    queryFn: ({ pageParam }) => getUserCollections(user!.username, pageParam),
-    enabled: open && Boolean(user),
+    queryKey: queryKeys.users.collections(principal, user.username),
+    queryFn: ({ pageParam }) => getUserCollections(user.username, pageParam),
+    enabled: open,
     initialPageParam: undefined as string | undefined,
     getNextPageParam: (last) => last.nextCursor ?? undefined,
   });
 
   const afterChange = () => {
-    if (user) {
-      void queryClient.invalidateQueries({
-        queryKey: queryKeys.users.collections(principal, user.username),
-      });
-    }
+    void queryClient.invalidateQueries({
+      queryKey: queryKeys.users.collections(principal, user.username),
+    });
     setOpen(false);
     router.refresh();
   };
@@ -82,8 +90,6 @@ export function SaveToCollectionButton({
     },
     onError: (err) => toast.error(errorMessage(err, "Could not create the collection.")),
   });
-
-  if (!user) return null;
 
   const items = collections.data?.pages.flatMap((page) => page.data) ?? [];
 

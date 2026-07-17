@@ -16,7 +16,7 @@ import { NotificationsService } from './notifications.service';
 
 const listQueryPipe = new ZodValidationPipe(paginationQuerySchema());
 
-@Controller('notifications')
+@Controller({ path: 'notifications', version: ['1', '2'] })
 @UseGuards(JwtAuthGuard)
 export class NotificationsController {
   constructor(private readonly notifications: NotificationsService) {}

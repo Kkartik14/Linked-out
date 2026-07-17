@@ -1,7 +1,7 @@
 "use client";
 
 import Link from "next/link";
-import type { UserSummary } from "@linkedout/contracts";
+import type { UserSummary } from "@linkedout/contracts/v2";
 
 import { statusOption, useMeta } from "@/components/meta-provider";
 import { UserAvatar } from "@/components/user-avatar";

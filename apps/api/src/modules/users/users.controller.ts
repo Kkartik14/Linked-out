@@ -1,4 +1,4 @@
-import { Body, Controller, Get, Param, Patch, Query, Res, UseGuards } from '@nestjs/common';
+import { Body, Controller, Get, Param, Patch, Query, Res, UseGuards, Version } from '@nestjs/common';
 import {
   journeyQuerySchema,
   userLsQuerySchema,
@@ -13,10 +13,12 @@ import {
 import type { Response } from 'express';
 
 import { ApiContract, API_ROUTE_CONTRACTS } from '../../common/contracts/api-route-contracts';
+import { API_ROUTE_CONTRACTS_V2 } from '../../common/contracts/api-route-contracts-v2';
 import { CurrentUser, OptionalUser } from '../../common/decorators/current-user.decorator';
 import { AppErrors } from '../../common/errors/app-exception';
 import { JwtAuthGuard } from '../../common/guards/jwt-auth.guard';
 import { OptionalAuthGuard } from '../../common/guards/optional-auth.guard';
+import { StrictOptionalAuthGuard } from '../../common/guards/strict-optional-auth.guard';
 import { ZodValidationPipe } from '../../common/pipes/zod-validation.pipe';
 import type { AuthUser } from '../../common/types/auth';
 import { TokenService } from '../auth/token.service';
@@ -41,6 +43,7 @@ export class UsersController {
   ) {}
 
   @Patch('me')
+  @Version(['1', '2'])
   @UseGuards(JwtAuthGuard)
   @ApiContract(API_ROUTE_CONTRACTS.userUpdateMe)
   async updateMe(
@@ -59,9 +62,21 @@ export class UsersController {
   }
 
   @Get(':username')
+  @Version('1')
   @UseGuards(OptionalAuthGuard)
   @ApiContract(API_ROUTE_CONTRACTS.userProfile)
-  profile(
+  profileV1(
+    @OptionalUser() user: AuthUser | undefined,
+    @Param('username') username: string,
+  ): Promise<UserProfile> {
+    return this.users.getProfileByUsername(username, user?.id);
+  }
+
+  @Get(':username')
+  @Version('2')
+  @UseGuards(StrictOptionalAuthGuard)
+  @ApiContract(API_ROUTE_CONTRACTS_V2.userProfile)
+  profileV2(
     @OptionalUser() user: AuthUser | undefined,
     @Param('username') username: string,
   ): Promise<UserProfile> {

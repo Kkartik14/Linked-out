@@ -33,7 +33,13 @@ function composeMessage(n: NotificationWithRelations): string {
     }
     case 'COMMENT': {
       const name = n.actor?.name ?? n.actor?.username ?? 'Someone';
-      return `${name} commented on your L.`;
+      // A reply notifies both the L's author and the parent comment's author. Only one of them
+      // owns the L, so "commented on your L" is wrong for the other — they were told someone
+      // commented on a story that isn't theirs. The notification row records no parent comment,
+      // but the recipient's role is exactly whether they own the L.
+      return n.l && n.recipientId !== n.l.authorId
+        ? `${name} replied to your comment.`
+        : `${name} commented on your L.`;
     }
   }
 }

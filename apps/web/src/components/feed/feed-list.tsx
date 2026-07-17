@@ -1,108 +1,58 @@
 "use client";
 
-import * as React from "react";
-import { useInfiniteQuery } from "@tanstack/react-query";
-import type { LCard as LCardType, Paginated } from "@linkedout/contracts";
+import type { LCard as LCardType, Paginated } from "@linkedout/contracts/v2";
 
-import { errorMessage, getFeed, type FeedScope, type FeedSort } from "@/lib/api";
+import { getFeed, type FeedScope, type FeedSort } from "@/lib/api";
+import { EmptyState } from "@/components/empty-state";
+import { InfiniteList } from "@/components/infinite-list";
 import { LCard } from "@/components/l/l-card";
 import { LCardSkeleton } from "@/components/l/l-card-skeleton";
-import { Button } from "@/components/ui/button";
 import { usePrincipal } from "@/components/session-provider";
 import { queryKeys } from "@/lib/query-keys";
 
-function EmptyState({ scope, filter }: { scope: FeedScope; filter: string | null }) {
-  let message = "No Ls to show yet.";
-  if (scope === "following") message = "Follow some builders and their Ls will show up here.";
-  else if (filter) message = "No Ls in this category yet. Try another filter.";
-  return (
-    <div className="border-border/60 rounded-xl border border-dashed py-16 text-center">
-      <p className="text-muted-foreground text-sm">{message}</p>
-    </div>
-  );
+function emptyMessage(scope: FeedScope): string {
+  return scope === "following"
+    ? "Follow some builders and their Ls will show up here."
+    : "No Ls to show yet.";
 }
 
+/**
+ * The centre column. Everything about paging — the observer, the retry, the skeletons — is
+ * `InfiniteList`; the feed only supplies what is actually feed-specific: its query, its two
+ * empty messages, and its end note.
+ */
 export function FeedList({
   initial,
   scope,
   sort,
-  filter,
 }: {
   initial: Paginated<LCardType>;
   scope: FeedScope;
   sort: FeedSort;
-  filter: string | null;
 }) {
   const principal = usePrincipal();
-  const {
-    data,
-    fetchNextPage,
-    hasNextPage,
-    isFetchingNextPage,
-    isError,
-    error,
-    refetch,
-    isRefetching,
-  } = useInfiniteQuery({
-    queryKey: queryKeys.feed.infinite(principal, scope, sort, filter),
-    queryFn: ({ pageParam }) =>
-      getFeed({ scope, sort, filter: filter ?? undefined, cursor: pageParam }),
-    initialPageParam: undefined as string | undefined,
-    getNextPageParam: (last) => last.nextCursor ?? undefined,
-    initialData: { pages: [initial], pageParams: [undefined] },
-  });
-
-  const cards = data?.pages.flatMap((page) => page.data) ?? [];
-
-  const sentinelRef = React.useRef<HTMLDivElement | null>(null);
-  React.useEffect(() => {
-    const el = sentinelRef.current;
-    if (!el) return;
-    const observer = new IntersectionObserver(
-      (entries) => {
-        if (entries[0]?.isIntersecting && hasNextPage && !isFetchingNextPage) {
-          void fetchNextPage();
-        }
-      },
-      { rootMargin: "600px" },
-    );
-    observer.observe(el);
-    return () => observer.disconnect();
-  }, [hasNextPage, isFetchingNextPage, fetchNextPage]);
-
-  if (cards.length === 0 && !isError) {
-    return <EmptyState scope={scope} filter={filter} />;
-  }
 
   return (
-    <div className="flex flex-col gap-4">
-      {cards.map((l) => (
-        <LCard key={l.id} l={l} />
-      ))}
-
-      {isError ? (
-        <div className="flex flex-col items-center gap-2 py-6">
-          <p className="text-muted-foreground text-sm">{errorMessage(error, "Couldn't load the feed.")}</p>
-          <Button variant="outline" size="sm" onClick={() => refetch()} disabled={isRefetching}>
-            Try again
-          </Button>
-        </div>
-      ) : null}
-
-      <div ref={sentinelRef} aria-hidden className="h-px" />
-
-      {isFetchingNextPage ? (
+    <InfiniteList<LCardType>
+      queryKey={queryKeys.feed.infinite(principal, scope, sort)}
+      queryFn={(cursor) => getFeed({ scope, sort, cursor })}
+      initial={initial}
+      renderItem={(l) => <LCard l={l} />}
+      getItemKey={(l) => l.id}
+      empty={<EmptyState description={emptyMessage(scope)} />}
+      skeleton={
         <>
           <LCardSkeleton />
           <LCardSkeleton />
         </>
-      ) : null}
-
-      {!hasNextPage && !isError && cards.length > 0 ? (
+      }
+      className="flex flex-col gap-4"
+      errorFallback="Couldn't load the feed."
+      endNote={
         <p className="text-muted-foreground py-8 text-center text-xs">
           You&apos;ve reached the end — that&apos;s every L, for now.
         </p>
-      ) : null}
-    </div>
+      }
+    />
   );
 }

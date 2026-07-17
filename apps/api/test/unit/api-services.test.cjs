@@ -403,31 +403,13 @@ test('CollectionsService composes visible collection details', async () => {
     {
       findById: async () => collectionRow(),
       orderedLIds: async () => [L_ID],
+      visibleLs: async (_ids, visibilities, includeAnonymous) => {
+        assert.deepEqual(visibilities, ['PUBLIC', 'FOLLOWERS', 'PRIVATE']);
+        assert.equal(includeAnonymous, true);
+        return [lRow()];
+      },
+      viewerReactions: async () => [],
     },
-    {
-      allowedVisibilitiesFor: async () => ['PUBLIC', 'PRIVATE'],
-      getCardsByIdsFiltered: async () => [
-        {
-          id: L_ID,
-          title: 'Rejected after the final round',
-          storyPreview: 'I made it through every round.',
-          type: 'L',
-          category: 'INTERVIEWS',
-          company: 'Google',
-          tags: ['interviews'],
-          eventDate: null,
-          visibility: 'PUBLIC',
-          isAnonymous: false,
-          resolvedAt: null,
-          author: userSummary(),
-          reactions: { total: 0, beenThere: 0, helpful: 0, respect: 0, pain: 0, saved: 0 },
-          commentCount: 0,
-          viewer: { reactions: [], canEdit: true },
-          createdAt: NOW.toISOString(),
-        },
-      ],
-    },
-    {},
   );
 
   const detail = await service.getDetail(COLLECTION_ID, USER_ID);
