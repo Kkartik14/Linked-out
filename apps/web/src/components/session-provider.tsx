@@ -17,10 +17,11 @@ const SessionContext = React.createContext<Session>({ user: null, needsOnboardin
 /**
  * Holds the session snapshot and owns the one place a principal change is reconciled.
  *
- * Two effects, deliberately split by responsibility: the first *learns* that this tab's
- * snapshot is stale, the second *reacts* to the principal it turns out to be. Keeping them
- * apart is what lets a cross-tab sign-in and an in-tab sign-in converge on a single
- * cache-clearing path instead of two that can drift.
+ * Split by responsibility: the first two effects *learn* that this tab's snapshot may be
+ * stale — by different mechanisms, because one cannot cover the other — and the last
+ * *reacts* to whichever principal the server turns out to name. Keeping them apart is what
+ * lets a cross-tab sign-in, a bfcache restore, and an in-tab sign-in converge on a single
+ * cache-clearing path instead of three that can drift.
  */
 export function SessionProvider({
   session,
@@ -35,13 +36,29 @@ export function SessionProvider({
   const previousPrincipal = React.useRef(principal);
 
   /**
-   * Another tab changed the shared cookies. This tab cannot read them, so it re-renders the
-   * server component that produced its snapshot and lets the server answer. If the principal
-   * actually changed, the new prop lands and the effect below does the rest; if it did not,
-   * `router.refresh()` is the cost of finding out. The signal never asserts an identity, so
-   * this is the only path that can conclude one (see `lib/session-channel`).
+   * Ask the one authority that can read an httpOnly cookie who this tab is now. Re-running
+   * the layout re-runs `getSession()`, which is the same path that produced the current
+   * snapshot — so identity is concluded in exactly one place, never inferred from a signal.
    */
-  React.useEffect(() => subscribeSessionChanged(() => router.refresh()), [router]);
+  const reDeriveSession = React.useCallback(() => router.refresh(), [router]);
+
+  /** Another tab signed in or out, so the shared cookies this tab renders from moved. */
+  React.useEffect(() => subscribeSessionChanged(reDeriveSession), [reDeriveSession]);
+
+  /**
+   * Restored from the back/forward cache, where the broadcast above could not reach: a
+   * bfcache'd document is not "fully active", so the spec drops it from the destination set
+   * and never replays on restore. Without this, pressing Back into a tab that was open
+   * before signing in elsewhere shows the previous viewer indefinitely — and nothing else
+   * would catch it, since this app turns `refetchOnWindowFocus` off.
+   */
+  React.useEffect(() => {
+    const onPageShow = (event: PageTransitionEvent) => {
+      if (event.persisted) reDeriveSession();
+    };
+    window.addEventListener("pageshow", onPageShow);
+    return () => window.removeEventListener("pageshow", onPageShow);
+  }, [reDeriveSession]);
 
   React.useEffect(() => {
     const previous = previousPrincipal.current;

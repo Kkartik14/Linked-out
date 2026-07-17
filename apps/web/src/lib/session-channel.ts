@@ -15,15 +15,24 @@
  *     to verify. The receiver instead re-derives the truth from the server
  *     (`router.refresh()` → the layout re-runs `getSession()`), which is the same path that
  *     produced its original snapshot. One authority, not two.
- *  2. *It cannot leak or escalate.* No user id crosses the wire, so a hostile same-origin
- *     script can neither read an identity off the channel nor assert one onto it. The worst
- *     a forged message achieves is a wasted refresh.
+ *  2. *It is untrusted input.* Any same-origin script can post here, so the payload is
+ *     unauthenticated and unattributable. A message carrying an identity would have to be
+ *     believed to be useful — making an untrusted channel authoritative over who the viewer
+ *     is, a hole this would introduce rather than close. Carrying nothing to believe, a
+ *     forged message degrades to a wasted refresh. (Confidentiality is the weaker argument
+ *     and not the reason: a same-origin script able to read this channel already holds the
+ *     cookies, so the id would leak nothing it does not have.)
  *
  * Per the WHATWG spec a `BroadcastChannel` never delivers to the object that posted, but it
- * *does* deliver to sibling objects in the same tab. So publish and subscribe deliberately
+ * *does* deliver to sibling objects in the same tab — `postMessage()` removes only `source`
+ * from its destination set, not the source's document. So publish and subscribe deliberately
  * share one module-level channel: that is what makes "other tabs, never me" true, rather
  * than a tab id filter bolted on afterwards. Verified against jsdom, which implements the
  * same rule.
+ *
+ * Not sufficient alone: a bfcache'd document is not "fully active", so it is excluded from
+ * the destination set and gets no replay on restore. `SessionProvider` pairs this with a
+ * `pageshow` backstop.
  */
 
 const CHANNEL_NAME = "linkedout:session";

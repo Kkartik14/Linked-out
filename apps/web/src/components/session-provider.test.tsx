@@ -114,6 +114,39 @@ describe("SessionProvider cross-tab lifecycle", () => {
     expect(router.refresh).not.toHaveBeenCalled();
   });
 
+  it("re-derives on a bfcache restore, which the broadcast cannot reach", async () => {
+    const router = routerSpy();
+    renderProvider(signedIn, new QueryClient(), router);
+
+    window.dispatchEvent(Object.assign(new Event("pageshow"), { persisted: true }));
+    await settle();
+
+    expect(router.refresh).toHaveBeenCalledTimes(1);
+  });
+
+  it("ignores an ordinary pageshow that is not a bfcache restore", async () => {
+    // A normal load fires `pageshow` too, with `persisted: false`. Refreshing there would
+    // mean a second server round trip on every single page load.
+    const router = routerSpy();
+    renderProvider(signedIn, new QueryClient(), router);
+
+    window.dispatchEvent(Object.assign(new Event("pageshow"), { persisted: false }));
+    await settle();
+
+    expect(router.refresh).not.toHaveBeenCalled();
+  });
+
+  it("stops listening for bfcache restores once unmounted", async () => {
+    const router = routerSpy();
+    const view = renderProvider(signedIn, new QueryClient(), router);
+    view.unmount();
+
+    window.dispatchEvent(Object.assign(new Event("pageshow"), { persisted: true }));
+    await settle();
+
+    expect(router.refresh).not.toHaveBeenCalled();
+  });
+
   it("clears the previous viewer's cache once the refreshed snapshot arrives", async () => {
     // The two effects meeting: a cross-tab sign-in refreshes, the server answers with a new
     // principal, and that lands on the same clearing path an in-tab switch uses.
