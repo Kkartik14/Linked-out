@@ -6,7 +6,7 @@ import type {
   LType,
   MetaEnumsResponse,
   ReactionType,
-} from "@linkedout/contracts/v2";
+} from "@linkedout/contracts";
 import { DEFAULT_META } from "@/lib/meta-fallback";
 
 const MetaContext = React.createContext<MetaEnumsResponse>(DEFAULT_META);

@@ -7,14 +7,14 @@ import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { cn } from "@/lib/utils";
 
 /**
- * Scope and sort for the feed. v2 removed the category concept, so the filter chips that
+ * Scope and sort for the feed. The public API removed the category concept, so the filter chips that
  * used to sit under these tabs are gone and sort is the only ranking axis left.
  */
 export function FeedControls({
   scope,
   sort,
   // Deliberately not `canFollow`: that name belongs to `SuggestedUser.viewer.canFollow`
-  // (contract v2 §2) — a per-user permission the backend owns and §2 says not to recreate.
+  // (public contract §2) — a per-user permission the backend owns and §2 says not to recreate.
   // This is only "is there a Following tab to offer", which is a session fact.
   canUseFollowingFeed,
 }: {

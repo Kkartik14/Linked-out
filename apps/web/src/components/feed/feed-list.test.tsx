@@ -1,6 +1,6 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { screen } from "@testing-library/react";
-import { lCardSchema, type LCard as LCardType, type Paginated } from "@linkedout/contracts/v2";
+import { lCardSchema, type LCard as LCardType, type Paginated } from "@linkedout/contracts";
 
 import { renderWithProviders } from "@/test/utils";
 

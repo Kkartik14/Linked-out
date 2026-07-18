@@ -1,6 +1,6 @@
 "use client";
 
-import type { LCard as LCardType } from "@linkedout/contracts/v2";
+import type { LCard as LCardType } from "@linkedout/contracts";
 
 import { getSaved } from "@/lib/api";
 import { queryKeys } from "@/lib/query-keys";

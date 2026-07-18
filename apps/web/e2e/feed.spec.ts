@@ -69,9 +69,9 @@ test.describe("feed & L detail", () => {
     expect(layoff).toBeGreaterThan(google);
   });
 
-  // v2 has no category filter. A saved v1 URL carrying one must still render the feed
+  // The public API has no category filter. A saved URL carrying one must still render the feed
   // rather than 404 or empty out — the param is simply ignored now.
-  test("a leftover v1 category filter in the URL is ignored, not honoured", async ({ page }) => {
+  test("a removed category filter in the URL is ignored, not honoured", async ({ page }) => {
     await page.goto("/?filter=startups");
 
     await expect(feed(page).getByText(world.startup.title)).toBeVisible();
@@ -81,9 +81,7 @@ test.describe("feed & L detail", () => {
   test("cards no longer render the category, company, tags or event date", async ({ page }) => {
     await page.goto("/");
 
-    // The seeded google L still carries category INTERVIEWS, company Google, and tags in the
-    // database — v2 simply stops emitting them. Asserting against the real API is what proves
-    // the mappers drop them, rather than trusting that the card would have ignored them.
+    // The clean resource contract has no category, company, tag, or event-date metadata.
     await expect(feed(page).getByText(world.google.title)).toBeVisible();
     await expect(page.getByText("Interviews", { exact: true })).toHaveCount(0);
     await expect(page.getByText("#interview")).toHaveCount(0);
@@ -200,11 +198,11 @@ test.describe("feed & L detail", () => {
 
     await expect(page.getByRole("link", { name: "Continue with Google" })).toHaveAttribute(
       "href",
-      /\/v2\/auth\/google\?returnTo=/,
+      /\/v1\/auth\/google\?returnTo=/,
     );
     await expect(page.getByRole("link", { name: "Continue with GitHub" })).toHaveAttribute(
       "href",
-      /\/v2\/auth\/github\?returnTo=/,
+      /\/v1\/auth\/github\?returnTo=/,
     );
   });
 });

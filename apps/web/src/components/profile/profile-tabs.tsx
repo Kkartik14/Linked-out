@@ -7,7 +7,7 @@ import type {
   LCard as LCardType,
   LType,
   Paginated,
-} from "@linkedout/contracts/v2";
+} from "@linkedout/contracts";
 
 import { getUserCollections, getUserLs } from "@/lib/api";
 import { InfiniteList } from "@/components/infinite-list";

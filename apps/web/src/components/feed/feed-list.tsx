@@ -1,6 +1,6 @@
 "use client";
 
-import type { LCard as LCardType, Paginated } from "@linkedout/contracts/v2";
+import type { LCard as LCardType, Paginated } from "@linkedout/contracts";
 
 import { getFeed, type FeedScope, type FeedSort } from "@/lib/api";
 import { EmptyState } from "@/components/empty-state";

@@ -2,7 +2,7 @@ import {
   OAUTH_FAILURES,
   isSafeReturnTo,
   oauthFailureCodeSchema,
-} from "@linkedout/contracts/v2";
+} from "@linkedout/contracts";
 
 /**
  * Shared by the three auth entry points — `/login`, `/auth/callback`, `/onboarding` — each of

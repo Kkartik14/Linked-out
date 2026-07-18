@@ -7,7 +7,7 @@ import {
   type FeedSidebarResponse,
   type LCard,
   type UserSummary,
-} from "@linkedout/contracts/v2";
+} from "@linkedout/contracts";
 
 import { mockUser, renderWithProviders } from "@/test/utils";
 import { queryKeys } from "@/lib/query-keys";
@@ -87,7 +87,7 @@ function sidebar(me: AuthMeResponse): FeedSidebarResponse {
       : { state: "READY", profile: me.user };
 
   return {
-    contractVersion: 2,
+    contractVersion: 1,
     generatedAt: GENERATED_AT,
     refreshAfter: REFRESH_AFTER,
     viewer,
@@ -249,7 +249,7 @@ describe("FeedSidebarRight — Top Ls", () => {
       .getAllByRole("listitem")
       .map((li) => li.textContent ?? "");
 
-    // `items` order is authoritative (contract v2 §2).
+    // `items` order is authoritative (public contract §2).
     sidebar.topLs.items.forEach((item, index) => {
       expect(rendered[index]).toContain(item.l.title);
     });

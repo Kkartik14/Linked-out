@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import { screen } from "@testing-library/react";
-import type { LCard as LCardType } from "@linkedout/contracts/v2";
+import type { LCard as LCardType } from "@linkedout/contracts";
 
 import { LCard } from "@/components/l/l-card";
 import { renderWithProviders } from "@/test/utils";
@@ -48,8 +48,8 @@ describe("LCard", () => {
     expect(screen.getByText("Ongoing")).toBeInTheDocument();
   });
 
-  // v2 removed category, company, tags, and eventDate from the wire. The app now talks to
-  // v2 only, so nothing should send them — but a card that renders whatever it is handed
+  // The public API removed category, company, tags, and eventDate from the wire. The app now talks to
+  // that contract only, so nothing should send them — but a card that renders whatever it is handed
   // would fail open if that ever stopped being true. Assert it ignores them.
   // `Object.assign` widens the type honestly (LCardType & the extras) instead of asserting
   // a foreign shape *is* an LCardType, which would defeat the contract this test defends.

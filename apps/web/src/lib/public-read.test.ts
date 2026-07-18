@@ -50,8 +50,8 @@ beforeEach(() => {
 
 describe("redirectIfCredentialRejected", () => {
   it("sends a rejected credential to login with the page as returnTo", () => {
-    // v2 answers a presented-but-invalid credential with 401 even on an optional-auth
-    // read (contract v2 §0), so a public page has to handle it.
+    // The public API answers a presented-but-invalid credential with 401 even on an optional-auth
+    // read (public contract §0), so a public page has to handle it.
     expect(() => redirectIfCredentialRejected(rejected, "/ls/01HZY")).toThrow(RedirectSignal);
 
     expect(redirect).toHaveBeenCalledWith("/login?returnTo=%2Fls%2F01HZY");

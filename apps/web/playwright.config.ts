@@ -2,7 +2,7 @@ import { defineConfig, devices } from "@playwright/test";
 
 const apiPort = process.env.E2E_API_PORT ?? "4010";
 const webPort = process.env.PLAYWRIGHT_WEB_PORT ?? "3100";
-const apiBaseUrl = `http://localhost:${apiPort}/v2`;
+const apiBaseUrl = `http://localhost:${apiPort}/v1`;
 const webBaseUrl = `http://localhost:${webPort}`;
 
 const testDatabaseUrl =

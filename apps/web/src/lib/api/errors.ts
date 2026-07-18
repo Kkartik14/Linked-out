@@ -1,4 +1,4 @@
-import type { FieldError } from "@linkedout/contracts/v2";
+import type { FieldError } from "@linkedout/contracts";
 
 /** A non-2xx response, decoded from the standard error envelope (contract §1.7). */
 export class ApiError extends Error {

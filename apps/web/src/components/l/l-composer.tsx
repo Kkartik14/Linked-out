@@ -10,7 +10,7 @@ import {
   lTypeSchema,
   visibilitySchema,
   type LDetail,
-} from "@linkedout/contracts/v2";
+} from "@linkedout/contracts";
 
 import { createL, errorMessage, fieldErrors, patchL } from "@/lib/api";
 import { useMeta } from "@/components/meta-provider";
@@ -53,9 +53,9 @@ function maxLengthOf(field: "title" | "story"): number {
 const LIMITS = { title: maxLengthOf("title"), story: maxLengthOf("story") } as const;
 
 /**
- * Mirrors `createLInputSchema` from the v2 contract, restated here only to attach the
+ * Mirrors `createLInputSchema` from the public contract, restated here only to attach the
  * human-facing messages the API's stable field codes don't carry, and to trim before
- * validating. Every bound comes from the contract above. The v2 L has no category,
+ * validating. Every bound comes from the contract above. The public L contract has no category,
  * company, tags, or event date — those concepts are gone from the wire.
  */
 const formSchema = z.object({
@@ -69,7 +69,7 @@ type FormValues = z.infer<typeof formSchema>;
 
 /**
  * What the API applies when a field is omitted. The composer shows a control for each, so
- * it must preselect *something* — but which value is the backend's call (contract v2 §1),
+ * it must preselect *something* — but which value is the backend's call (public contract §1),
  * so take it from the schema instead of hardcoding `PUBLIC` here. A privacy default is
  * exactly the thing a dumb client should not be choosing.
  */

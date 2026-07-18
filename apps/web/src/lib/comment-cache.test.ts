@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 
-import type { Comment } from "@linkedout/contracts/v2";
+import type { Comment } from "@linkedout/contracts";
 
 import {
   appendComment,
@@ -45,7 +45,7 @@ describe("flattenComments", () => {
   });
 
   it("renders the server's page order rather than re-sorting by id", () => {
-    // Ids are opaque (contract v2 line 14) and the supplied ordering is authoritative
+    // Ids are opaque (public contract line 14) and the supplied ordering is authoritative
     // (§4). These ids sort the other way lexicographically; the page order still wins.
     const server = pages([comment("zeta"), comment("alpha")], [comment("Mu")]);
 
@@ -75,7 +75,7 @@ describe("flattenComments", () => {
 
     // `appendComment` had to guess c2's position (tail of the only cached page), and the
     // guess was wrong: the server puts c2 *after* c1b. The canonical page is authoritative
-    // for position as well as value (contract v2 §4), so c2 re-seats behind c1b rather than
+    // for position as well as value (public contract §4), so c2 re-seats behind c1b rather than
     // keeping the slot the optimistic append gave it.
     expect(visible.map(({ id }) => id)).toEqual(["c1", "c1b", "c2"]);
     expect(visible.at(-1)?.body).toBe("Canonical server copy");

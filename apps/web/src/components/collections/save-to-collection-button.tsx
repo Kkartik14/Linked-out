@@ -5,7 +5,7 @@ import { FolderPlus } from "lucide-react";
 import { useRouter } from "next/navigation";
 import { useInfiniteQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { toast } from "sonner";
-import type { UserProfile } from "@linkedout/contracts/v2";
+import type { UserProfile } from "@linkedout/contracts";
 
 import {
   addLToCollection,

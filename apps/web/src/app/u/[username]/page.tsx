@@ -37,7 +37,7 @@ export default async function ProfilePage({
   const [profile, journeyInitial] = await Promise.all([
     loadProfile(username).catch((err: unknown) => publicReadFailure(err, `/u/${username}`)),
     // The journey is a section of this page, not an independently-failing rail: a rejected
-    // credential must not become an empty timeline (contract v2 §2 — a bad credential is
+    // credential must not become an empty timeline (public contract §2 — a bad credential is
     // never silently a guest). Only a genuinely absent journey renders as undefined.
     getJourney(username).catch((err: unknown) => {
       redirectIfCredentialRejected(err, `/u/${username}`);

@@ -36,9 +36,9 @@ describe("notification query keys (FRONTEND-01)", () => {
   });
 });
 
-describe("v2 feed and search keys", () => {
+describe("public API feed and search keys", () => {
   it("no longer varies the feed key by a removed category filter", () => {
-    // v2 feeds have no `filter`; scope and sort are the only axes left.
+    // Public API feeds have no `filter`; scope and sort are the only axes left.
     expect(queryKeys.feed.infinite("u1", "global", "latest")).toEqual([
       "feed",
       "u1",

@@ -23,12 +23,12 @@ import type {
   ReactionType,
   UserProfile,
   UserSummary,
-} from "@linkedout/contracts/v2";
+} from "@linkedout/contracts";
 import {
   createLInputSchema,
   isSafeReturnTo,
   updateLInputSchema,
-} from "@linkedout/contracts/v2";
+} from "@linkedout/contracts";
 import type { z } from "zod";
 import type { ComposedPrincipal } from "@/lib/principal";
 import { apiFetch, type ApiFetchInit } from "./client";
@@ -38,7 +38,7 @@ import { apiFetch, type ApiFetchInit } from "./client";
  *
  * `createLInputSchema` gives `type`, `visibility` and `isAnonymous` a `.default()`, so on
  * the output side all three are required — and typing a body with `z.infer` would oblige
- * this client to send values the backend is supposed to choose (contract v2 §1 documents
+ * this client to send values the backend is supposed to choose (public contract §1 documents
  * them as optional). A dumb client does not pick the privacy default; it omits the field
  * and lets the server apply `PUBLIC`.
  */
@@ -132,7 +132,7 @@ export function getFeed(opts: FeedRequest = {}): Promise<Paginated<LCard>> {
 
 /**
  * The feed page's discovery rails: viewer, people to follow, Top Ls, L of the day
- * (contract v2 §2). One optional-auth aggregate; the wire does not encode left/right.
+ * (public contract §2). One optional-auth aggregate; the wire does not encode left/right.
  *
  * Fails independently of the centre feed — callers hide the rails rather than the page.
  * That is only true if it actually fails: a shorter budget than the default keeps a slow
@@ -218,7 +218,7 @@ export const removeLFromCollection = (
 ) => mutate<CollectionDetail>(principal, `/collections/${id}/ls/${lId}`, { method: "DELETE" });
 
 // ── Search ───────────────────────────────────────────────────────────────────
-/** v2 search is always relevance-ranked and has no category filter. */
+/** Public API search is always relevance-ranked and has no category filter. */
 export const searchLs = (q: string, cursor?: string, limit?: number) =>
   apiFetch<Paginated<LCard>>(`/search${qs({ q, type: "ls", cursor, limit })}`);
 export const searchUsers = (q: string, cursor?: string, limit?: number) =>

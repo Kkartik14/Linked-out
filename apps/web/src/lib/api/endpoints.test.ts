@@ -1,6 +1,6 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
-import type { CreateLInput } from "@linkedout/contracts/v2";
+import type { CreateLInput } from "@linkedout/contracts";
 
 import type { ComposedPrincipal } from "@/lib/principal";
 import { apiFetch } from "./client";
@@ -59,7 +59,7 @@ describe("API endpoint helpers", () => {
   });
 
   it("sends create L writes as POST JSON", () => {
-    // v2 create body: the removed category/company/tags/eventDate fields cannot be expressed.
+    // The public API create body cannot express the removed category/company/tags/eventDate fields.
     const body: CreateLInput = {
       title: "Rejected after the final round",
       story: "I wrote down the lesson while it was fresh.",
@@ -150,7 +150,7 @@ describe("API endpoint helpers", () => {
   it("fetches the discovery rails from the one aggregate route, on a short budget", () => {
     void getFeedSidebar();
 
-    // The rails fail independently of the centre feed (contract v2 §2), which is only true
+    // The rails fail independently of the centre feed (public contract §2), which is only true
     // if they actually fail: the tighter timeout is what stops a slow backend holding the
     // feed page open for something the page is allowed to drop.
     expect(apiFetch).toHaveBeenCalledWith("/feed/sidebar", { timeoutMs: 3_000 });

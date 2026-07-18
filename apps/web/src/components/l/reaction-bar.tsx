@@ -6,7 +6,7 @@ import { useRouter } from "next/navigation";
 import { Bookmark, MessageCircle } from "lucide-react";
 import { useIsMutating, useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { toast } from "sonner";
-import type { ReactionResult, ReactionsSummary, ReactionType } from "@linkedout/contracts/v2";
+import type { ReactionResult, ReactionsSummary, ReactionType } from "@linkedout/contracts";
 
 import { addReaction, removeReaction, errorMessage } from "@/lib/api";
 import { queryKeys } from "@/lib/query-keys";
