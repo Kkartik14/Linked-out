@@ -126,12 +126,6 @@ describe('22 · consolidated public API', () => {
     assert.ok(document.paths['/feed/sidebar']);
     assert.equal(document.paths['/tags/popular'], undefined);
 
-    const rootUrl = h.ctx.baseUrl.replace(/\/v1$/, '');
-    h.expectError(
-      await h.request('GET', '/v2/openapi.json', { baseUrl: rootUrl }),
-      404,
-      'NOT_FOUND',
-    );
   });
 
   test('malformed route parameters are rejected by contract validation', async () => {

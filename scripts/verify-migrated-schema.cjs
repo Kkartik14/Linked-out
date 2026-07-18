@@ -36,7 +36,7 @@ const EXPECTED_DIFF_RESIDUE = [
 /** SQL-only objects that no `migrate diff` can see. Each is load-bearing; see the migration. */
 const SQL_ONLY = {
   // L_search_idx / User_search_trgm_idx back search; Comment_lId_id_top_level_idx backs comment
-  // pagination; Reaction_sidebar_active_* is the partial+INCLUDE index the v2 sidebar ranking
+  // pagination; Reaction_sidebar_active_* is the partial+INCLUDE index the sidebar ranking
   // query depends on — without it that query degrades to a heap scan.
   indexes: [
     'Comment_lId_id_top_level_idx',

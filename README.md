@@ -34,8 +34,8 @@ pnpm build                                  # regenerate the Prisma client + con
 pnpm dev
 ```
 
-The API serves both `http://localhost:4000/v1` and `http://localhost:4000/v2`. The current web
-application uses v2; v1 remains available for legacy consumers during migration.
+The sole public API is served at `http://localhost:4000/v1`. The web application and shared
+`@linkedout/contracts` package use that same contract; there is no compatibility version alias.
 
 `pnpm db:up` only works if the Docker **engine** is running — an open Docker Desktop window is
 not enough. Confirm with `docker info`; if that errors, start Docker and retry. A stale

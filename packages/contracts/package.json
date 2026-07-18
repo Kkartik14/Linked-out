@@ -11,7 +11,7 @@
     }
   },
   "scripts": {
-    "build": "tsc -p tsconfig.json",
+    "build": "rm -rf dist && tsc -p tsconfig.json",
     "lint": "pnpm --workspace-root exec eslint packages/contracts/src --max-warnings=0",
     "typecheck": "tsc -p tsconfig.json --noEmit"
   },
