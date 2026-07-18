@@ -13,7 +13,7 @@ import { UploadsService } from './uploads.service';
 
 const uploadPipe = new ZodValidationPipe(API_ROUTE_CONTRACTS.avatarUpload.body.schema);
 
-@Controller({ path: 'uploads', version: ['1', '2'] })
+@Controller('uploads')
 @UseGuards(JwtAuthGuard)
 export class UploadsController {
   constructor(private readonly uploads: UploadsService) {}

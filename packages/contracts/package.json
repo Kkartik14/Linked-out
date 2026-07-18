@@ -4,21 +4,10 @@
   "private": true,
   "main": "dist/index.js",
   "types": "dist/index.d.ts",
-  "typesVersions": {
-    "*": {
-      "v2": [
-        "dist/v2/index.d.ts"
-      ]
-    }
-  },
   "exports": {
     ".": {
       "types": "./dist/index.d.ts",
       "default": "./dist/index.js"
-    },
-    "./v2": {
-      "types": "./dist/v2/index.d.ts",
-      "default": "./dist/v2/index.js"
     }
   },
   "scripts": {

@@ -14,16 +14,6 @@ export const lTypeSchema = z.enum([
 ]);
 export type LType = z.infer<typeof lTypeSchema>;
 
-export const lCategorySchema = z.enum([
-  'INTERVIEWS',
-  'STARTUPS',
-  'LAYOFFS',
-  'PRODUCTION',
-  'CAREER',
-  'LEARNING',
-]);
-export type LCategory = z.infer<typeof lCategorySchema>;
-
 export const visibilitySchema = z.enum(['PUBLIC', 'FOLLOWERS', 'PRIVATE']);
 export type Visibility = z.infer<typeof visibilitySchema>;
 
@@ -61,10 +51,6 @@ export interface LTypeMeta {
   label: string;
   sectionLabel: string;
 }
-export interface LCategoryMeta {
-  value: LCategory;
-  label: string;
-}
 export interface VisibilityMeta {
   value: Visibility;
   label: string;
@@ -98,15 +84,6 @@ export const L_TYPE_META: readonly LTypeMeta[] = [
   { value: 'CHECKPOINT', label: 'Checkpoint', sectionLabel: 'Checkpoints' },
   { value: 'BATTLE', label: 'Battle', sectionLabel: 'Battles' },
   { value: 'LESSON', label: 'Lesson', sectionLabel: 'Character Development' },
-];
-
-export const L_CATEGORY_META: readonly LCategoryMeta[] = [
-  { value: 'INTERVIEWS', label: 'Interviews' },
-  { value: 'STARTUPS', label: 'Startups' },
-  { value: 'LAYOFFS', label: 'Layoffs' },
-  { value: 'PRODUCTION', label: 'Production' },
-  { value: 'CAREER', label: 'Career' },
-  { value: 'LEARNING', label: 'Learning' },
 ];
 
 export const VISIBILITY_META: readonly VisibilityMeta[] = [

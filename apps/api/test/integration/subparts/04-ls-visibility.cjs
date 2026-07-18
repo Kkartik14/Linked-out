@@ -70,10 +70,10 @@ describe('04 · GET /ls/:id — visibility matrix (contract §4.3)', () => {
     assert.deepEqual(missing.body, forbidden.body);
   });
 
-  test('a malformed id yields 404, never a 500', async () => {
+  test('a malformed id is rejected at the contract boundary', async () => {
     for (const id of ['not-a-ulid', '../../etc/passwd', '%20', '1']) {
       const res = await h.get(`/ls/${encodeURIComponent(id)}`);
-      h.expectError(res, 404, 'L_NOT_FOUND');
+      h.expectError(res, 400, 'VALIDATION_ERROR');
     }
   });
 

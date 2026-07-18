@@ -1,5 +1,10 @@
 import { Controller, Delete, Param, Put, UseGuards } from '@nestjs/common';
-import { reactionTypeSchema, type ReactionResult, type ReactionType } from '@linkedout/contracts';
+import {
+  reactionTypeSchema,
+  ulidSchema,
+  type ReactionResult,
+  type ReactionType,
+} from '@linkedout/contracts';
 
 import { ApiContract, API_ROUTE_CONTRACTS } from '../../common/contracts/api-route-contracts';
 import { CurrentUser } from '../../common/decorators/current-user.decorator';
@@ -9,8 +14,9 @@ import type { AuthUser } from '../../common/types/auth';
 import { ReactionsService } from './reactions.service';
 
 const reactionTypePipe = new ZodValidationPipe(reactionTypeSchema);
+const idPipe = new ZodValidationPipe(ulidSchema);
 
-@Controller({ path: 'ls/:id/reactions', version: ['1', '2'] })
+@Controller('ls/:id/reactions')
 @UseGuards(JwtAuthGuard)
 export class ReactionsController {
   constructor(private readonly reactions: ReactionsService) {}
@@ -19,7 +25,7 @@ export class ReactionsController {
   @ApiContract(API_ROUTE_CONTRACTS.lReact)
   react(
     @CurrentUser() user: AuthUser,
-    @Param('id') id: string,
+    @Param('id', idPipe) id: string,
     @Param('type', reactionTypePipe) type: ReactionType,
   ): Promise<ReactionResult> {
     return this.reactions.react(user, id, type);
@@ -29,7 +35,7 @@ export class ReactionsController {
   @ApiContract(API_ROUTE_CONTRACTS.lUnreact)
   unreact(
     @CurrentUser() user: AuthUser,
-    @Param('id') id: string,
+    @Param('id', idPipe) id: string,
     @Param('type', reactionTypePipe) type: ReactionType,
   ): Promise<ReactionResult> {
     return this.reactions.unreact(user, id, type);

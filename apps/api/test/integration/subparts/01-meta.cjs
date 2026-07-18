@@ -4,9 +4,7 @@ const assert = require('node:assert/strict');
 const { describe, test, beforeEach } = require('node:test');
 const {
   metaEnumsResponseSchema,
-  popularTagsResponseSchema,
   L_TYPE_META,
-  L_CATEGORY_META,
   REACTION_TYPE_META,
   JOURNEY_STATUS_META,
   VISIBILITY_META,
@@ -35,7 +33,7 @@ describe('01 · meta & discovery (contract §4.12)', () => {
     const values = (list) => list.map((m) => m.value);
 
     assert.deepEqual(values(body.lType), values(L_TYPE_META));
-    assert.deepEqual(values(body.lCategory), values(L_CATEGORY_META));
+    assert.equal('lCategory' in body, false);
     assert.deepEqual(values(body.reactionType), values(REACTION_TYPE_META));
     assert.deepEqual(values(body.journeyStatus), values(JOURNEY_STATUS_META));
     assert.deepEqual(values(body.visibility), values(VISIBILITY_META));
@@ -69,49 +67,8 @@ describe('01 · meta & discovery (contract §4.12)', () => {
     assert.equal(res.headers.get('cache-control'), STATIC_METADATA_CACHE_CONTROL);
   });
 
-  test('GET /tags/popular returns the contract shape and is public', async () => {
-    const res = await h.get('/tags/popular');
-    h.expectShape(res, popularTagsResponseSchema);
-    assert.equal(res.headers.get('cache-control'), null);
-  });
-
-  test('GET /tags/popular counts tags across PUBLIC Ls only, most-used first', async () => {
-    const author = await h.createUser();
-    await h.createL(author.id, { tags: ['interview', 'faang'] });
-    await h.createL(author.id, { tags: ['interview'] });
-    await h.createL(author.id, { tags: ['interview', 'secret'], visibility: 'PRIVATE' });
-    await h.createL(author.id, { tags: ['followers-only'], visibility: 'FOLLOWERS' });
-
-    const { body } = await h.get('/tags/popular');
-    const byTag = Object.fromEntries(body.tags.map((t) => [t.tag, t.count]));
-
-    assert.equal(byTag.interview, 2, 'PRIVATE L must not contribute to the tag count');
-    assert.equal(byTag.faang, 1);
-    assert.equal(byTag.secret, undefined, 'PRIVATE tags must never leak');
-    assert.equal(byTag['followers-only'], undefined, 'FOLLOWERS tags must never leak');
-    assert.equal(body.tags[0].tag, 'interview', 'ordered by count desc');
-  });
-
-  test('GET /tags/popular?q= filters by prefix', async () => {
-    const author = await h.createUser();
-    await h.createL(author.id, { tags: ['interview', 'internship', 'layoff'] });
-
-    const { body } = await h.get('/tags/popular?q=inter');
-    const tags = body.tags.map((t) => t.tag).sort();
-    assert.deepEqual(tags, ['internship', 'interview']);
-  });
-
-  test('GET /tags/popular?limit caps the page and rejects out-of-range values', async () => {
-    const author = await h.createUser();
-    await h.createL(author.id, { tags: ['a', 'b', 'c'] });
-
-    const ok = await h.get('/tags/popular?limit=2');
-    assert.equal(ok.body.tags.length, 2);
-
-    h.expectError(await h.get('/tags/popular?limit=21'), 400, 'VALIDATION_ERROR');
-    h.expectError(await h.get('/tags/popular?limit=0'), 400, 'VALIDATION_ERROR');
-    h.expectError(await h.get('/tags/popular?limit=abc'), 400, 'VALIDATION_ERROR');
-    h.expectError(await h.get('/tags/popular?limti=2'), 400, 'VALIDATION_ERROR');
+  test('removed tag discovery route is not exposed', async () => {
+    h.expectError(await h.get('/tags/popular'), 404, 'NOT_FOUND');
   });
 
   test('unknown routes render the standard error envelope, not an HTML 404', async () => {

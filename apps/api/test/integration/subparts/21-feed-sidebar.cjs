@@ -2,18 +2,15 @@
 
 const assert = require('node:assert/strict');
 const { beforeEach, describe, test } = require('node:test');
-const { feedSidebarResponseSchema } = require('@linkedout/contracts/v2');
+const { feedSidebarResponseSchema } = require('@linkedout/contracts');
 
 const h = require('../_harness.cjs');
 
 function sidebar(cookie) {
-  return h.request('GET', '/feed/sidebar', {
-    baseUrl: h.ctx.v2BaseUrl,
-    cookie,
-  });
+  return h.get('/feed/sidebar', { cookie });
 }
 
-describe('21 · GET /v2/feed/sidebar', () => {
+describe('21 · GET /v1/feed/sidebar', () => {
   beforeEach(async () => {
     await h.resetDb();
   });
@@ -50,9 +47,7 @@ describe('21 · GET /v2/feed/sidebar', () => {
   });
 
   test('unknown query parameters are rejected and onboarding viewers use the global fallback', async () => {
-    h.expectError(await h.request('GET', '/feed/sidebar?filter=career', {
-      baseUrl: h.ctx.v2BaseUrl,
-    }), 400, 'VALIDATION_ERROR');
+    h.expectError(await h.get('/feed/sidebar?filter=career'), 400, 'VALIDATION_ERROR');
 
     // Seed real candidates first. Against the freshly reset database the only user is the
     // viewer itself, which is never its own suggestion — so `items` is `[]`, and every

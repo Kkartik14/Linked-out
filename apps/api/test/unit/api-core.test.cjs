@@ -73,14 +73,18 @@ test('ZodValidationPipe applies defaults and coercions for valid input', () => {
   const parsed = pipe.transform({
     title: 'Rejected after the final round',
     story: 'The panel feedback was clear and useful.',
-    eventDate: '2026-01-02',
   });
 
   assert.equal(parsed.type, 'L');
   assert.equal(parsed.visibility, 'PUBLIC');
   assert.equal(parsed.isAnonymous, false);
-  assert.deepEqual(parsed.tags, []);
-  assert.ok(parsed.eventDate instanceof Date);
+  assert.deepEqual(Object.keys(parsed).sort(), [
+    'isAnonymous',
+    'story',
+    'title',
+    'type',
+    'visibility',
+  ]);
 });
 
 test('ZodValidationPipe returns field-level validation errors for bad L input', () => {
@@ -141,18 +145,6 @@ test('query validation rejects impossible pagination and search values', () => {
     );
   }
 
-  assert.throws(
-    () => new ZodValidationPipe(createLInputSchema).transform({
-      title: 'Rejected after the final round',
-      story: 'The panel feedback was clear and useful.',
-      eventDate: '12345',
-    }),
-    (error) => {
-      assertAppError(error, 400, 'VALIDATION_ERROR');
-      assert.equal(errorBody(error).details[0].field, 'eventDate');
-      return true;
-    },
-  );
 });
 
 test('OAuth handoff contracts keep identity and navigation server-bound', () => {
@@ -194,13 +186,19 @@ test('JwtAuthGuard allows valid users and rejects missing or expired tokens', ()
   );
 });
 
-test('OptionalAuthGuard never blocks anonymous reads', () => {
+test('OptionalAuthGuard allows absent credentials but rejects invalid presented credentials', () => {
   const guard = new OptionalAuthGuard();
   const user = { id: 'user_1', username: 'kartik' };
+  const context = {
+    switchToHttp: () => ({ getRequest: () => ({ headers: {}, cookies: {} }) }),
+  };
 
-  assert.equal(guard.handleRequest(null, false), undefined);
+  assert.equal(guard.canActivate(context), true);
   assert.equal(guard.handleRequest(null, user), user);
-  assert.equal(guard.handleRequest(new UnauthorizedException(), false), undefined);
+  assert.throws(
+    () => guard.handleRequest(new UnauthorizedException(), false),
+    (error) => assertAppError(error, 401, 'UNAUTHENTICATED'),
+  );
 
   const outage = new Error('principal store unavailable');
   assert.throws(() => guard.handleRequest(outage, false), outage);

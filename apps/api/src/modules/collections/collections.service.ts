@@ -11,12 +11,6 @@ import type {
   ReactionType,
   UpdateCollectionInput,
 } from '@linkedout/contracts';
-import type {
-  AddLToCollectionInput as AddLToCollectionInputV2,
-  CollectionDetail as CollectionDetailV2,
-  LCard as LCardV2,
-} from '@linkedout/contracts/v2';
-
 import { AppErrors } from '../../common/errors/app-exception';
 import { decodeCursorId } from '../../common/pagination/cursor';
 import {
@@ -27,14 +21,13 @@ import {
 } from '../../common/read-models/l-read-model';
 import type { AuthUser } from '../../common/types/auth';
 import { toLCard } from '../ls/ls.mapper';
-import { toV2LCard } from '../ls/ls-v2.mapper';
 import {
   CollectionNotFoundError,
   CollectionSlugConflictError,
   CollectionsRepository,
   type CollectionWithMeta,
 } from './collections.repository';
-import { toCollection, toCollectionDetail, toV2CollectionDetail } from './collections.mapper';
+import { toCollection, toCollectionDetail } from './collections.mapper';
 
 function slugify(title: string): string {
   const base = title
@@ -68,10 +61,6 @@ export class CollectionsService {
 
   async getDetail(id: string, viewerId: string | undefined): Promise<CollectionDetail> {
     return this.detailFor(await this.requireCollection(id), viewerId);
-  }
-
-  async getDetailV2(id: string, viewerId: string | undefined): Promise<CollectionDetailV2> {
-    return this.detailForV2(await this.requireCollection(id), viewerId);
   }
 
   async rename(user: AuthUser, id: string, input: UpdateCollectionInput): Promise<Collection> {
@@ -112,21 +101,8 @@ export class CollectionsService {
     return this.addLAndRead(user, id, lId, input.position, () => this.getDetail(id, user.id));
   }
 
-  async addLV2(
-    user: AuthUser,
-    id: string,
-    lId: string,
-    input: AddLToCollectionInputV2,
-  ): Promise<CollectionDetailV2> {
-    return this.addLAndRead(user, id, lId, input.position, () => this.getDetailV2(id, user.id));
-  }
-
   async removeL(user: AuthUser, id: string, lId: string): Promise<CollectionDetail> {
     return this.removeLAndRead(user, id, lId, () => this.getDetail(id, user.id));
-  }
-
-  async removeLV2(user: AuthUser, id: string, lId: string): Promise<CollectionDetailV2> {
-    return this.removeLAndRead(user, id, lId, () => this.getDetailV2(id, user.id));
   }
 
   async listByOwner(
@@ -159,17 +135,6 @@ export class CollectionsService {
     const rows = await this.repo.visibleLs(ids, policy.visibilities, policy.includeAnonymous);
     const cards = await this.toCards(rows, viewerId);
     return toCollectionDetail(collection, cards, viewerId);
-  }
-
-  private async detailForV2(
-    collection: CollectionWithMeta,
-    viewerId: string | undefined,
-  ): Promise<CollectionDetailV2> {
-    const ids = await this.repo.orderedLIds(collection.id);
-    const policy = await this.audiencePolicy(viewerId, collection.ownerId);
-    const rows = await this.repo.visibleLs(ids, policy.visibilities, policy.includeAnonymous);
-    const cards = await this.toV2Cards(rows, viewerId);
-    return toV2CollectionDetail(collection, cards, viewerId);
   }
 
   private async addLAndRead<T>(
@@ -211,13 +176,6 @@ export class CollectionsService {
     viewerId: string | undefined,
   ): Promise<LCard[]> {
     return mapLRows(rows, viewerId, await this.reactionMap(viewerId, rows), toLCard);
-  }
-
-  private async toV2Cards(
-    rows: LWithAuthor[],
-    viewerId: string | undefined,
-  ): Promise<LCardV2[]> {
-    return mapLRows(rows, viewerId, await this.reactionMap(viewerId, rows), toV2LCard);
   }
 
   private async reactionMap(

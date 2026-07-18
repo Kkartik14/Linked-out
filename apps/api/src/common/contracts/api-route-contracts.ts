@@ -17,6 +17,7 @@ import {
   createCommentInputSchema,
   createLInputSchema,
   errorEnvelopeSchema,
+  feedSidebarResponseSchema,
   followResultSchema,
   journeyNodeSchema,
   lCardSchema,
@@ -24,7 +25,6 @@ import {
   metaEnumsResponseSchema,
   notificationSchema,
   paginatedSchema,
-  popularTagsResponseSchema,
   reactionResultSchema,
   unreadCountSchema,
   updateCollectionInputSchema,
@@ -70,6 +70,7 @@ export const API_COMPONENT_SCHEMAS = {
   CreateCommentInput: createCommentInputSchema,
   CreateLInput: createLInputSchema,
   ErrorEnvelope: errorEnvelopeSchema,
+  FeedSidebarResponse: feedSidebarResponseSchema,
   FollowResult: followResultSchema,
   LCard: lCardSchema,
   LDetail: lDetailSchema,
@@ -81,7 +82,6 @@ export const API_COMPONENT_SCHEMAS = {
   PaginatedLCard: paginatedLCardSchema,
   PaginatedNotification: paginatedNotificationSchema,
   PaginatedUserSummary: paginatedUserSummarySchema,
-  PopularTagsResponse: popularTagsResponseSchema,
   ReactionResult: reactionResultSchema,
   SearchResult: searchResultSchema,
   UnreadCount: unreadCountSchema,
@@ -279,6 +279,7 @@ export const API_ROUTE_CONTRACTS = {
 
   feedGlobal: route('get /feed', 200, jsonResponse('PaginatedLCard')),
   feedFollowing: route('get /feed/following', 200, jsonResponse('PaginatedLCard')),
+  feedSidebar: route('get /feed/sidebar', 200, jsonResponse('FeedSidebarResponse')),
 
   commentsForL: route('get /ls/{id}/comments', 200, jsonResponse('PaginatedComment')),
   commentCreateOnL: route(
@@ -358,7 +359,6 @@ export const API_ROUTE_CONTRACTS = {
     jsonResponse('OkResponse'),
   ),
   metaEnums: route('get /meta/enums', 200, jsonResponse('MetaEnumsResponse')),
-  popularTags: route('get /tags/popular', 200, jsonResponse('PopularTagsResponse')),
   openApi: route(
     'get /openapi.json',
     200,

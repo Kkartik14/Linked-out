@@ -11,6 +11,7 @@ import {
 } from '@nestjs/common';
 import {
   paginationQuerySchema,
+  ulidSchema,
   type CreateLInput,
   type LCard,
   type LDetail,
@@ -30,6 +31,7 @@ import { LsService } from './ls.service';
 const createPipe = new ZodValidationPipe(API_ROUTE_CONTRACTS.lCreate.body.schema);
 const updatePipe = new ZodValidationPipe(API_ROUTE_CONTRACTS.lUpdate.body.schema);
 const savedQueryPipe = new ZodValidationPipe(paginationQuerySchema());
+const idPipe = new ZodValidationPipe(ulidSchema);
 
 @Controller()
 export class LsController {
@@ -48,7 +50,10 @@ export class LsController {
   @Get('ls/:id')
   @UseGuards(OptionalAuthGuard)
   @ApiContract(API_ROUTE_CONTRACTS.lDetail)
-  detail(@OptionalUser() user: AuthUser | undefined, @Param('id') id: string): Promise<LDetail> {
+  detail(
+    @OptionalUser() user: AuthUser | undefined,
+    @Param('id', idPipe) id: string,
+  ): Promise<LDetail> {
     return this.ls.getDetail(id, user?.id);
   }
 
@@ -57,7 +62,7 @@ export class LsController {
   @ApiContract(API_ROUTE_CONTRACTS.lUpdate)
   update(
     @CurrentUser() user: AuthUser,
-    @Param('id') id: string,
+    @Param('id', idPipe) id: string,
     @Body(updatePipe) body: UpdateLInput,
   ): Promise<LDetail> {
     return this.ls.update(user, id, body);
@@ -66,7 +71,7 @@ export class LsController {
   @Delete('ls/:id')
   @UseGuards(JwtAuthGuard)
   @ApiContract(API_ROUTE_CONTRACTS.lDelete)
-  remove(@CurrentUser() user: AuthUser, @Param('id') id: string): Promise<{ ok: true }> {
+  remove(@CurrentUser() user: AuthUser, @Param('id', idPipe) id: string): Promise<{ ok: true }> {
     return this.ls.remove(user, id);
   }
 

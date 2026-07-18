@@ -14,7 +14,7 @@ export const collectionSchema = z.object({
     canEdit: z.boolean(),
   }),
   createdAt: isoTimestampSchema,
-});
+}).strict();
 export type Collection = z.infer<typeof collectionSchema>;
 
 export const collectionDetailSchema = collectionSchema.extend({

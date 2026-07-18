@@ -3,7 +3,7 @@
 const assert = require('node:assert/strict');
 const test = require('node:test');
 
-const v2 = require('@linkedout/contracts/v2');
+const contracts = require('@linkedout/contracts');
 
 const USER_ID = '01ARZ3NDEKTSV4RRFFQ69G5FAV';
 const L_ID = '01ARZ3NDEKTSV4RRFFQ69G5FAW';
@@ -42,30 +42,35 @@ function lCard() {
   };
 }
 
-test('v2 L inputs strictly reject every removed field', () => {
+test('the sole public L contract strictly rejects every removed field', () => {
   const base = { title: 'A useful L', story: 'What happened and what I learned.' };
 
   for (const field of ['category', 'company', 'tags', 'eventDate']) {
-    const result = v2.createLInputSchema.safeParse({ ...base, [field]: null });
-    assert.equal(result.success, false, `create rejects ${field}`);
-
-    const update = v2.updateLInputSchema.safeParse({ [field]: null });
-    assert.equal(update.success, false, `update rejects ${field}`);
+    assert.equal(
+      contracts.createLInputSchema.safeParse({ ...base, [field]: null }).success,
+      false,
+      `create rejects ${field}`,
+    );
+    assert.equal(
+      contracts.updateLInputSchema.safeParse({ [field]: null }).success,
+      false,
+      `update rejects ${field}`,
+    );
   }
 });
 
-test('v2 queries reject legacy category filters', () => {
-  assert.equal(v2.feedQuerySchema.safeParse({ filter: 'interviews' }).success, false);
+test('public queries reject removed category filters', () => {
+  assert.equal(contracts.feedQuerySchema.safeParse({ filter: 'interviews' }).success, false);
   assert.equal(
-    v2.searchQuerySchema.safeParse({ q: 'interview', filter: 'interviews' }).success,
+    contracts.searchQuerySchema.safeParse({ q: 'interview', filter: 'interviews' }).success,
     false,
   );
-  assert.equal(v2.feedQuerySchema.parse({}).sort, 'latest');
-  assert.deepEqual(v2.feedSidebarQuerySchema.parse({}), {});
-  assert.equal(v2.feedSidebarQuerySchema.safeParse({ limit: '5' }).success, false);
+  assert.equal(contracts.feedQuerySchema.parse({}).sort, 'latest');
+  assert.deepEqual(contracts.feedSidebarQuerySchema.parse({}), {});
+  assert.equal(contracts.feedSidebarQuerySchema.safeParse({ limit: '5' }).success, false);
 });
 
-test('v2 package does not export removed category or tag-discovery contracts', () => {
+test('root package does not export removed category or tag-discovery contracts', () => {
   for (const name of [
     'lCategorySchema',
     'L_CATEGORY_META',
@@ -74,10 +79,10 @@ test('v2 package does not export removed category or tag-discovery contracts', (
     'popularTagsQuerySchema',
     'popularTagsResponseSchema',
   ]) {
-    assert.equal(name in v2, false, `${name} is absent from @linkedout/contracts/v2`);
+    assert.equal(name in contracts, false, `${name} is absent from @linkedout/contracts`);
   }
 
-  const meta = v2.metaEnumsResponseSchema.parse({
+  const meta = contracts.metaEnumsResponseSchema.parse({
     reactionType: [],
     journeyStatus: [],
     lType: [],
@@ -89,14 +94,13 @@ test('v2 package does not export removed category or tag-discovery contracts', (
 });
 
 test('OAuth failure copy is contract-valid and server-owned', () => {
-  for (const failure of Object.values(v2.OAUTH_FAILURES)) {
-    assert.deepEqual(v2.oauthFailureSchema.parse(failure), failure);
-    assert.deepEqual(
-      v2.oauthFailureRedirectQuerySchema.parse({ error: failure.code }),
-      { error: failure.code },
-    );
+  for (const failure of Object.values(contracts.OAUTH_FAILURES)) {
+    assert.deepEqual(contracts.oauthFailureSchema.parse(failure), failure);
+    assert.deepEqual(contracts.oauthFailureRedirectQuerySchema.parse({ error: failure.code }), {
+      error: failure.code,
+    });
     assert.throws(() =>
-      v2.oauthFailureRedirectQuerySchema.parse({
+      contracts.oauthFailureRedirectQuerySchema.parse({
         error: failure.code,
         message: failure.message,
       }),
@@ -106,7 +110,7 @@ test('OAuth failure copy is contract-valid and server-owned', () => {
 
 test('feed sidebar schema gives both rails one stable, attributed daily item', () => {
   const payload = {
-    contractVersion: 2,
+    contractVersion: 1,
     generatedAt: '2026-07-17T02:00:00.000Z',
     refreshAfter: '2026-07-17T02:01:00.000Z',
     viewer: { state: 'SIGNED_OUT', profile: null },
@@ -144,12 +148,12 @@ test('feed sidebar schema gives both rails one stable, attributed daily item', (
     },
   };
 
-  assert.deepEqual(v2.feedSidebarResponseSchema.parse(payload), payload);
+  assert.deepEqual(contracts.feedSidebarResponseSchema.parse(payload), payload);
 
   const anonymousDaily = structuredClone(payload);
   anonymousDaily.lOfTheDay.item.l.isAnonymous = true;
   anonymousDaily.lOfTheDay.item.l.author = null;
-  assert.equal(v2.feedSidebarResponseSchema.safeParse(anonymousDaily).success, false);
+  assert.equal(contracts.feedSidebarResponseSchema.safeParse(anonymousDaily).success, false);
 
   for (const mutate of [
     (value) => { value.peopleToFollow.items[0].user.email = 'private@example.com'; },
@@ -160,7 +164,7 @@ test('feed sidebar schema gives both rails one stable, attributed daily item', (
     const leaked = structuredClone(payload);
     mutate(leaked);
     assert.equal(
-      v2.feedSidebarResponseSchema.safeParse(leaked).success,
+      contracts.feedSidebarResponseSchema.safeParse(leaked).success,
       false,
       'sidebar response rejects unknown nested fields instead of stripping them',
     );

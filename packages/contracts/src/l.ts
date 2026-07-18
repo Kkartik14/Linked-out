@@ -7,7 +7,7 @@ import {
   AT_LEAST_ONE_FIELD,
   hasAtLeastOneField,
 } from './common';
-import { lTypeSchema, lCategorySchema, visibilitySchema, reactionTypeSchema } from './enums';
+import { lTypeSchema, visibilitySchema, reactionTypeSchema } from './enums';
 import { reactionsSummarySchema } from './reaction';
 import { userSummarySchema } from './user';
 
@@ -19,20 +19,18 @@ export const collectionRefSchema = z.object({
 });
 export type CollectionRef = z.infer<typeof collectionRefSchema>;
 
-const lViewerSchema = z.object({
-  reactions: z.array(reactionTypeSchema),
-  canEdit: z.boolean(),
-});
+const lViewerSchema = z
+  .object({
+    reactions: z.array(reactionTypeSchema),
+    canEdit: z.boolean(),
+  })
+  .strict();
 
 /** Fields shared by LCard and LDetail. `author` is null when isAnonymous. */
 const lCoreSchema = z.object({
   id: ulidSchema,
   title: z.string(),
   type: lTypeSchema,
-  category: lCategorySchema.nullable(),
-  company: z.string().nullable(),
-  tags: z.array(z.string()),
-  eventDate: isoTimestampSchema.nullable(),
   visibility: visibilitySchema,
   isAnonymous: z.boolean(),
   resolvedAt: isoTimestampSchema.nullable(),
@@ -41,7 +39,7 @@ const lCoreSchema = z.object({
   commentCount: z.number().int(),
   viewer: lViewerSchema,
   createdAt: isoTimestampSchema,
-});
+}).strict();
 
 /** An L as it appears in feeds and lists (truncated body). */
 export const lCardSchema = lCoreSchema.extend({
@@ -61,31 +59,25 @@ export const journeyNodeSchema = z.object({
   id: ulidSchema,
   title: z.string(),
   type: lTypeSchema,
-  category: lCategorySchema.nullable(),
-  company: z.string().nullable(),
-  eventDate: isoTimestampSchema.nullable(),
-  /** Effective ordering date = eventDate ?? createdAt. Always present. */
-  date: isoTimestampSchema,
+  createdAt: isoTimestampSchema,
   isAnonymous: z.boolean(),
   resolvedAt: isoTimestampSchema.nullable(),
   reactionTotal: z.number().int(),
   commentCount: z.number().int(),
-});
+}).strict();
 export type JourneyNode = z.infer<typeof journeyNodeSchema>;
 
 // ─── Inputs ────────────────────────────────────────────────────────────────────
 
-export const createLInputSchema = z.object({
-  title: z.string().min(1).max(140),
-  story: z.string().min(1).max(10_000),
-  type: lTypeSchema.default('L'),
-  category: lCategorySchema.nullable().optional(),
-  company: z.string().max(100).nullable().optional(),
-  tags: z.array(z.string().min(1).max(30)).max(5).default([]),
-  eventDate: dateInputSchema.nullable().optional(),
-  visibility: visibilitySchema.default('PUBLIC'),
-  isAnonymous: z.boolean().default(false),
-}).strict();
+export const createLInputSchema = z
+  .object({
+    title: z.string().min(1).max(140),
+    story: z.string().min(1).max(10_000),
+    type: lTypeSchema.default('L'),
+    visibility: visibilitySchema.default('PUBLIC'),
+    isAnonymous: z.boolean().default(false),
+  })
+  .strict();
 export type CreateLInput = z.infer<typeof createLInputSchema>;
 
 /** PATCH /ls/:id — every field optional; `resolvedAt` toggles a Battle's resolved state. */
@@ -94,10 +86,6 @@ export const updateLInputSchema = z
     title: z.string().min(1).max(140),
     story: z.string().min(1).max(10_000),
     type: lTypeSchema,
-    category: lCategorySchema.nullable(),
-    company: z.string().max(100).nullable(),
-    tags: z.array(z.string().min(1).max(30)).max(5),
-    eventDate: dateInputSchema.nullable(),
     visibility: visibilitySchema,
     isAnonymous: z.boolean(),
     resolvedAt: dateInputSchema.nullable(),

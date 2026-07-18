@@ -20,7 +20,6 @@ export type ExtendedPrismaClient = ReturnType<typeof createPrismaClient>;
 export { Prisma } from '../generated/client';
 export {
   LType,
-  LCategory,
   Visibility,
   ReactionType,
   JourneyStatus,

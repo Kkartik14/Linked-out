@@ -2,7 +2,7 @@
 
 const assert = require('node:assert/strict');
 const { describe, test, beforeEach } = require('node:test');
-const { fieldErrorCodeSchema, lDetailSchema, notificationSchema, paginatedSchema } = require('@linkedout/contracts');
+const { lDetailSchema, notificationSchema, paginatedSchema } = require('@linkedout/contracts');
 
 const h = require('../_harness.cjs');
 
@@ -492,48 +492,6 @@ describe('21 · nullable relations & coercion edges', () => {
     assert.equal(detail.author.status, null);
   });
 
-  test('eventDate accepts full ISO timestamps and bare dates alike', async () => {
-    for (const eventDate of ['2026-05-10', '2026-05-10T13:45:00.000Z', '2026-05-10T13:45:00Z']) {
-      const res = await h.post('/ls', {
-        cookie: author.cookie,
-        body: { title: 't', story: 's', eventDate },
-      });
-      const detail = h.expectShape(res, lDetailSchema, 201);
-      assert.equal(detail.eventDate, new Date(eventDate).toISOString());
-    }
-  });
-
-  test('an unparseable eventDate is a 400 with a stable field-error code', async () => {
-    for (const eventDate of ['yesterday', '2026-13-45', 'NaN', '']) {
-      const res = await h.post('/ls', {
-        cookie: author.cookie,
-        body: { title: 't', story: 's', eventDate },
-      });
-      const error = h.expectError(res, 400, 'VALIDATION_ERROR');
-      assert.equal(error.details[0].field, 'eventDate');
-      assert.ok(
-        fieldErrorCodeSchema.safeParse(error.details[0].code).success,
-        `unstable code ${error.details[0].code} — the FE switches on this`,
-      );
-    }
-  });
-
-  test('a non-date eventDate is rejected, never coerced into an epoch date', async () => {
-    // Regression: `z.coerce.date()` ran `new Date(value)` on anything, so `true` was
-    // silently stored as 1970-01-01T00:00:00.001Z, `12345` as an epoch offset, and
-    // numeric-looking strings like "1" as implementation-defined dates.
-    for (const eventDate of [true, false, 12345, 0, '12345', '1', {}, []]) {
-      const res = await h.post('/ls', {
-        cookie: author.cookie,
-        body: { title: 't', story: 's', eventDate },
-      });
-      const error = h.expectError(res, 400, 'VALIDATION_ERROR');
-      assert.equal(error.details[0].field, 'eventDate');
-    }
-
-    assert.equal(await h.ctx.prisma.l.count(), 0, 'nothing was persisted');
-  });
-
   test('a non-date resolvedAt is rejected on PATCH too', async () => {
     const battle = await h.createL(author.id, { type: 'BATTLE' });
     for (const resolvedAt of [true, 12345, '12345', '1', 'someday']) {
@@ -548,28 +506,16 @@ describe('21 · nullable relations & coercion edges', () => {
     assert.equal(row.resolvedAt, null, 'the battle stayed ongoing');
   });
 
-  test('a far-future or far-past eventDate round-trips intact', async () => {
-    for (const eventDate of ['1970-01-01', '2999-12-31']) {
-      const res = await h.post('/ls', {
-        cookie: author.cookie,
-        body: { title: 't', story: 's', eventDate },
-      });
-      assert.equal(h.expectShape(res, lDetailSchema, 201).eventDate, new Date(eventDate).toISOString());
-    }
-  });
-
   test('unicode, emoji and newlines survive a create → read round-trip', async () => {
     const story = 'Ла́йк 🔥\nnew line\ttab "quote" <script>alert(1)</script>';
     const res = await h.post('/ls', {
       cookie: author.cookie,
-      body: { title: '日本語のタイトル 🎌', story, tags: ['タグ', '🔥'] },
+      body: { title: '日本語のタイトル 🎌', story },
     });
     const created = h.expectShape(res, lDetailSchema, 201);
 
     assert.equal(created.title, '日本語のタイトル 🎌');
     assert.equal(created.story, story, 'the story is stored verbatim, never escaped or stripped');
-    assert.deepEqual(created.tags, ['タグ', '🔥']);
-
     const fetched = await h.get(`/ls/${created.id}`);
     assert.equal(fetched.body.story, story);
   });

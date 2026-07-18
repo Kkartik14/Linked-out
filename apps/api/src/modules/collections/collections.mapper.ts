@@ -1,8 +1,4 @@
 import type { Collection, CollectionDetail, LCard } from '@linkedout/contracts';
-import type {
-  CollectionDetail as CollectionDetailV2,
-  LCard as LCardV2,
-} from '@linkedout/contracts/v2';
 
 import { toUserSummary } from '../../common/mappers/user-summary.mapper';
 import type { CollectionWithMeta } from './collections.repository';
@@ -28,13 +24,5 @@ export function toCollectionDetail(
   ls: LCard[],
   viewerId?: string,
 ): CollectionDetail {
-  return { ...toCollection(c, ls.length, viewerId), ls };
-}
-
-export function toV2CollectionDetail(
-  c: CollectionWithMeta,
-  ls: LCardV2[],
-  viewerId?: string,
-): CollectionDetailV2 {
   return { ...toCollection(c, ls.length, viewerId), ls };
 }
