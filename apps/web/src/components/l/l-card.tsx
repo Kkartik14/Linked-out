@@ -1,7 +1,7 @@
 "use client";
 
 import Link from "next/link";
-import type { LCard as LCardType } from "@linkedout/contracts/v2";
+import type { LCard as LCardType } from "@linkedout/contracts";
 
 import { Card } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";

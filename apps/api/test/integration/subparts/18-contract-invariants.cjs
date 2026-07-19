@@ -136,13 +136,13 @@ describe('18 · cross-cutting contract invariants (§1.5–§1.7)', () => {
     }
   });
 
-  test('nested field errors use dot/bracket paths', async () => {
+  test('removed fields are named precisely in validation errors', async () => {
     const res = await h.post('/ls', {
       cookie: user.cookie,
-      body: { title: 't', story: 's', tags: ['ok', 'x'.repeat(31)] },
+      body: { title: 't', story: 's', category: 'CAREER' },
     });
     const error = h.expectError(res, 400, 'VALIDATION_ERROR');
-    assert.equal(error.details[0].field, 'tags[1]', 'array indices use bracket notation');
+    assert.equal(error.details[0].field, 'category');
   });
 
   test('a malformed JSON body is a 400, never a 500', async () => {
@@ -187,10 +187,10 @@ describe('18 · cross-cutting contract invariants (§1.5–§1.7)', () => {
   });
 
   test('all timestamps are ISO-8601 UTC strings', async () => {
-    const l = await h.createL(user.id, { eventDate: new Date('2026-05-10T00:00:00.000Z') });
+    const l = await h.createL(user.id);
     const detail = (await h.get(`/ls/${l.id}`)).body;
 
-    for (const field of ['createdAt', 'eventDate']) {
+    for (const field of ['createdAt']) {
       assert.match(
         detail[field],
         /^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}\.\d{3}Z$/,

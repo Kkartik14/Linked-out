@@ -94,15 +94,7 @@ describe('12 · search (contract §4.10)', () => {
     );
   });
 
-  test('filter narrows to one category (type=ls only)', async () => {
-    const interviews = await h.createL(author.id, { title: 'rejection', category: 'INTERVIEWS' });
-    await h.createL(author.id, { title: 'rejection', category: 'STARTUPS' });
-
-    const res = await h.get('/search?q=rejection&filter=interviews');
-    assert.deepEqual(res.body.data.map((c) => c.id), [interviews.id]);
-  });
-
-  test('rejects an unknown filter or type', async () => {
+  test('rejects removed filters or an unknown type', async () => {
     h.expectError(await h.get('/search?q=x&filter=nope'), 400, 'VALIDATION_ERROR');
     h.expectError(await h.get('/search?q=x&filter=INTERVIEWS'), 400, 'VALIDATION_ERROR');
     h.expectError(await h.get('/search?q=x&type=posts'), 400, 'VALIDATION_ERROR');

@@ -1,6 +1,7 @@
 import { Controller, Get, HttpCode, Param, Post, Query, UseGuards } from '@nestjs/common';
 import {
   paginationQuerySchema,
+  ulidSchema,
   type Notification,
   type Paginated,
   type PaginationQuery,
@@ -15,8 +16,9 @@ import type { AuthUser } from '../../common/types/auth';
 import { NotificationsService } from './notifications.service';
 
 const listQueryPipe = new ZodValidationPipe(paginationQuerySchema());
+const idPipe = new ZodValidationPipe(ulidSchema);
 
-@Controller({ path: 'notifications', version: ['1', '2'] })
+@Controller('notifications')
 @UseGuards(JwtAuthGuard)
 export class NotificationsController {
   constructor(private readonly notifications: NotificationsService) {}
@@ -48,7 +50,7 @@ export class NotificationsController {
   @ApiContract(API_ROUTE_CONTRACTS.notificationRead)
   markRead(
     @CurrentUser() user: AuthUser,
-    @Param('id') id: string,
+    @Param('id', idPipe) id: string,
   ): Promise<{ ok: true }> {
     return this.notifications.markRead(id, user.id);
   }

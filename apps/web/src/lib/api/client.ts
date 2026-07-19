@@ -1,6 +1,6 @@
 import { API_BASE_URL } from "@/lib/env";
-import type { ErrorEnvelope } from "@linkedout/contracts/v2";
-import { PRINCIPAL_BINDING_HEADER } from "@linkedout/contracts/v2";
+import type { ErrorEnvelope } from "@linkedout/contracts";
+import { PRINCIPAL_BINDING_HEADER } from "@linkedout/contracts";
 import type { ComposedPrincipal } from "@/lib/principal";
 import { ApiError } from "./errors";
 
@@ -21,7 +21,7 @@ export interface ApiFetchInit extends RequestInit {
 /**
  * No request may hang forever. A Server Component render blocks on its fetches, so an
  * unresponsive backend would hold the whole page open until the platform kills it — and
- * anything relying on a rejection to degrade (contract v2 §2: the sidebar "fails
+ * anything relying on a rejection to degrade (public contract §2: the sidebar "fails
  * independently of the center feed") never degrades, because a request that never settles
  * never fails.
  */

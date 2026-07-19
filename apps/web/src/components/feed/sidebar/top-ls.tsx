@@ -1,5 +1,5 @@
 import Link from "next/link";
-import type { FeaturedL } from "@linkedout/contracts/v2";
+import type { FeaturedL } from "@linkedout/contracts";
 
 import { SidebarSection } from "@/components/feed/sidebar/sidebar-section";
 

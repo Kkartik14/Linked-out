@@ -14,7 +14,7 @@ describe('09 · follows (contract §4.7)', () => {
 
   beforeEach(async () => {
     await h.resetDb();
-    me = await h.createUser({ username: 'me' });
+    me = await h.createUser({ username: 'mine' });
     target = await h.createUser({ username: 'target' });
   });
 
@@ -80,7 +80,7 @@ describe('09 · follows (contract §4.7)', () => {
   });
 
   test('self-follow is rejected with VALIDATION_ERROR', async () => {
-    const res = await h.put('/users/me/follow', { cookie: me.cookie });
+    const res = await h.put('/users/mine/follow', { cookie: me.cookie });
     h.expectError(res, 400, 'VALIDATION_ERROR');
   });
 
@@ -104,7 +104,7 @@ describe('09 · follows (contract §4.7)', () => {
     assert.equal(profile.body.viewer.isFollowing, true);
     assert.equal(profile.body.counts.followers, 1);
 
-    const mine = await h.get('/users/me', { cookie: me.cookie });
+    const mine = await h.get('/users/mine', { cookie: me.cookie });
     assert.equal(mine.body.counts.following, 1);
     assert.equal(mine.body.viewer.isSelf, true);
     assert.equal(mine.body.viewer.isFollowing, false, 'isFollowing is false on your own profile');
@@ -115,9 +115,9 @@ describe('09 · follows (contract §4.7)', () => {
 
     const followers = await h.get('/users/target/followers');
     const page = h.expectShape(followers, summaryList);
-    assert.deepEqual(page.data.map((u) => u.username), ['me']);
+    assert.deepEqual(page.data.map((u) => u.username), ['mine']);
 
-    const following = await h.get('/users/me/following');
+    const following = await h.get('/users/mine/following');
     const page2 = h.expectShape(following, summaryList);
     assert.deepEqual(page2.data.map((u) => u.username), ['target']);
   });

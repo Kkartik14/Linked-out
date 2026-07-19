@@ -7,7 +7,7 @@ import {
 import {
   sessionResolveResponseSchema,
   type SessionResolveResponse,
-} from "@linkedout/contracts/v2";
+} from "@linkedout/contracts";
 
 /**
  * The BFF side of session resolution (ADR 0001 §4.2).

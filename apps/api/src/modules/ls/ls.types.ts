@@ -1,14 +1,10 @@
-import type { LCategory, LType, ReactionType, Visibility } from '@linkedout/contracts';
+import type { LType, ReactionType, Visibility } from '@linkedout/contracts';
 
 /** Normalized business data for creating an L (optional/null semantics resolved). */
 export interface WriteLData {
   title: string;
   story: string;
   type: LType;
-  category: LCategory | null;
-  company: string | null;
-  tags: string[];
-  eventDate: Date | null;
   visibility: Visibility;
   isAnonymous: boolean;
 }
@@ -18,10 +14,6 @@ export interface UpdateLData {
   title: string | undefined;
   story: string | undefined;
   type: LType | undefined;
-  category: LCategory | null | undefined;
-  company: string | null | undefined;
-  tags: string[] | undefined;
-  eventDate: Date | null | undefined;
   visibility: Visibility | undefined;
   isAnonymous: boolean | undefined;
   resolvedAt: Date | null | undefined;
@@ -54,11 +46,6 @@ export type FeedPageCursor =
   | { sort: 'helpful'; id: string; count: number };
 
 export interface JourneyPageCursor {
-  date: string;
-  id: string;
-}
-
-export interface CreatedAtJourneyPageCursor {
   createdAt: string;
   id: string;
 }

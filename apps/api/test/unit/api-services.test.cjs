@@ -69,10 +69,6 @@ function lRow(overrides = {}) {
     title: 'Rejected after the final round',
     story: 'I made it through every round and still missed the offer.',
     type: 'L',
-    category: 'INTERVIEWS',
-    company: 'Google',
-    tags: ['interviews'],
-    eventDate: null,
     visibility: 'PUBLIC',
     isAnonymous: false,
     resolvedAt: null,
@@ -159,7 +155,7 @@ test('LsService enforces onboarding and ownership for writes', async () => {
   await assert.rejects(
     () => new LsService({}).create(
       { id: USER_ID, username: null },
-      { title: 'T', story: 'S', type: 'L', visibility: 'PUBLIC', isAnonymous: false, tags: [] },
+      { title: 'T', story: 'S', type: 'L', visibility: 'PUBLIC', isAnonymous: false },
     ),
     (error) => assertAppError(error, 403, 'FORBIDDEN'),
   );

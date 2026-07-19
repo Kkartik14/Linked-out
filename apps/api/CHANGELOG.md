@@ -7,12 +7,16 @@ and their CI/test boundaries. Newest first.
 
 ### Changed
 
+- Consolidated the pre-launch resource APIs into the sole `/v1` surface. The clean schemas now
+  live at the root `@linkedout/contracts` export; duplicate controllers, guards, mappers, OpenAPI,
+  fixtures, and compatibility tests were deleted. The matching database migration removes the
+  retired L metadata columns and rebuilds full-text search from title and story.
 - Legacy logout no longer requires a live 15-minute access cookie: it revokes an optional refresh
   session first, clears both cookies, and returns 200 for absent, stale, or repeated requests.
-- Completed CONTRACT-01B for the legacy v1 surface: query objects now reject unknown parameters,
+- Completed CONTRACT-01B for the public API: query objects now reject unknown parameters,
   OAuth start accepts only its documented `returnTo`, and user searches reject the L-only category
   filter instead of silently ignoring it.
-- The OAuth failure contract now publishes safe server-owned display copy, and the v2 Top-Ls
+- The OAuth failure contract now publishes safe server-owned display copy, and the Top-Ls
   aggregate supplies its own window caption so clients no longer compose either business message.
 - Removed unauthenticated OAuth display copy from redirect query strings. Redirects now carry only
   the validated failure code; clients take the corresponding copy from the versioned shared
@@ -48,16 +52,16 @@ and their CI/test boundaries. Newest first.
 ### Documentation
 
 - Added this backend-specific changelog. Internal design and contract narratives now live in the
-  ignored local documentation set; shared Zod contracts and generated v1/v2 OpenAPI remain the
+  ignored local documentation set; shared Zod contracts and generated v1 OpenAPI remain the
   tracked executable API references.
 - Removed the obsolete public-doc sync command and its prose-only CI test after the canonical
   narrative moved local; credential behavior remains gated at the executable route/OpenAPI seam.
 
 ## [1.1.0] — 2026-07-17
 
-Introduces the clean v2 API used by the frontend, adds the feed discovery aggregate, and hardens
-the backend's contract, persistence, privacy, performance, and verification boundaries. The live
-v1 API remains available during migration.
+Introduces the clean API contract used by the frontend, adds the feed discovery aggregate, and
+hardens the backend's contract, persistence, privacy, performance, and verification boundaries.
+That contract is now the sole v1 surface.
 
 ### Added
 
@@ -70,9 +74,9 @@ v1 API remains available during migration.
 - Extended bounded maintenance cleanup to purge idle/absolute-expired browser sessions and retain
   revoked tombstones until already-issued internal assertions have expired.
 
-- **A complete `/v2` API surface** backed by `@linkedout/contracts/v2`, served alongside v1.
-  Existing resources retain their behavior unless v2 explicitly changes their shape or query.
-- **`GET /v2/feed/sidebar`**, one optional-auth aggregate for viewer state, People to Follow, Top
+- **A complete `/v1` API surface** backed by `@linkedout/contracts`.
+  Existing resources retain their behavior unless the clean contract explicitly changes their shape or query.
+- **`GET /v1/feed/sidebar`**, one optional-auth aggregate for viewer state, People to Follow, Top
   Ls, and L of the day.
   - People suggestions rank mutual follows, distinct 30-day public-writing activity, follower
     count, and user ID; the API supplies the reason and follow permission.
@@ -82,22 +86,22 @@ v1 API remains available during migration.
     and reselects if the winner becomes ineligible.
   - The response is viewer-dependent, rehydrates current cards, rechecks visibility/anonymity,
     and sends `Cache-Control: private, no-store, max-age=0`.
-- **Generated v2 OpenAPI** at `/v2/openapi.json`, derived from runtime Zod schemas and registered
+- **Generated v1 OpenAPI** at `/v1/openapi.json`, derived from runtime Zod schemas and registered
   route contracts rather than hand-maintained shapes.
-- **Strict v2 optional authentication.** A missing credential receives the guest view; a presented
-  invalid or expired credential receives 401 consistently, including `/v2/auth/me`.
+- **Strict optional authentication.** A missing credential receives the guest view; a presented
+  invalid or expired credential receives 401 consistently, including `/v1/auth/me`.
 - Database support for sidebar interaction windows and daily selection, including covering/
   partial indexes and deterministic selection storage.
-- Backend and CI gates for v2 route/OpenAPI parity, contract timestamp validation, sidebar ranking
+- Backend and CI gates for route/OpenAPI parity, contract timestamp validation, sidebar ranking
   invariants, SQL-only database objects, test inventory, and executable contract drift.
 
 ### Changed
 
-- The canonical v2 L removes `category`, `company`, `tags`, `eventDate`, and the derived journey
-  `date`. V2 journeys expose `createdAt` and order by `(createdAt, id)` ascending.
-- V2 feed and search queries no longer accept category filters. `/v2/tags/popular` does not exist,
-  and removed v1 types are not re-exported from the v2 contract subpath.
-- V2 create/update bodies are strict and reject legacy or unknown keys. PATCH bodies require at
+- The canonical v1 L removes `category`, `company`, `tags`, `eventDate`, and the derived journey
+  `date`. Journeys expose `createdAt` and order by `(createdAt, id)` ascending.
+- Feed and search queries no longer accept category filters. `/v1/tags/popular` does not exist,
+  and removed types are not exported from the root contract.
+- Create/update bodies are strict and reject removed or unknown keys. PATCH bodies require at
   least one recognized field.
 - Controller validation, success responses, guards, and OpenAPI now share explicit route-contract
   metadata. The custom Zod pipe maps unknown keys to useful field names.
@@ -162,7 +166,7 @@ v1 API remains available during migration.
 
 ## [1.0.1] — 2026-07-15
 
-Hardens the original v1 modular monolith before the v2 cutover.
+Hardens the original modular monolith before the clean-contract cutover.
 
 ### Added
 

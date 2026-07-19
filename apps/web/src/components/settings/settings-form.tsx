@@ -7,7 +7,7 @@ import {
   avatarContentTypeSchema,
   journeyStatusSchema,
   type UserProfile,
-} from "@linkedout/contracts/v2";
+} from "@linkedout/contracts";
 
 import { errorMessage, patchMe, presignAvatar } from "@/lib/api";
 import { useMeta } from "@/components/meta-provider";

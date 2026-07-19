@@ -6,7 +6,7 @@ import type {
   MetaEnumsResponse,
   Reputation,
   UserProfile,
-} from "@linkedout/contracts/v2";
+} from "@linkedout/contracts";
 
 import { statusOption, useMeta } from "@/components/meta-provider";
 import { UserAvatar } from "@/components/user-avatar";

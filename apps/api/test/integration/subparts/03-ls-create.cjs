@@ -39,30 +39,22 @@ describe('03 · POST /ls — create (contract §4.3)', () => {
     assert.equal(l.commentCount, 0);
   });
 
-  test('applies the documented defaults (type=L, visibility=PUBLIC, isAnonymous=false, tags=[])', async () => {
+  test('applies the documented defaults', async () => {
     const res = await h.post('/ls', { cookie: author.cookie, body: VALID });
     const l = h.expectShape(res, lDetailSchema, 201);
 
     assert.equal(l.type, 'L');
     assert.equal(l.visibility, 'PUBLIC');
     assert.equal(l.isAnonymous, false);
-    assert.deepEqual(l.tags, []);
-    assert.equal(l.category, null);
-    assert.equal(l.company, null);
-    assert.equal(l.eventDate, null);
     assert.equal(l.resolvedAt, null);
   });
 
-  test('persists every optional field and coerces an ISO date-only eventDate', async () => {
+  test('persists every supported optional field', async () => {
     const res = await h.post('/ls', {
       cookie: author.cookie,
       body: {
         ...VALID,
         type: 'STORY',
-        category: 'INTERVIEWS',
-        company: 'Google',
-        tags: ['interview', 'faang'],
-        eventDate: '2026-05-10',
         visibility: 'FOLLOWERS',
         isAnonymous: false,
       },
@@ -70,10 +62,6 @@ describe('03 · POST /ls — create (contract §4.3)', () => {
     const l = h.expectShape(res, lDetailSchema, 201);
 
     assert.equal(l.type, 'STORY');
-    assert.equal(l.category, 'INTERVIEWS');
-    assert.equal(l.company, 'Google');
-    assert.deepEqual(l.tags, ['interview', 'faang']);
-    assert.equal(l.eventDate, '2026-05-10T00:00:00.000Z');
     assert.equal(l.visibility, 'FOLLOWERS');
   });
 
@@ -134,12 +122,7 @@ describe('03 · POST /ls — create (contract §4.3)', () => {
       [{ ...VALID, title: 'x'.repeat(141) }, 'title', 'too_long'],
       [{ ...VALID, story: '' }, 'story', 'too_short'],
       [{ ...VALID, story: 'x'.repeat(10_001) }, 'story', 'too_long'],
-      [{ ...VALID, company: 'x'.repeat(101) }, 'company', 'too_long'],
-      [{ ...VALID, tags: ['a', 'b', 'c', 'd', 'e', 'f'] }, 'tags', 'too_many'],
-      [{ ...VALID, tags: ['x'.repeat(31)] }, 'tags[0]', 'too_long'],
-      [{ ...VALID, tags: [''] }, 'tags[0]', 'too_short'],
       [{ ...VALID, type: 'NOPE' }, 'type', 'invalid_enum'],
-      [{ ...VALID, category: 'NOPE' }, 'category', 'invalid_enum'],
       [{ ...VALID, visibility: 'SECRET' }, 'visibility', 'invalid_enum'],
     ];
 
@@ -152,27 +135,26 @@ describe('03 · POST /ls — create (contract §4.3)', () => {
     }
   });
 
-  test('accepts boundary-valid input (140-char title, 5 tags, 30-char tag)', async () => {
+  test('accepts a boundary-valid 140-character title', async () => {
     const res = await h.post('/ls', {
       cookie: author.cookie,
       body: {
         title: 'x'.repeat(140),
         story: 'y',
-        tags: ['a'.repeat(30), 'b', 'c', 'd', 'e'],
-        company: 'z'.repeat(100),
       },
     });
     h.expectShape(res, lDetailSchema, 201);
   });
 
-  test('a null eventDate and null category are accepted', async () => {
-    const res = await h.post('/ls', {
-      cookie: author.cookie,
-      body: { ...VALID, eventDate: null, category: null, company: null },
-    });
-    const l = h.expectShape(res, lDetailSchema, 201);
-    assert.equal(l.eventDate, null);
-    assert.equal(l.category, null);
+  test('strictly rejects removed fields', async () => {
+    for (const field of ['category', 'company', 'tags', 'eventDate']) {
+      const res = await h.post('/ls', {
+        cookie: author.cookie,
+        body: { ...VALID, [field]: null },
+      });
+      const error = h.expectError(res, 400, 'VALIDATION_ERROR');
+      assert.ok(error.details.some((detail) => detail.field === field));
+    }
   });
 
   test('created Ls receive a ULID id', async () => {

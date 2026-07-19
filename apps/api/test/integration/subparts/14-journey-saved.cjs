@@ -20,10 +20,15 @@ describe('14 · L Journey (contract §4.2, FE review #4)', () => {
     other = await h.createUser({ username: 'other' });
   });
 
-  test('returns JourneyNodes oldest → newest by the effective date', async () => {
-    const late = await h.createL(me.id, { title: 'late', eventDate: iso('2026-06-01') });
-    const early = await h.createL(me.id, { title: 'early', eventDate: iso('2020-01-01') });
-    const middle = await h.createL(me.id, { title: 'middle', eventDate: iso('2023-03-03') });
+  test('returns JourneyNodes oldest → newest by createdAt', async () => {
+    const late = await h.createL(me.id, { title: 'late' });
+    const early = await h.createL(me.id, { title: 'early' });
+    const middle = await h.createL(me.id, { title: 'middle' });
+    await Promise.all([
+      h.ctx.prisma.l.update({ where: { id: late.id }, data: { createdAt: iso('2026-06-01') } }),
+      h.ctx.prisma.l.update({ where: { id: early.id }, data: { createdAt: iso('2020-01-01') } }),
+      h.ctx.prisma.l.update({ where: { id: middle.id }, data: { createdAt: iso('2023-03-03') } }),
+    ]);
 
     const res = await h.get('/users/mine/journey');
     const page = h.expectShape(res, journeySchema);
@@ -31,38 +36,20 @@ describe('14 · L Journey (contract §4.2, FE review #4)', () => {
     assert.deepEqual(page.data.map((n) => n.id), [early.id, middle.id, late.id]);
   });
 
-  test('date = eventDate ?? createdAt and is always present', async () => {
-    const dated = await h.createL(me.id, { eventDate: iso('2021-05-05') });
-    const undated = await h.createL(me.id, { eventDate: null });
-
+  test('createdAt is the sole journey timestamp', async () => {
+    const l = await h.createL(me.id);
     const res = await h.get('/users/mine/journey');
-    const nodes = h.expectShape(res, journeySchema).data;
-
-    const withDate = nodes.find((n) => n.id === dated.id);
-    assert.equal(withDate.eventDate, '2021-05-05T00:00:00.000Z');
-    assert.equal(withDate.date, '2021-05-05T00:00:00.000Z');
-
-    const withoutDate = nodes.find((n) => n.id === undated.id);
-    assert.equal(withoutDate.eventDate, null, 'eventDate stays null so the UI can say "date unknown"');
-    assert.equal(withoutDate.date, undated.createdAt.toISOString(), 'date falls back to createdAt');
+    const node = h.expectShape(res, journeySchema).data.find((item) => item.id === l.id);
+    assert.equal(node.createdAt, l.createdAt.toISOString());
+    assert.equal('date' in node, false);
+    assert.equal('eventDate' in node, false);
   });
 
-  test('an undated L sorts by its createdAt among dated ones', async () => {
-    const ancient = await h.createL(me.id, { title: 'ancient', eventDate: iso('1999-01-01') });
-    const undated = await h.createL(me.id, { title: 'undated', eventDate: null });
-
-    const res = await h.get('/users/mine/journey');
-    assert.deepEqual(
-      res.body.data.map((n) => n.id),
-      [ancient.id, undated.id],
-      'a today-created undated L sorts after a 1999 event',
-    );
-  });
-
-  test('Ls sharing a date fall back to a stable id ordering', async () => {
+  test('Ls sharing a createdAt fall back to a stable id ordering', async () => {
     const same = iso('2024-04-04');
-    const a = await h.createL(me.id, { title: 'a', eventDate: same });
-    const b = await h.createL(me.id, { title: 'b', eventDate: same });
+    const a = await h.createL(me.id, { title: 'a' });
+    const b = await h.createL(me.id, { title: 'b' });
+    await h.ctx.prisma.l.updateMany({ where: { id: { in: [a.id, b.id] } }, data: { createdAt: same } });
 
     const res = await h.get('/users/mine/journey');
     assert.deepEqual(res.body.data.map((n) => n.id), [a.id, b.id], 'ties break by id asc');
@@ -108,7 +95,11 @@ describe('14 · L Journey (contract §4.2, FE review #4)', () => {
 
   test('journey paginates ascending without gaps or duplicates', async () => {
     for (let i = 0; i < 7; i += 1) {
-      await h.createL(me.id, { title: `n${i}`, eventDate: iso(`2020-01-0${i + 1}`) });
+      const l = await h.createL(me.id, { title: `n${i}` });
+      await h.ctx.prisma.l.update({
+        where: { id: l.id },
+        data: { createdAt: iso(`2020-01-0${i + 1}`) },
+      });
     }
 
     const seen = [];
@@ -130,10 +121,14 @@ describe('14 · L Journey (contract §4.2, FE review #4)', () => {
     assert.deepEqual(dates, [...dates].sort((a, b) => a - b), 'ascending across pages');
   });
 
-  test('journey pages correctly across Ls that share the same date', async () => {
+  test('journey pages correctly across Ls that share the same createdAt', async () => {
     const same = iso('2024-04-04');
     const created = [];
-    for (let i = 0; i < 5; i += 1) created.push(await h.createL(me.id, { eventDate: same }));
+    for (let i = 0; i < 5; i += 1) created.push(await h.createL(me.id));
+    await h.ctx.prisma.l.updateMany({
+      where: { id: { in: created.map((l) => l.id) } },
+      data: { createdAt: same },
+    });
 
     const first = h.expectShape(await h.get('/users/mine/journey?limit=2'), journeySchema);
     const second = h.expectShape(

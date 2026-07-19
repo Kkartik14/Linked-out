@@ -1,7 +1,7 @@
 import { cache } from "react";
 import { redirect } from "next/navigation";
 import { connection } from "next/server";
-import type { MetaEnumsResponse } from "@linkedout/contracts/v2";
+import type { MetaEnumsResponse } from "@linkedout/contracts";
 
 import { getMe, getMeta, isApiError } from "@/lib/api";
 import { safeReturnTo } from "@/lib/auth-entry";

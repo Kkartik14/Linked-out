@@ -3,7 +3,7 @@
 import * as React from "react";
 import { useRouter } from "next/navigation";
 import { useQueryClient } from "@tanstack/react-query";
-import type { UserProfile } from "@linkedout/contracts/v2";
+import type { UserProfile } from "@linkedout/contracts";
 
 import type { ComposedPrincipal } from "@/lib/principal";
 import { subscribeSessionChanged } from "@/lib/session-channel";

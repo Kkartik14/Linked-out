@@ -106,7 +106,7 @@ test.describe("auth surface", () => {
     expect(row.username).toBeNull();
   });
 
-  // v1 silently downgraded a rejected credential to a guest response. v2 deliberately does
+  // A rejected credential must never be downgraded to a guest response. The public API deliberately does
   // not (contract §2 — "not silently treated as guest"), so every optional-auth read 401s
   // on a stale cookie, including the public feed. The app cannot clear an httpOnly cookie
   // from a Server Component (ADR 0001 §1.1), so the only recoverable answer is to offer

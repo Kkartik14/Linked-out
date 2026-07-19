@@ -10,13 +10,7 @@ import type { LWithAuthor } from './ls.repository';
 import { cleanLCore, storyPreview } from './ls-wire.mapper';
 
 function coreCard(l: LWithAuthor, viewer: LViewerContext) {
-  return {
-    ...cleanLCore(l, viewer),
-    category: l.category,
-    company: l.company,
-    tags: l.tags,
-    eventDate: l.eventDate ? l.eventDate.toISOString() : null,
-  } as const;
+  return cleanLCore(l, viewer);
 }
 
 export function toLCard(l: LWithAuthor, viewer: LViewerContext): LCard {
@@ -32,15 +26,11 @@ export function toLDetail(
 }
 
 export function toJourneyNode(l: LWithAuthor): JourneyNode {
-  const date = (l.eventDate ?? l.createdAt).toISOString();
   return {
     id: l.id,
     title: l.title,
     type: l.type,
-    category: l.category,
-    company: l.company,
-    eventDate: l.eventDate ? l.eventDate.toISOString() : null,
-    date,
+    createdAt: l.createdAt.toISOString(),
     isAnonymous: l.isAnonymous,
     resolvedAt: l.resolvedAt ? l.resolvedAt.toISOString() : null,
     reactionTotal: l.reactionCount,

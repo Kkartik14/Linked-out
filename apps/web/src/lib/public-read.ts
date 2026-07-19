@@ -1,4 +1,4 @@
-import { isSafeReturnTo } from "@linkedout/contracts/v2";
+import { isSafeReturnTo } from "@linkedout/contracts";
 import { notFound, redirect } from "next/navigation";
 
 import { isApiError } from "@/lib/api";
@@ -6,8 +6,8 @@ import { isApiError } from "@/lib/api";
 /**
  * How a public page translates an API failure into navigation.
  *
- * v2's optional-auth reads do not downgrade a presented-but-invalid credential to a guest
- * response — they reject it with `401` (contract v2 §2, "not silently treated as guest").
+ * The public API's optional-auth reads do not downgrade a presented-but-invalid credential to a guest
+ * response — they reject it with `401` (public contract §2, "not silently treated as guest").
  * A stale or corrupt `lo_access` cookie therefore fails even a public read.
  *
  * The frontend cannot clear an httpOnly cookie from a Server Component — there is no

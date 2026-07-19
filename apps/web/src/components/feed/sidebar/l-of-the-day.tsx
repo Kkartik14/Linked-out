@@ -1,7 +1,7 @@
 "use client";
 
 import Link from "next/link";
-import type { FeedSidebarResponse } from "@linkedout/contracts/v2";
+import type { FeedSidebarResponse } from "@linkedout/contracts";
 
 import { statusOption, useMeta } from "@/components/meta-provider";
 import { UserAvatar } from "@/components/user-avatar";

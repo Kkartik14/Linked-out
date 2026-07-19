@@ -1,7 +1,7 @@
 "use client";
 
 import Link from "next/link";
-import type { JourneyNode, Paginated } from "@linkedout/contracts/v2";
+import type { JourneyNode, Paginated } from "@linkedout/contracts";
 
 import { getJourney } from "@/lib/api";
 import { InfiniteList } from "@/components/infinite-list";
@@ -22,7 +22,7 @@ function TimelineNode({ node }: { node: JourneyNode }) {
         aria-hidden
         className="bg-primary ring-background absolute top-1.5 -left-[5px] size-2.5 rounded-full ring-4"
       />
-      {/* v2 orders the journey by (createdAt, id), so the label and the order agree. */}
+      {/* The public API orders the journey by (createdAt, id), so the label and the order agree. */}
       <time dateTime={node.createdAt} className="text-muted-foreground text-xs">
         {formatDate(node.createdAt)}
       </time>

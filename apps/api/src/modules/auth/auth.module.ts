@@ -5,7 +5,6 @@ import { AppConfigService } from '../../config/app-config.service';
 import { REQUEST_AUTHENTICATION } from '../../common/auth/request-authentication';
 import { JwtAuthGuard } from '../../common/guards/jwt-auth.guard';
 import { OptionalAuthGuard } from '../../common/guards/optional-auth.guard';
-import { StrictOptionalAuthGuard } from '../../common/guards/strict-optional-auth.guard';
 import { UsersModule } from '../users/users.module';
 import { BrowserSessionAuthority } from '@linkedout/session-authority';
 import { ApiAssertionSigner } from '@linkedout/internal-auth';
@@ -70,12 +69,11 @@ const githubStrategyProvider: Provider = {
     { provide: REQUEST_AUTHENTICATION, useExisting: NestRequestAuthentication },
     JwtAuthGuard,
     OptionalAuthGuard,
-    StrictOptionalAuthGuard,
     AuthService,
     JwtStrategy,
     googleStrategyProvider,
     githubStrategyProvider,
   ],
-  exports: [JwtAuthGuard, OptionalAuthGuard, StrictOptionalAuthGuard, REQUEST_AUTHENTICATION],
+  exports: [JwtAuthGuard, OptionalAuthGuard, REQUEST_AUTHENTICATION],
 })
 export class AuthModule {}

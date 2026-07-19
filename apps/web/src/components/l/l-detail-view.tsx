@@ -6,7 +6,7 @@ import { useRouter } from "next/navigation";
 import { CircleCheck, Pencil, RotateCcw, Trash2 } from "lucide-react";
 import { useMutation } from "@tanstack/react-query";
 import { toast } from "sonner";
-import type { LDetail } from "@linkedout/contracts/v2";
+import type { LDetail } from "@linkedout/contracts";
 
 import { deleteL, errorMessage, patchL } from "@/lib/api";
 import { statusOption, typeLabel, useMeta } from "@/components/meta-provider";

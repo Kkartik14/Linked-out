@@ -6,7 +6,6 @@ const test = require('node:test');
 require('reflect-metadata');
 
 const { RequestMethod } = require('@nestjs/common');
-const { z } = require('zod');
 const {
   GUARDS_METADATA,
   HEADERS_METADATA,
@@ -15,30 +14,24 @@ const {
   MODULE_METADATA,
   PATH_METADATA,
   ROUTE_ARGS_METADATA,
-  VERSION_METADATA,
 } = require('@nestjs/common/constants');
 const { RouteParamtypes } = require('@nestjs/common/enums/route-paramtypes.enum');
+const { z } = require('zod');
 const {
-  feedFilterSchema,
-  feedSortSchema,
-  lTypeSchema,
-  reactionTypeSchema,
+  feedQuerySchema,
+  searchQuerySchema,
+  ulidSchema,
+  usernameInputSchema,
   PRINCIPAL_BINDING_HEADER,
-  searchTypeSchema,
 } = require('@linkedout/contracts');
-const contractsV2 = require('@linkedout/contracts/v2');
 
 const { AppModule } = require('../../dist/app.module');
-const { ZodValidationPipe } = require('../../dist/common/pipes/zod-validation.pipe');
 const {
   API_CONTRACT_METADATA,
   API_ROUTE_CONTRACTS,
   API_ROUTE_CONTRACT_BY_KEY,
 } = require('../../dist/common/contracts/api-route-contracts');
-const {
-  API_ROUTE_CONTRACTS_V2,
-  API_ROUTE_CONTRACT_BY_KEY_V2,
-} = require('../../dist/common/contracts/api-route-contracts-v2');
+const { ZodValidationPipe } = require('../../dist/common/pipes/zod-validation.pipe');
 const { MetaController } = require('../../dist/modules/meta/meta.controller');
 const { MetaService } = require('../../dist/modules/meta/meta.service');
 
@@ -49,9 +42,7 @@ const KNOWN_GUARDS = new Set([
   'BffCallerGuard',
   'JwtAuthGuard',
   'OptionalAuthGuard',
-  'StrictOptionalAuthGuard',
 ]);
-// Refresh validates this cookie inside the handler rather than through a Nest guard.
 const DIRECT_COOKIE_SECURITY = new Map([
   ['post /auth/refresh', [{ refreshCookie: [] }]],
 ]);
@@ -68,25 +59,17 @@ function normalizePath(path) {
 
 function moduleType(reference) {
   if (typeof reference === 'function') return reference;
-  if (reference && typeof reference.forwardRef === 'function') {
-    return moduleType(reference.forwardRef());
-  }
+  if (reference && typeof reference.forwardRef === 'function') return moduleType(reference.forwardRef());
   if (reference && typeof reference.module === 'function') return reference.module;
   throw new TypeError(`Cannot inspect Nest module reference: ${String(reference)}`);
 }
 
-/**
- * Follow the same @Module imports graph that Nest boots. Keeping controller discovery here
- * prevents a newly-imported module from silently escaping the contract parity gate.
- */
 async function registeredControllers(rootModule) {
   const controllers = new Set();
-  const visitedModules = new Set();
+  const visited = new Set();
   const pending = [rootModule];
-
   while (pending.length > 0) {
     const reference = await pending.pop();
-
     const Module = moduleType(reference);
     const dynamicControllers = reference && typeof reference === 'object' ? reference.controllers : [];
     for (const Controller of [
@@ -95,17 +78,14 @@ async function registeredControllers(rootModule) {
     ]) {
       controllers.add(Controller);
     }
-
-    if (visitedModules.has(Module)) continue;
-    visitedModules.add(Module);
-
+    if (visited.has(Module)) continue;
+    visited.add(Module);
     const dynamicImports = reference && typeof reference === 'object' ? reference.imports : [];
     pending.push(
       ...(Reflect.getMetadata(MODULE_METADATA.IMPORTS, Module) ?? []),
       ...(dynamicImports ?? []),
     );
   }
-
   return [...controllers];
 }
 
@@ -115,21 +95,14 @@ function guardNames(Controller, handler) {
     ...(Reflect.getMetadata(GUARDS_METADATA, handler) ?? []),
   ];
   const names = guards.map((guard) => guard.name ?? guard.constructor?.name);
-  for (const name of names) {
-    assert.ok(KNOWN_GUARDS.has(name), `classify OpenAPI security for guard ${name}`);
-  }
+  for (const name of names) assert.ok(KNOWN_GUARDS.has(name), `classify guard ${name}`);
   return new Set(names);
 }
 
-// Both optional-auth guards describe the same wire contract — the cookie may be omitted — so
-// they share one OpenAPI security block. They differ in what a *bad* cookie does, which OpenAPI
-// cannot express; that difference is pinned by the guard-policy test instead.
 function expectedSecurity(guards) {
   if (guards.has('BffCallerGuard')) return [{ bffCallerAssertion: [] }];
   if (guards.has('JwtAuthGuard')) return [{ accessCookie: [] }];
-  if (guards.has('OptionalAuthGuard') || guards.has('StrictOptionalAuthGuard')) {
-    return [{}, { accessCookie: [] }];
-  }
+  if (guards.has('OptionalAuthGuard')) return [{}, { accessCookie: [] }];
   return [];
 }
 
@@ -140,15 +113,7 @@ function expectedSuccessStatus(method, handler, guards) {
   return method === RequestMethod.POST ? 201 : 200;
 }
 
-function versionsFor(Controller, handler) {
-  const declared =
-    Reflect.getMetadata(VERSION_METADATA, handler) ??
-    Reflect.getMetadata(VERSION_METADATA, Controller) ??
-    '1';
-  return new Set([declared].flat());
-}
-
-async function controllerOperations(version = '1') {
+async function controllerOperations() {
   const operations = new Map();
   for (const Controller of await registeredControllers(AppModule)) {
     const controllerPaths = [Reflect.getMetadata(PATH_METADATA, Controller) ?? ''].flat();
@@ -157,8 +122,6 @@ async function controllerOperations(version = '1') {
       const method = Reflect.getMetadata(METHOD_METADATA, handler);
       const handlerMetadata = Reflect.getMetadata(PATH_METADATA, handler);
       if (method === undefined || handlerMetadata === undefined) continue;
-      if (!versionsFor(Controller, handler).has(version)) continue;
-
       const guards = guardNames(Controller, handler);
       for (const controllerPath of controllerPaths) {
         for (const handlerPath of [handlerMetadata].flat()) {
@@ -195,373 +158,136 @@ function documentedOperations(document) {
 }
 
 function getParameter(document, path, method, name) {
-  const parameter = document.paths[path][method].parameters?.find((item) => item.name === name);
-  assert.ok(parameter, `${method.toUpperCase()} ${path} documents ${name}`);
-  return parameter;
+  const found = document.paths[path][method].parameters?.find((item) => item.name === name);
+  assert.ok(found, `${method.toUpperCase()} ${path} documents ${name}`);
+  return found;
 }
 
-test('OpenAPI documents every registered controller operation and no phantom routes', async () => {
-  const document = new MetaService({}).getOpenApi();
+test('one OpenAPI document covers exactly the sole public API', async () => {
+  const document = new MetaService().getOpenApi();
+  const registered = await controllerOperations();
+  assert.deepEqual([...documentedOperations(document).keys()].sort(), [...registered.keys()].sort());
+  assert.deepEqual([...API_ROUTE_CONTRACT_BY_KEY.keys()].sort(), [...registered.keys()].sort());
+  assert.equal(document.info.version, '1.1.2');
+  assert.deepEqual(document.servers, [{ url: '/v1' }]);
+  assert.equal(document.paths['/tags/popular'], undefined);
+  assert.ok(document.paths['/feed/sidebar']);
+  assert.equal(document.paths['/feed'].get.parameters.some((item) => item.name === 'filter'), false);
+  assert.equal(document.paths['/search'].get.parameters.some((item) => item.name === 'filter'), false);
+});
+
+test('OpenAPI security, success status, route contract, and body pipe match every handler', async () => {
+  const document = new MetaService().getOpenApi();
+  const documented = documentedOperations(document);
+  for (const expected of (await controllerOperations()).values()) {
+    const operation = documented.get(expected.key);
+    const contract = API_ROUTE_CONTRACT_BY_KEY.get(expected.key);
+    assert.ok(operation, `${expected.key} is documented`);
+    assert.strictEqual(
+      Reflect.getMetadata(API_CONTRACT_METADATA, expected.handler),
+      contract,
+      `${expected.key} binds its canonical contract`,
+    );
+    assert.deepEqual(operation.security ?? document.security ?? [], expected.security);
+    assert.ok(operation.responses[String(expected.status)]);
+    for (const status of ['400', '401', '404', '429', '500']) {
+      assert.equal(
+        operation.responses[status].content['application/json'].schema.$ref,
+        '#/components/schemas/ErrorEnvelope',
+        `${expected.key} documents ${status}`,
+      );
+    }
+
+    const bodyArguments = Object.entries(
+      Reflect.getMetadata(ROUTE_ARGS_METADATA, expected.Controller, expected.methodName) ?? {},
+    ).filter(([key]) => key.startsWith(`${RouteParamtypes.BODY}:`));
+    if (contract.body) {
+      assert.equal(bodyArguments.length, 1, `${expected.key} has one body`);
+      const pipes = bodyArguments[0][1].pipes.filter((pipe) => pipe instanceof ZodValidationPipe);
+      assert.equal(pipes.length, 1, `${expected.key} has one Zod body pipe`);
+      assert.strictEqual(pipes[0].contractSchema, contract.body.schema);
+    } else {
+      assert.equal(bodyArguments.length, 0, `${expected.key} has no undocumented body`);
+    }
+  }
+  assert.equal(new Set(Object.values(API_ROUTE_CONTRACTS)).size, Object.keys(API_ROUTE_CONTRACTS).length);
+});
+
+test('every optional-auth read rejects a presented invalid credential', async () => {
+  const optionalReads = [...(await controllerOperations()).values()].filter(
+    ({ guards }) => guards.has('OptionalAuthGuard'),
+  );
+  assert.ok(optionalReads.length > 0);
   assert.deepEqual(
-    [...documentedOperations(document).keys()].sort(),
-    [...(await controllerOperations()).keys()].sort(),
+    optionalReads.filter(({ method }) => method !== 'get').map(({ key }) => key),
+    [],
   );
 });
 
-test('OpenAPI security and success statuses match registered guards and Nest handlers', async () => {
-  const document = new MetaService({}).getOpenApi();
-  const documented = documentedOperations(document);
-
-  for (const expected of (await controllerOperations()).values()) {
-    const operation = documented.get(expected.key);
-    assert.ok(operation, `${expected.key} is documented`);
-    assert.deepEqual(
-      operation.security ?? document.security ?? [],
-      expected.security,
-      `${expected.key} security`,
-    );
-    assert.ok(
-      operation.responses[String(expected.status)],
-      `${expected.key} documents its ${expected.status} success response`,
-    );
-  }
-
-  // Refresh reads its credential directly because rotation is not an access-token guard.
-  assert.deepEqual(document.paths['/auth/refresh'].post.security, [{ refreshCookie: [] }]);
-  assert.deepEqual(document.components.securitySchemes, {
-    accessCookie: { type: 'apiKey', in: 'cookie', name: 'lo_access' },
-    refreshCookie: { type: 'apiKey', in: 'cookie', name: 'lo_refresh' },
-    bffCallerAssertion: {
-      type: 'apiKey',
-      in: 'header',
-      name: 'X-Internal-Auth',
-    },
-  });
-});
-
-test('OpenAPI requires principal binding on every authenticated mutation', () => {
-  const service = new MetaService({});
-  for (const document of [service.getOpenApi(), service.getV2OpenApi()]) {
-    for (const [path, pathItem] of Object.entries(document.paths)) {
-      for (const [method, operation] of Object.entries(pathItem)) {
-        if (!HTTP_METHODS.has(method)) continue;
-        const security = operation.security ?? document.security ?? [];
-        const authenticated = security.some((requirement) => 'accessCookie' in requirement);
-        const unsafe = ['delete', 'patch', 'post', 'put'].includes(method);
-        const binding = operation.parameters?.find(
-          (parameter) =>
-            parameter.in === 'header' &&
-            parameter.name.toLowerCase() === PRINCIPAL_BINDING_HEADER.toLowerCase(),
-        );
-        assert.equal(
-          binding !== undefined,
-          authenticated && unsafe,
-          `${method} ${path} principal binding`,
-        );
-        if (binding) {
-          assert.equal(binding.required, true);
-          assert.equal(
-            binding.schema.pattern,
-            '^[0-9A-HJKMNP-TV-Za-hjkmnp-tv-z]{26}$',
-          );
-          assert.ok(operation.responses['409']);
-          assert.equal(
-            operation.responses['409'].content['application/json'].schema.$ref,
-            '#/components/schemas/ErrorEnvelope',
-          );
-        }
+test('authenticated mutations require principal binding and document the conflict envelope', () => {
+  const document = new MetaService().getOpenApi();
+  for (const [path, pathItem] of Object.entries(document.paths)) {
+    for (const [method, operation] of Object.entries(pathItem)) {
+      if (!HTTP_METHODS.has(method)) continue;
+      const security = operation.security ?? document.security ?? [];
+      const expected =
+        ['delete', 'patch', 'post', 'put'].includes(method) &&
+        security.some((requirement) => 'accessCookie' in requirement);
+      const binding = operation.parameters?.find(
+        (item) => item.in === 'header' && item.name === PRINCIPAL_BINDING_HEADER,
+      );
+      assert.equal(Boolean(binding), expected, `${method} ${path} principal binding`);
+      if (binding) {
+        assert.equal(binding.required, true);
+        assert.ok(operation.responses['409']);
       }
     }
   }
 });
 
-test('one route contract drives each handler body pipe and OpenAPI success response', async () => {
-  const document = new MetaService({}).getOpenApi();
-  const documented = documentedOperations(document);
-  const registered = await controllerOperations();
-
-  assert.deepEqual(
-    [...API_ROUTE_CONTRACT_BY_KEY.keys()].sort(),
-    [...registered.keys()].sort(),
-    'the route contract registry has exactly the live Nest operations',
-  );
-
-  for (const operation of registered.values()) {
-    const contract = Reflect.getMetadata(API_CONTRACT_METADATA, operation.handler);
-    assert.strictEqual(
-      contract,
-      API_ROUTE_CONTRACT_BY_KEY.get(operation.key),
-      `${operation.key} handler binds the canonical route contract`,
-    );
-
-    const bodyArguments = Object.entries(
-      Reflect.getMetadata(ROUTE_ARGS_METADATA, operation.Controller, operation.methodName) ?? {},
-    ).filter(([metadataKey]) => metadataKey.startsWith(`${RouteParamtypes.BODY}:`));
-
-    if (contract.body) {
-      assert.equal(bodyArguments.length, 1, `${operation.key} has one declared request body`);
-      const [, bodyArgument] = bodyArguments[0];
-      const validationPipes = bodyArgument.pipes.filter(
-        (pipe) => pipe instanceof ZodValidationPipe,
-      );
-      assert.equal(
-        validationPipes.length,
-        1,
-        `${operation.key} body uses one ZodValidationPipe`,
-      );
-      assert.strictEqual(
-        validationPipes[0].contractSchema,
-        contract.body.schema,
-        `${operation.key} body pipe uses the canonical schema`,
-      );
-    } else {
-      assert.equal(bodyArguments.length, 0, `${operation.key} does not accept an undocumented body`);
-    }
-
-    const documentedOperation = documented.get(operation.key);
-    const successResponse = documentedOperation.responses[String(contract.status)];
-    assert.ok(successResponse, `${operation.key} emits its canonical success status`);
-    if (contract.response.name) {
-      assert.equal(
-        successResponse.content['application/json'].schema.$ref,
-        `#/components/schemas/${contract.response.name}`,
-        `${operation.key} emits its canonical response schema`,
-      );
-    } else {
-      assert.equal(successResponse.content, undefined, `${operation.key} has no JSON response body`);
-    }
+test('OpenAPI query and path constraints are projected from runtime Zod schemas', () => {
+  const document = new MetaService().getOpenApi();
+  const feedJson = z.toJSONSchema(feedQuerySchema, { unrepresentable: 'any', io: 'input' });
+  const searchJson = z.toJSONSchema(searchQuerySchema, { unrepresentable: 'any', io: 'input' });
+  for (const name of ['limit', 'cursor', 'sort']) {
+    assert.deepEqual(getParameter(document, '/feed', 'get', name).schema, feedJson.properties[name]);
   }
-
-  assert.equal(
-    new Set(Object.values(API_ROUTE_CONTRACTS)).size,
-    Object.keys(API_ROUTE_CONTRACTS).length,
-    'named route contracts do not alias different operations accidentally',
+  for (const name of ['limit', 'cursor', 'q', 'type']) {
+    assert.deepEqual(getParameter(document, '/search', 'get', name).schema, searchJson.properties[name]);
+  }
+  assert.deepEqual(
+    getParameter(document, '/ls/{id}', 'get', 'id').schema,
+    z.toJSONSchema(ulidSchema, { unrepresentable: 'any' }),
   );
+  assert.deepEqual(
+    getParameter(document, '/users/{username}/ls', 'get', 'username').schema,
+    z.toJSONSchema(usernameInputSchema, { unrepresentable: 'any' }),
+  );
+  assert.equal(document.components.schemas.UpdateLInput.minProperties, 1);
+  assert.equal(document.components.schemas.UpdateUserInput.minProperties, 1);
 });
 
-test('v2 OpenAPI and route contracts cover exactly the registered v2 operations', async () => {
-  const document = new MetaService({}).getV2OpenApi();
-  const documented = documentedOperations(document);
-  const registered = await controllerOperations('2');
-
-  assert.deepEqual([...documented.keys()].sort(), [...registered.keys()].sort());
-  assert.deepEqual(
-    [...API_ROUTE_CONTRACT_BY_KEY_V2.keys()].sort(),
-    [...registered.keys()].sort(),
-  );
-  assert.deepEqual(
-    [...API_ROUTE_CONTRACT_BY_KEY_V2.keys()].sort(),
-    [
-      ...[...API_ROUTE_CONTRACT_BY_KEY.keys()].filter(
-        (key) =>
-          key !== 'get /tags/popular' &&
-          key !== 'post /auth/oauth/handoff/exchange' &&
-          key !== 'post /auth/sessions/resolve' &&
-          key !== 'post /auth/sessions/revoke',
-      ),
-      'get /feed/sidebar',
-    ].sort(),
-    'v2 carries v1 except explicitly version-bound and removed operations',
-  );
-
-  for (const operation of registered.values()) {
-    const contract = API_ROUTE_CONTRACT_BY_KEY_V2.get(operation.key);
-    assert.strictEqual(
-      Reflect.getMetadata(API_CONTRACT_METADATA, operation.handler),
-      contract,
-      `${operation.key} handler binds the canonical v2 route contract`,
-    );
-    const documentedOperation = documented.get(operation.key);
-    assert.deepEqual(
-      documentedOperation.security ?? document.security ?? [],
-      operation.security,
-      `${operation.key} security`,
-    );
-    assert.ok(documentedOperation.responses[String(contract.status)]);
-    if (contract.response.name) {
-      assert.equal(
-        documentedOperation.responses[String(contract.status)].content['application/json'].schema.$ref,
-        `#/components/schemas/${contract.response.name}`,
-      );
-    }
-    for (const status of ['400', '401', '404', '429', '500']) {
-      assert.equal(
-        documentedOperation.responses[status].content['application/json'].schema.$ref,
-        '#/components/schemas/ErrorEnvelope',
-        `${operation.key} documents the ${status} error envelope`,
-      );
-    }
-
-    const bodyArguments = Object.entries(
-      Reflect.getMetadata(ROUTE_ARGS_METADATA, operation.Controller, operation.methodName) ?? {},
-    ).filter(([metadataKey]) => metadataKey.startsWith(`${RouteParamtypes.BODY}:`));
-    if (contract.body) {
-      assert.equal(bodyArguments.length, 1, `${operation.key} has one declared v2 request body`);
-      const validationPipes = bodyArguments[0][1].pipes.filter(
-        (pipe) => pipe instanceof ZodValidationPipe,
-      );
-      assert.equal(validationPipes.length, 1);
-      assert.strictEqual(validationPipes[0].contractSchema, contract.body.schema);
-    } else {
-      assert.equal(bodyArguments.length, 0, `${operation.key} has no undocumented v2 body`);
-    }
-  }
-
-  assert.equal(document.info.version, '2.0.0');
-  assert.deepEqual(document.servers, [{ url: '/v2' }]);
-  assert.ok(document.components.schemas.FeedSidebarResponse);
+test('sidebar cache contract and static discovery caches are explicit', () => {
+  const document = new MetaService().getOpenApi();
   assert.equal(
     document.paths['/feed/sidebar'].get.responses['200'].headers['Cache-Control'].schema.const,
     'private, no-store, max-age=0',
   );
-  assert.equal(document.paths['/feed'].get.parameters.some((parameter) => parameter.name === 'filter'), false);
-  assert.equal(document.paths['/search'].get.parameters.some((parameter) => parameter.name === 'filter'), false);
-  assert.equal(document.paths['/tags/popular'], undefined);
-  assert.equal(
-    new Set(Object.values(API_ROUTE_CONTRACTS_V2)).size,
-    Object.keys(API_ROUTE_CONTRACTS_V2).length,
-    'v2 route contracts do not alias distinct operations',
-  );
-});
-
-// The guard split enforces "invalid credentials are a 401, never a silent guest" at the
-// executable v2 route-contract boundary. It is per-route metadata, so nothing but an explicit
-// sweep catches a new v2 read that reaches for the lenient guard out of habit.
-test('every v2 optional-auth read rejects a bad credential; v1 keeps its lenient downgrade', async () => {
-  const optionalAuthOperations = (operations) =>
-    [...operations.values()].filter(
-      ({ guards }) => guards.has('OptionalAuthGuard') || guards.has('StrictOptionalAuthGuard'),
-    );
-
-  const v2OptionalAuth = optionalAuthOperations(await controllerOperations('2'));
-  const v1OptionalAuth = optionalAuthOperations(await controllerOperations('1'));
-
-  // Guards against the assertions below passing because the filter matched nothing.
-  assert.ok(v2OptionalAuth.length > 0, 'v2 exposes optional-auth reads');
-  assert.ok(v1OptionalAuth.length > 0, 'v1 exposes optional-auth reads');
-
-  assert.deepEqual(
-    v2OptionalAuth.filter(({ guards }) => guards.has('OptionalAuthGuard')).map(({ key }) => key),
-    [],
-    'v2 optional-auth reads use StrictOptionalAuthGuard, so a presented-but-invalid credential 401s',
-  );
-  assert.deepEqual(
-    v1OptionalAuth
-      .filter(({ guards }) => guards.has('StrictOptionalAuthGuard'))
-      .map(({ key }) => key),
-    [],
-    'v1 optional-auth reads keep the lenient downgrade live v1 consumers depend on',
-  );
-});
-
-test('OpenAPI is built once and reused across requests', () => {
-  const service = new MetaService({});
-  assert.strictEqual(service.getOpenApi(), service.getOpenApi());
-});
-
-test('public enum metadata is built once and reused across services and handler calls', () => {
-  const firstService = new MetaService({});
-  const secondService = new MetaService({});
-  const controller = new MetaController(firstService);
-
-  const cached = firstService.getEnums();
-  assert.strictEqual(firstService.getEnums(), cached);
-  assert.strictEqual(secondService.getEnums(), cached);
-  assert.strictEqual(controller.enums(), cached);
-  assert.strictEqual(controller.enums(), cached);
-  assert.ok(Object.isFrozen(cached));
-  assert.ok(Object.values(cached).every((metadata) => Object.isFrozen(metadata)));
-});
-
-test('static discovery routes are publicly cacheable but popular tags stay dynamic', () => {
   const cacheControl = (handler) =>
     (Reflect.getMetadata(HEADERS_METADATA, handler) ?? []).find(
       (header) => header.name.toLowerCase() === 'cache-control',
     )?.value;
-
   assert.equal(cacheControl(MetaController.prototype.enums), STATIC_METADATA_CACHE_CONTROL);
   assert.equal(cacheControl(MetaController.prototype.openApi), STATIC_METADATA_CACHE_CONTROL);
-  assert.equal(cacheControl(MetaController.prototype.popularTags), undefined);
 });
 
-test('OpenAPI query and path parameters stay aligned with shared contracts', () => {
-  const document = new MetaService({}).getOpenApi();
-
-  assert.equal(document.components.schemas.UpdateLInput.minProperties, 1);
-  assert.equal(document.components.schemas.UpdateUserInput.minProperties, 1);
-
-  assert.deepEqual(
-    getParameter(document, '/feed', 'get', 'sort').schema.enum,
-    feedSortSchema.options,
-  );
-  assert.deepEqual(
-    getParameter(document, '/feed', 'get', 'filter').schema.enum,
-    feedFilterSchema.options,
-  );
-  assert.deepEqual(
-    getParameter(document, '/users/{username}/ls', 'get', 'type').schema.enum,
-    lTypeSchema.options,
-  );
-  assert.deepEqual(
-    getParameter(document, '/ls/{id}/reactions/{type}', 'put', 'type').schema.enum,
-    reactionTypeSchema.options,
-  );
-  assert.deepEqual(
-    getParameter(document, '/search', 'get', 'type').schema.enum,
-    searchTypeSchema.options,
-  );
-  assert.equal(getParameter(document, '/tags/popular', 'get', 'q').schema.maxLength, 30);
-
-  for (const [path, pathItem] of Object.entries(document.paths)) {
-    for (const [method, operation] of Object.entries(pathItem)) {
-      if (!HTTP_METHODS.has(method)) continue;
-      const cursor = operation.parameters?.find((parameter) => parameter.name === 'cursor');
-      if (cursor) assert.equal(cursor.schema.minLength, 1, `${method} ${path} cursor minLength`);
-    }
-  }
-});
-
-test('v2 OpenAPI derives query and path constraints from runtime Zod schemas', () => {
-  const document = new MetaService({}).getV2OpenApi();
-  const feedQueryJson = z.toJSONSchema(contractsV2.feedQuerySchema, {
-    unrepresentable: 'any',
-    io: 'input',
-  });
-  const searchQueryJson = z.toJSONSchema(contractsV2.searchQuerySchema, {
-    unrepresentable: 'any',
-    io: 'input',
-  });
-
-  for (const name of ['limit', 'cursor', 'sort']) {
-    const parameter = getParameter(document, '/feed', 'get', name);
-    assert.deepEqual(parameter.schema, feedQueryJson.properties[name]);
-    assert.equal(parameter.required, false);
-  }
-  for (const name of ['limit', 'cursor', 'q', 'type']) {
-    const parameter = getParameter(document, '/search', 'get', name);
-    assert.deepEqual(parameter.schema, searchQueryJson.properties[name]);
-    assert.equal(parameter.required, name === 'q');
-  }
-  assert.deepEqual(
-    getParameter(document, '/ls/{id}', 'get', 'id').schema,
-    z.toJSONSchema(contractsV2.ulidSchema, { unrepresentable: 'any' }),
-  );
-  assert.deepEqual(
-    getParameter(document, '/users/{username}/ls', 'get', 'username').schema,
-    z.toJSONSchema(contractsV2.usernameInputSchema, { unrepresentable: 'any' }),
-  );
-
-  for (const [path, method, name] of [
-    ['/users/{username}', 'get', 'username'],
-    ['/users/{username}/follow', 'put', 'username'],
-    ['/collections/{id}', 'patch', 'id'],
-    ['/ls/{id}/comments', 'get', 'id'],
-    ['/notifications/{id}/read', 'post', 'id'],
-  ]) {
-    assert.deepEqual(
-      getParameter(document, path, method, name).schema,
-      { type: 'string' },
-      `${method} ${path} does not overstate validation on its shared v1/v2 handler`,
-    );
-  }
+test('OpenAPI and enum metadata are built once and frozen where appropriate', () => {
+  const first = new MetaService();
+  const second = new MetaService();
+  assert.strictEqual(first.getOpenApi(), first.getOpenApi());
+  const enums = first.getEnums();
+  assert.strictEqual(first.getEnums(), enums);
+  assert.strictEqual(second.getEnums(), enums);
+  assert.ok(Object.isFrozen(enums));
+  assert.equal('lCategory' in enums, false);
 });

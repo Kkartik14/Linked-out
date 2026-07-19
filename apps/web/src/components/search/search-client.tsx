@@ -3,7 +3,7 @@
 import * as React from "react";
 import { usePathname, useRouter, useSearchParams } from "next/navigation";
 import { Search } from "lucide-react";
-import type { LCard as LCardType, Paginated, UserSummary } from "@linkedout/contracts/v2";
+import type { LCard as LCardType, Paginated, UserSummary } from "@linkedout/contracts";
 
 import { searchLs, searchUsers } from "@/lib/api";
 import { InfiniteList } from "@/components/infinite-list";
@@ -16,7 +16,7 @@ import { usePrincipal } from "@/components/session-provider";
 import { queryKeys } from "@/lib/query-keys";
 
 /**
- * v2 search takes `q` and `type` only: L results are always relevance-ranked, and the
+ * Public API search takes `q` and `type` only: L results are always relevance-ranked, and the
  * category filter chips are gone with the rest of the category concept.
  */
 export function SearchClient({

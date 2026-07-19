@@ -1,11 +1,14 @@
 import { z } from 'zod';
 import {
-  feedFilterSchema,
-  feedSortSchema,
-  lTypeSchema,
+  feedQuerySchema,
+  journeyQuerySchema,
+  paginationQuerySchema,
   PRINCIPAL_BINDING_HEADER,
   reactionTypeSchema,
-  searchTypeSchema,
+  searchQuerySchema,
+  ulidSchema,
+  userLsQuerySchema,
+  usernameInputSchema,
 } from '@linkedout/contracts';
 
 import {
@@ -18,174 +21,181 @@ export type JsonValue = JsonPrimitive | JsonObject | JsonValue[];
 export type JsonObject = { [key: string]: JsonValue };
 export type OpenApiDocument = JsonObject;
 
-function schemaRef(name: string): { $ref: string } {
+function ref(name: string): JsonObject {
   return { $ref: `#/components/schemas/${name}` };
 }
 
-function jsonResponse(schemaName: string, description = 'OK'): JsonObject {
-  return {
-    description,
-    content: { 'application/json': { schema: schemaRef(schemaName) } },
-  };
+function jsonResponse(name: string, description = 'OK'): JsonObject {
+  return { description, content: { 'application/json': { schema: ref(name) } } };
 }
 
-function jsonBody(schemaName: string, required = true): JsonObject {
-  return {
-    required,
-    content: { 'application/json': { schema: schemaRef(schemaName) } },
-  };
-}
-
-function pathParam(
+function parameter(
   name: string,
+  location: 'header' | 'path' | 'query',
   schema: JsonObject = { type: 'string' },
+  required = location === 'path',
 ): JsonObject {
-  return { name, in: 'path', required: true, schema };
+  return { name, in: location, required, schema };
 }
 
-function queryParam(
-  name: string,
-  schema: JsonObject = { type: 'string' },
-  required = false,
-) {
-  return { name, in: 'query', required, schema };
-}
-
-function jsonSchemas(): Record<string, JsonObject> {
-  return Object.fromEntries(
-    Object.entries(API_COMPONENT_SCHEMAS).map(([name, schema]) => {
-      const jsonSchema = z.toJSONSchema(schema, { unrepresentable: 'any' });
-      // Zod refinements are not representable in JSON Schema. Preserve the non-empty PATCH
-      // invariant explicitly at the one component-generation seam.
-      if (name === 'UpdateLInput' || name === 'UpdateUserInput') {
-        Object.assign(jsonSchema, { minProperties: 1 });
-      }
-      return [name, jsonSchema as JsonObject];
-    }),
-  );
-}
-
-type OpenApiOperation = JsonObject & {
-  parameters?: JsonObject[];
+type Operation = JsonObject & {
   security?: JsonObject[];
+  parameters?: JsonObject[];
   requestBody?: JsonObject;
   responses?: Record<string, JsonObject>;
 };
 
-function applyRouteContracts(
-  paths: Record<string, Record<string, OpenApiOperation>>,
-): Record<string, Record<string, OpenApiOperation>> {
+function schemaObject(schema: z.ZodType): JsonObject {
+  return z.toJSONSchema(schema, { unrepresentable: 'any' }) as JsonObject;
+}
+
+function inputSchemaObject(schema: z.ZodType): JsonObject {
+  return z.toJSONSchema(schema, { unrepresentable: 'any', io: 'input' }) as JsonObject;
+}
+
+function isJsonObject(value: JsonValue | undefined): value is JsonObject {
+  return value !== null && typeof value === 'object' && !Array.isArray(value);
+}
+
+/** Project OpenAPI parameters from the same Zod query objects used by controllers. */
+function queryParameters(schema: z.ZodType): JsonObject[] {
+  const json = inputSchemaObject(schema);
+  if (!isJsonObject(json.properties)) throw new Error('Query schema must expose object properties');
+  const required = new Set(
+    Array.isArray(json.required)
+      ? json.required.filter((name): name is string => typeof name === 'string')
+      : [],
+  );
+  return Object.entries(json.properties).map(([name, propertySchema]) => {
+    if (!isJsonObject(propertySchema)) {
+      throw new Error(`Query parameter ${name} must have an object schema`);
+    }
+    return parameter(name, 'query', propertySchema, required.has(name));
+  });
+}
+
+function applyContracts(paths: Record<string, Record<string, Operation>>) {
   for (const contract of API_ROUTE_CONTRACT_BY_KEY.values()) {
     const separator = contract.key.indexOf(' ');
     const method = contract.key.slice(0, separator);
     const path = contract.key.slice(separator + 1);
     const operation = paths[path]?.[method];
     if (!operation) throw new Error(`Route contract has no OpenAPI operation: ${contract.key}`);
-    if (operation.requestBody !== undefined) {
-      throw new Error(`OpenAPI request body must come from the route contract: ${contract.key}`);
-    }
     if (contract.body) {
-      operation.requestBody = jsonBody(contract.body.name, contract.body.required);
+      operation.requestBody = {
+        required: contract.body.required,
+        content: { 'application/json': { schema: ref(contract.body.name) } },
+      };
     }
     const security = operation.security ?? [{ accessCookie: [] }];
     const bindsPrincipal =
       ['delete', 'patch', 'post', 'put'].includes(method) &&
       security.some((requirement) => 'accessCookie' in requirement);
     if (bindsPrincipal) {
-      operation.parameters = [...(operation.parameters ?? []), principalBindingParam];
+      operation.parameters = [
+        ...(operation.parameters ?? []),
+        parameter(PRINCIPAL_BINDING_HEADER, 'header', schemaObject(ulidSchema), true),
+      ];
     }
-
-    const responses = operation.responses ?? {};
-    if (bindsPrincipal && responses['409'] === undefined) {
-      responses['409'] = jsonResponse('ErrorEnvelope', 'Authenticated principal changed');
-    }
-    const status = String(contract.status);
-    if (responses[status] !== undefined) {
-      throw new Error(`OpenAPI success response must come from the route contract: ${contract.key}`);
-    }
-    responses[status] = contract.response.name
+    operation.responses = {
+      400: jsonResponse('ErrorEnvelope', 'Invalid request'),
+      401: jsonResponse('ErrorEnvelope', 'Authentication failed'),
+      404: jsonResponse('ErrorEnvelope', 'Resource not found'),
+      ...(bindsPrincipal
+        ? { 409: jsonResponse('ErrorEnvelope', 'Authenticated principal changed') }
+        : {}),
+      429: {
+        ...jsonResponse('ErrorEnvelope', 'Rate limited'),
+        headers: { 'Retry-After': { schema: { type: 'integer', minimum: 1 } } },
+      },
+      500: jsonResponse('ErrorEnvelope', 'Internal server error'),
+      ...operation.responses,
+    };
+    const success = contract.response.name
       ? jsonResponse(contract.response.name, contract.response.description)
       : { description: contract.response.description };
-    operation.responses = responses;
+    if (contract.key === 'get /feed/sidebar') {
+      Object.assign(success, {
+        headers: {
+          'Cache-Control': {
+            schema: { type: 'string', const: 'private, no-store, max-age=0' },
+          },
+        },
+      });
+    }
+    operation.responses[String(contract.status)] = success;
   }
   return paths;
 }
 
-const paginationParams = [
-  queryParam('limit', { type: 'integer', minimum: 1, maximum: 50, default: 20 }),
-  queryParam('cursor', { type: 'string', minLength: 1 }),
-];
-const journeyPaginationParams = [
-  queryParam('limit', { type: 'integer', minimum: 1, maximum: 100, default: 30 }),
-  queryParam('cursor', { type: 'string', minLength: 1 }),
-];
-const oauthReturnToParam = queryParam('returnTo', {
-  type: 'string',
-  maxLength: 512,
-  pattern: '^/(?!/)(?!.*\\\\)(?!.*[\\x00-\\x1f\\x7f]).*',
-});
-const principalBindingParam = {
-  name: PRINCIPAL_BINDING_HEADER,
-  in: 'header',
-  required: true,
-  description: 'Principal that rendered or composed this mutation.',
-  schema: { type: 'string', pattern: '^[0-9A-HJKMNP-TV-Za-hjkmnp-tv-z]{26}$' },
-};
-const feedSortParam = queryParam('sort', {
-  type: 'string',
-  enum: feedSortSchema.options,
-  default: 'latest',
-});
+const pagination = queryParameters(paginationQuerySchema());
+const journeyPagination = queryParameters(journeyQuerySchema);
+const optionalAuth: JsonObject[] = [{}, { accessCookie: [] }];
+const usernamePath = () => parameter('username', 'path', schemaObject(usernameInputSchema));
+const idPath = (name = 'id') => parameter(name, 'path', schemaObject(ulidSchema));
 
 export function buildOpenApiDocument(): OpenApiDocument {
+  const schemas = Object.fromEntries(
+    Object.entries(API_COMPONENT_SCHEMAS).map(([name, schema]) => {
+      const json = schemaObject(schema);
+      if (name === 'UpdateLInput' || name === 'UpdateUserInput') {
+        Object.assign(json, { minProperties: 1 });
+      }
+      return [name, json];
+    }),
+  );
+
   return {
     openapi: '3.1.0',
-    info: { title: 'LinkedOut API', version: '1.1.0' },
+    info: { title: 'LinkedOut API', version: '1.1.2' },
     servers: [{ url: '/v1' }],
-    // Authenticated is the safe default. Public and optionally-authenticated operations
-    // override this locally; the route-parity test checks the effective value against guards.
     security: [{ accessCookie: [] }],
-    paths: applyRouteContracts({
+    paths: applyContracts({
       '/auth/google': {
         get: {
           security: [],
-          parameters: [oauthReturnToParam],
+          parameters: [
+            parameter(
+              'returnTo',
+              'query',
+              {
+                type: 'string',
+                maxLength: 512,
+                pattern: '^/(?!/)(?!.*\\\\)(?!.*[\\x00-\\x1f\\x7f]).*',
+              },
+              false,
+            ),
+          ],
         },
       },
       '/auth/github': {
         get: {
           security: [],
-          parameters: [oauthReturnToParam],
+          parameters: [
+            parameter(
+              'returnTo',
+              'query',
+              {
+                type: 'string',
+                maxLength: 512,
+                pattern: '^/(?!/)(?!.*\\\\)(?!.*[\\x00-\\x1f\\x7f]).*',
+              },
+              false,
+            ),
+          ],
         },
       },
-      '/auth/google/callback': {
-        get: {
-          security: [],
-        },
-      },
-      '/auth/github/callback': {
-        get: {
-          security: [],
-        },
-      },
-      '/auth/me': {
-        get: {
-          security: [{}, { accessCookie: [] }],
-        },
-      },
-      '/auth/refresh': {
-        post: {
-          security: [{ refreshCookie: [] }],
-        },
-      },
+      '/auth/google/callback': { get: { security: [] } },
+      '/auth/github/callback': { get: { security: [] } },
+      '/auth/me': { get: { security: optionalAuth } },
+      '/auth/refresh': { post: { security: [{ refreshCookie: [] }] } },
       '/auth/logout': { post: { security: [] } },
       '/auth/oauth/handoff/exchange': {
         post: {
           security: [{ bffCallerAssertion: [] }],
           tags: ['internal-auth'],
           'x-internal': true,
-          description:
-            'Private BFF exchange; requires network isolation in addition to the assertion.',
+          description: 'Private BFF exchange; deployment also requires network isolation.',
         },
       },
       '/auth/sessions/resolve': {
@@ -193,8 +203,7 @@ export function buildOpenApiDocument(): OpenApiDocument {
           security: [{ bffCallerAssertion: [] }],
           tags: ['internal-auth'],
           'x-internal': true,
-          description:
-            'Private BFF session resolution and API-assertion issuance; deployment requires network isolation.',
+          description: 'Private BFF session resolution; deployment also requires network isolation.',
         },
       },
       '/auth/sessions/revoke': {
@@ -202,241 +211,90 @@ export function buildOpenApiDocument(): OpenApiDocument {
           security: [{ bffCallerAssertion: [] }],
           tags: ['internal-auth'],
           'x-internal': true,
-          description:
-            'Private idempotent BFF session revocation; deployment requires network isolation.',
+          description: 'Private BFF session revocation; deployment also requires network isolation.',
         },
       },
-
-      '/users/me': {
-        patch: {
-        },
-      },
+      '/users/me': { patch: {} },
       '/users/{username}': {
-        get: {
-          security: [{}, { accessCookie: [] }],
-          parameters: [pathParam('username')],
-        },
+        get: { security: optionalAuth, parameters: [usernamePath()] },
       },
       '/users/{username}/ls': {
         get: {
-          security: [{}, { accessCookie: [] }],
-          parameters: [
-            pathParam('username'),
-            queryParam('type', { type: 'string', enum: lTypeSchema.options }),
-            ...paginationParams,
-          ],
+          security: optionalAuth,
+          parameters: [usernamePath(), ...queryParameters(userLsQuerySchema)],
         },
       },
       '/users/{username}/journey': {
-        get: {
-          security: [{}, { accessCookie: [] }],
-          parameters: [pathParam('username'), ...journeyPaginationParams],
-        },
+        get: { security: optionalAuth, parameters: [usernamePath(), ...journeyPagination] },
       },
       '/users/{username}/collections': {
-        get: {
-          security: [{}, { accessCookie: [] }],
-          parameters: [pathParam('username'), ...paginationParams],
-        },
+        get: { security: optionalAuth, parameters: [usernamePath(), ...pagination] },
       },
       '/users/{username}/followers': {
-        get: {
-          security: [{}, { accessCookie: [] }],
-          parameters: [pathParam('username'), ...paginationParams],
-        },
+        get: { security: optionalAuth, parameters: [usernamePath(), ...pagination] },
       },
       '/users/{username}/following': {
-        get: {
-          security: [{}, { accessCookie: [] }],
-          parameters: [pathParam('username'), ...paginationParams],
-        },
+        get: { security: optionalAuth, parameters: [usernamePath(), ...pagination] },
       },
       '/users/{username}/follow': {
-        put: {
-          parameters: [pathParam('username')],
-        },
-        delete: {
-          parameters: [pathParam('username')],
-        },
+        put: { parameters: [usernamePath()] },
+        delete: { parameters: [usernamePath()] },
       },
-
-      '/ls': {
-        post: {},
-      },
+      '/ls': { post: {} },
       '/ls/{id}': {
-        get: {
-          security: [{}, { accessCookie: [] }],
-          parameters: [pathParam('id')],
-        },
-        patch: {
-          parameters: [pathParam('id')],
-        },
-        delete: {
-          parameters: [pathParam('id')],
-        },
+        get: { security: optionalAuth, parameters: [idPath()] },
+        patch: { parameters: [idPath()] },
+        delete: { parameters: [idPath()] },
       },
       '/ls/{id}/reactions/{type}': {
-        put: {
-          parameters: [
-            pathParam('id'),
-            pathParam('type', { type: 'string', enum: reactionTypeSchema.options }),
-          ],
-        },
+        put: { parameters: [idPath(), parameter('type', 'path', schemaObject(reactionTypeSchema))] },
         delete: {
-          parameters: [
-            pathParam('id'),
-            pathParam('type', { type: 'string', enum: reactionTypeSchema.options }),
-          ],
+          parameters: [idPath(), parameter('type', 'path', schemaObject(reactionTypeSchema))],
         },
       },
-      '/me/saved': {
-        get: {
-          parameters: paginationParams,
-        },
-      },
-
-      '/feed': {
-        get: {
-          security: [{}, { accessCookie: [] }],
-          parameters: [
-            feedSortParam,
-            queryParam('filter', { type: 'string', enum: feedFilterSchema.options }),
-            ...paginationParams,
-          ],
-        },
-      },
-      '/feed/following': {
-        get: {
-          parameters: [
-            feedSortParam,
-            queryParam('filter', { type: 'string', enum: feedFilterSchema.options }),
-            ...paginationParams,
-          ],
-        },
-      },
-
+      '/me/saved': { get: { parameters: pagination } },
+      '/feed': { get: { security: optionalAuth, parameters: queryParameters(feedQuerySchema) } },
+      '/feed/following': { get: { parameters: queryParameters(feedQuerySchema) } },
+      '/feed/sidebar': { get: { security: optionalAuth } },
       '/ls/{id}/comments': {
-        get: {
-          security: [{}, { accessCookie: [] }],
-          parameters: [pathParam('id'), ...paginationParams],
-        },
-        post: {
-          parameters: [pathParam('id')],
-        },
+        get: { security: optionalAuth, parameters: [idPath(), ...pagination] },
+        post: { parameters: [idPath()] },
       },
       '/comments/{id}/replies': {
-        get: {
-          security: [{}, { accessCookie: [] }],
-          parameters: [pathParam('id'), ...paginationParams],
-        },
-        post: {
-          parameters: [pathParam('id')],
-        },
+        get: { security: optionalAuth, parameters: [idPath(), ...pagination] },
+        post: { parameters: [idPath()] },
       },
-      '/comments/{id}': {
-        delete: {
-          parameters: [pathParam('id')],
-        },
-      },
-
-      '/collections': {
-        post: {},
-      },
+      '/comments/{id}': { delete: { parameters: [idPath()] } },
+      '/collections': { post: {} },
       '/collections/{id}': {
-        get: {
-          security: [{}, { accessCookie: [] }],
-          parameters: [pathParam('id')],
-        },
-        patch: {
-          parameters: [pathParam('id')],
-        },
-        delete: {
-          parameters: [pathParam('id')],
-        },
+        get: { security: optionalAuth, parameters: [idPath()] },
+        patch: { parameters: [idPath()] },
+        delete: { parameters: [idPath()] },
       },
       '/collections/{id}/ls/{lId}': {
-        put: {
-          parameters: [pathParam('id'), pathParam('lId')],
-        },
-        delete: {
-          parameters: [pathParam('id'), pathParam('lId')],
-        },
+        put: { parameters: [idPath(), idPath('lId')] },
+        delete: { parameters: [idPath(), idPath('lId')] },
       },
-
       '/uploads/avatar': {
-        post: {
-          responses: {
-            503: jsonResponse('ErrorEnvelope', 'Uploads disabled'),
-          },
-        },
+        post: { responses: { 503: jsonResponse('ErrorEnvelope', 'Uploads disabled') } },
       },
       '/search': {
-        get: {
-          security: [{}, { accessCookie: [] }],
-          parameters: [
-            queryParam('q', { type: 'string', minLength: 1, maxLength: 100 }, true),
-            queryParam('type', {
-              type: 'string',
-              enum: searchTypeSchema.options,
-              default: 'ls',
-            }),
-            queryParam('filter', {
-              type: 'string',
-              enum: feedFilterSchema.options,
-            }),
-            ...paginationParams,
-          ],
-        },
+        get: { security: optionalAuth, parameters: queryParameters(searchQuerySchema) },
       },
-      '/notifications': {
-        get: {
-          parameters: paginationParams,
-        },
-      },
-      '/notifications/unread-count': {
-        get: {},
-      },
-      '/notifications/{id}/read': {
-        post: {
-          parameters: [pathParam('id')],
-        },
-      },
-      '/notifications/read-all': {
-        post: {},
-      },
-      '/meta/enums': {
-        get: { security: [] },
-      },
-      '/tags/popular': {
-        get: {
-          security: [],
-          parameters: [
-            queryParam('q', { type: 'string', maxLength: 30 }),
-            queryParam('limit', { type: 'integer', minimum: 1, maximum: 20, default: 10 }),
-          ],
-        },
-      },
-      '/openapi.json': {
-        get: { security: [] },
-      },
+      '/notifications': { get: { parameters: pagination } },
+      '/notifications/unread-count': { get: {} },
+      '/notifications/{id}/read': { post: { parameters: [idPath()] } },
+      '/notifications/read-all': { post: {} },
+      '/meta/enums': { get: { security: [] } },
+      '/openapi.json': { get: { security: [] } },
     }),
     components: {
       securitySchemes: {
         accessCookie: { type: 'apiKey', in: 'cookie', name: 'lo_access' },
         refreshCookie: { type: 'apiKey', in: 'cookie', name: 'lo_refresh' },
-        bffCallerAssertion: {
-          type: 'apiKey',
-          in: 'header',
-          name: 'X-Internal-Auth',
-        },
+        bffCallerAssertion: { type: 'apiKey', in: 'header', name: 'X-Internal-Auth' },
       },
-      schemas: jsonSchemas(),
-      responses: {
-        Error: {
-          description: 'Standard error envelope',
-          content: { 'application/json': { schema: schemaRef('ErrorEnvelope') } },
-        },
-      },
+      schemas,
     },
   };
 }

@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import { screen, waitFor } from "@testing-library/react";
-import type { Paginated } from "@linkedout/contracts/v2";
+import type { Paginated } from "@linkedout/contracts";
 
 import { InfiniteList } from "@/components/infinite-list";
 import { renderWithProviders } from "@/test/utils";

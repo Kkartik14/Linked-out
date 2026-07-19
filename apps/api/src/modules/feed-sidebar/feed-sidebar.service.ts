@@ -1,10 +1,10 @@
 import { Injectable } from '@nestjs/common';
-import type { FeedSidebarResponse } from '@linkedout/contracts/v2';
+import type { FeedSidebarResponse } from '@linkedout/contracts';
 
 import { AppErrors } from '../../common/errors/app-exception';
 import { toUserSummary } from '../../common/mappers/user-summary.mapper';
 import type { AuthUser } from '../../common/types/auth';
-import { toV2LCard } from '../ls/ls-v2.mapper';
+import { toLCard } from '../ls/ls.mapper';
 import { toUserProfile } from '../users/users.mapper';
 import {
   FeedSidebarRepository,
@@ -102,7 +102,7 @@ export class FeedSidebarService {
       user?.id,
     );
     const cards = rows.map(({ l, viewerReactions }) =>
-      toV2LCard(l, {
+      toLCard(l, {
         reactions: viewerReactions,
         canEdit: user?.id === l.authorId,
       }),
@@ -134,7 +134,7 @@ export class FeedSidebarService {
           }
         : null;
     return {
-      contractVersion: 2,
+      contractVersion: 1,
       generatedAt: generatedAt.toISOString(),
       refreshAfter: new Date(generatedAt.getTime() + REFRESH_AFTER_MS).toISOString(),
       viewer:

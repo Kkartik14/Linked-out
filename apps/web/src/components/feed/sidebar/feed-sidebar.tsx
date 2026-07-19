@@ -1,7 +1,7 @@
 "use client";
 
 import { useQuery } from "@tanstack/react-query";
-import type { FeedSidebarResponse } from "@linkedout/contracts/v2";
+import type { FeedSidebarResponse } from "@linkedout/contracts";
 
 import { getFeedSidebar } from "@/lib/api";
 import { queryKeys } from "@/lib/query-keys";
@@ -14,7 +14,7 @@ import { TopLs } from "@/components/feed/sidebar/top-ls";
 import { LOfTheDay } from "@/components/feed/sidebar/l-of-the-day";
 
 /**
- * The feed's discovery rails, from one optional-auth aggregate (contract v2 §2).
+ * The feed's discovery rails, from one optional-auth aggregate (public contract §2).
  *
  * Both rails read the same principal-scoped query, so the two components below share a
  * single request rather than fetching twice. They are separate exports because they are

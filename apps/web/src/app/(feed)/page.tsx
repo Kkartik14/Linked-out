@@ -1,4 +1,4 @@
-import { feedSortSchema } from "@linkedout/contracts/v2";
+import { feedSortSchema } from "@linkedout/contracts";
 
 import { getFeed, getFeedSidebar, type FeedScope } from "@/lib/api";
 import { getSession } from "@/lib/session";
@@ -25,7 +25,7 @@ export default async function HomePage({
 
   const [initial, sidebar] = await Promise.all([
     getFeed({ scope, sort, limit: 20 }),
-    // Ancillary: the rails fail independently of the feed (contract v2 §2). A rejection
+    // Ancillary: the rails fail independently of the feed (public contract §2). A rejection
     // leaves the page whole, and the rails retry client-side from their own query.
     getFeedSidebar().catch(() => undefined),
   ]).catch((err: unknown) => publicReadFailure(err, "/"));

@@ -27,15 +27,6 @@ enum LType {
   LESSON
 }
 
-enum LCategory {
-  INTERVIEWS
-  STARTUPS
-  LAYOFFS
-  PRODUCTION
-  CAREER
-  LEARNING
-}
-
 enum Visibility {
   PUBLIC
   FOLLOWERS
@@ -208,13 +199,9 @@ model L {
   author   User   @relation(fields: [authorId], references: [id], onDelete: Cascade)
   authorId String
 
-  title     String
-  story     String
-  type      LType      @default(L)
-  category  LCategory?
-  company   String?
-  tags      String[]
-  eventDate DateTime?
+  title String
+  story String
+  type  LType @default(L)
 
   visibility  Visibility @default(PUBLIC)
   isAnonymous Boolean    @default(false)
@@ -249,13 +236,8 @@ model L {
   @@index([visibility, id(sort: Desc)])
   @@index([visibility, popularityScore(sort: Desc), id(sort: Desc)])
   @@index([visibility, helpfulCount(sort: Desc), id(sort: Desc)])
-  @@index([category, visibility, createdAt(sort: Desc)])
-  @@index([category, visibility, id(sort: Desc)])
-  @@index([category, visibility, popularityScore(sort: Desc), id(sort: Desc)])
-  @@index([category, visibility, helpfulCount(sort: Desc), id(sort: Desc)])
   @@index([authorId, createdAt(sort: Desc)])
   @@index([authorId, type])
-  @@index([tags], type: Gin)
 }
 
 /**

@@ -1,4 +1,4 @@
-import { OAUTH_FAILURES } from "@linkedout/contracts/v2";
+import { OAUTH_FAILURES } from "@linkedout/contracts";
 import { describe, expect, it } from "vitest";
 
 import { oauthErrorMessage, safeReturnTo } from "@/lib/auth-entry";

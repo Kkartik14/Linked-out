@@ -1,5 +1,5 @@
 import type { InfiniteData } from "@tanstack/react-query";
-import type { Comment, Paginated } from "@linkedout/contracts/v2";
+import type { Comment, Paginated } from "@linkedout/contracts";
 
 // TanStack stores pageParams as `unknown` unless every generic is repeated at each hook.
 // Cache transforms never interpret those values, so model the canonical cache shape directly.
@@ -12,9 +12,9 @@ function withoutComment(comments: Comment[], id: string): Comment[] {
 /**
  * Return the visible list in the order the server supplied it, deduplicated by id.
  *
- * The frontend renders the supplied ordering (contract v2 §4) — pages arrive already ordered,
+ * The frontend renders the supplied ordering (public contract §4) — pages arrive already ordered,
  * and concatenating them in page order is that ordering. It deliberately does not re-sort: ids
- * are opaque ULIDs (contract v2 line 14), so nothing here may depend on their internals. A
+ * are opaque ULIDs (public contract line 14), so nothing here may depend on their internals. A
  * lexicographic sort would, twice over — it assumes ULIDs are time-ordered as strings, and that
  * they are uppercase, while `ulidSchema` also accepts lowercase Crockford base32, which sorts
  * after every uppercase id.

@@ -138,7 +138,6 @@ describe('13 · users & profiles (contract §4.2)', () => {
         type: 'L',
         visibility: 'PUBLIC',
         isAnonymous: false,
-        tags: [],
       },
     });
     assert.equal(created.status, 201, JSON.stringify(created.body));

@@ -6,14 +6,14 @@ import {
   REPUTATION_META,
   VISIBILITY_META,
   type MetaEnumsResponse,
-} from "@linkedout/contracts/v2";
+} from "@linkedout/contracts";
 
 /**
- * Canonical enum display metadata, mirroring the v2 contract §3. The app fetches
+ * Canonical enum display metadata, mirroring the public contract §3. The app fetches
  * `GET /meta/enums` at boot; this is the resilient fallback if that request
  * fails, so labels/emoji never come back empty.
  *
- * v2 has no `lCategory` member: the category concept is removed from the wire.
+ * The public API has no `lCategory` member: the category concept is removed from the wire.
  */
 export const DEFAULT_META: MetaEnumsResponse = {
   reactionType: [...REACTION_TYPE_META],

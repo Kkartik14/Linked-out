@@ -12,3 +12,4 @@ export * from './notification';
 export * from './search';
 export * from './upload';
 export * from './meta';
+export * from './feed-sidebar';

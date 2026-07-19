@@ -1,7 +1,7 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { act, screen, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
-import type { UserProfile } from "@linkedout/contracts/v2";
+import type { UserProfile } from "@linkedout/contracts";
 
 import { mockUser, renderWithProviders } from "@/test/utils";
 import type { Session } from "@/components/session-provider";

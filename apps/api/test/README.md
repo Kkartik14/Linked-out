@@ -86,28 +86,28 @@ deterministically between tests.
 
 | Subpart | Covers |
 |---|---|
-| `01-meta` | v1/v2 enum metadata and OpenAPI; v1-only `/tags/popular` |
+| `01-meta` | Enum metadata, the sole generated OpenAPI document, and removed `/tags/popular` |
 | `02-auth` | `/auth/me`, refresh rotation, logout, OAuth redirects, expired/forged cookies |
-| `03-ls-create` | v1 `POST /ls` — defaults, limits, reputation, onboarding gate |
+| `03-ls-create` | `POST /ls` — defaults, limits, reputation, onboarding gate |
 | `04-ls-visibility` | The full PUBLIC / FOLLOWERS / PRIVATE viewer matrix |
-| `05-ls-update-delete` | v1 ownership, battle `resolvedAt` rules, reputation withdrawal, cascades |
-| `06-feed` | v1/v2 global + following feeds: sorts, versioned filters, keyset pagination |
+| `05-ls-update-delete` | Ownership, battle `resolvedAt` rules, reputation withdrawal, cascades |
+| `06-feed` | Global + following feeds: sorts, strict queries, keyset pagination |
 | `07-reactions` | Idempotency, counters, popularity weights, `buildersHelped` |
 | `08-comments` | One-level threading, `commentCount`, cascade delete |
 | `09-follows` | Idempotency, self-follow, counts, notification once |
-| `10-collections` | v1/v2 CRUD/detail, ordering/position, viewer-aware `lCount` |
+| `10-collections` | CRUD/detail, ordering/position, viewer-aware `lCount` |
 | `11-notifications` | Folding via `dedupeKey`, server-composed copy, read state |
-| `12-search` | v1/v2 Postgres FTS/user ranking, visibility, versioned filters, hostile queries |
+| `12-search` | Postgres FTS/user ranking, visibility, strict queries, hostile queries |
 | `13-users-profile` | Profile, `PATCH /users/me`, username rules, avatar-URL ownership |
-| `14-journey-saved` | v1 effective-date and v2 created-at journeys; v1/v2 `/me/saved` |
+| `14-journey-saved` | Created-at journeys and `/me/saved` visibility/pagination |
 | `16-uploads` | Presign shape, size/type limits, `UPLOADS_DISABLED` |
 | `17-anonymity` | Strong anonymity: no author, profile/journey, or collection attribution path |
 | `18-contract-invariants` | Envelopes, cursors, ULIDs, ISO timestamps, CORS, error codes |
 | `19-rate-limit` | 120 reads/min, 30 writes/min, `Retry-After`, per-identity buckets |
 | `20-concurrency-edges` | Counter integrity under concurrent writes; coercion edges |
-| `21-feed-sidebar-v2` | `GET /v2/feed/sidebar`: viewer states, ranking, windows, daily selection |
-| `22-clean-l-v2` | The v2 clean L shape, strict bodies, and the v2 OpenAPI surface |
-| `23-v2-auth-uniformity` | Contract §0: v2 rejects a bad credential everywhere; v1 stays lenient |
+| `21-feed-sidebar` | `GET /v1/feed/sidebar`: viewer states, ranking, windows, daily selection |
+| `22-public-api` | The clean L shape, strict bodies, and sole generated OpenAPI surface |
+| `23-auth-uniformity` | A presented bad credential is rejected consistently across optional-auth reads |
 
 ## The contract is the oracle
 

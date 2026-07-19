@@ -17,7 +17,7 @@ describe('05 · PATCH & DELETE /ls/:id (contract §4.3)', () => {
   });
 
   test('the owner can patch a single field, leaving the rest untouched', async () => {
-    const l = await h.createL(owner.id, { title: 'Before', company: 'Google', tags: ['a'] });
+    const l = await h.createL(owner.id, { title: 'Before', story: 'Unchanged' });
     const res = await h.patch(`/ls/${l.id}`, {
       cookie: owner.cookie,
       body: { title: 'After' },
@@ -25,8 +25,7 @@ describe('05 · PATCH & DELETE /ls/:id (contract §4.3)', () => {
     const updated = h.expectShape(res, lDetailSchema);
 
     assert.equal(updated.title, 'After');
-    assert.equal(updated.company, 'Google');
-    assert.deepEqual(updated.tags, ['a']);
+    assert.equal(updated.story, 'Unchanged');
   });
 
   test('a non-owner gets 403 NOT_L_OWNER', async () => {
@@ -52,36 +51,6 @@ describe('05 · PATCH & DELETE /ls/:id (contract §4.3)', () => {
   test('patching requires authentication', async () => {
     const l = await h.createL(owner.id);
     h.expectError(await h.patch(`/ls/${l.id}`, { body: { title: 'x' } }), 401, 'UNAUTHENTICATED');
-  });
-
-  test('tags are replaced wholesale, and an empty array clears them', async () => {
-    const l = await h.createL(owner.id, { tags: ['a', 'b', 'c'] });
-
-    const replaced = await h.patch(`/ls/${l.id}`, {
-      cookie: owner.cookie,
-      body: { tags: ['z'] },
-    });
-    assert.deepEqual(replaced.body.tags, ['z']);
-
-    const cleared = await h.patch(`/ls/${l.id}`, { cookie: owner.cookie, body: { tags: [] } });
-    assert.deepEqual(cleared.body.tags, [], 'an empty tags array must clear, not be ignored');
-  });
-
-  test('nullable fields can be cleared with an explicit null', async () => {
-    const l = await h.createL(owner.id, {
-      company: 'Google',
-      category: 'INTERVIEWS',
-      eventDate: new Date('2026-01-01T00:00:00.000Z'),
-    });
-    const res = await h.patch(`/ls/${l.id}`, {
-      cookie: owner.cookie,
-      body: { company: null, category: null, eventDate: null },
-    });
-    const updated = h.expectShape(res, lDetailSchema);
-
-    assert.equal(updated.company, null);
-    assert.equal(updated.category, null);
-    assert.equal(updated.eventDate, null);
   });
 
   test('visibility and anonymity can be toggled by the owner', async () => {

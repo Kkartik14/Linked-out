@@ -3,7 +3,7 @@
 import * as React from "react";
 import { useRouter } from "next/navigation";
 import { toast } from "sonner";
-import { usernameInputSchema } from "@linkedout/contracts/v2";
+import { usernameInputSchema } from "@linkedout/contracts";
 
 import { errorMessage, isApiError, patchMe } from "@/lib/api";
 import { useComposedPrincipal } from "@/components/session-provider";

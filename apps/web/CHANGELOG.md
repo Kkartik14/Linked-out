@@ -3,12 +3,16 @@
 Notable changes to the LinkedOut frontend. Newest first.
 
 This file covers `apps/web` only. Its executable API contract is
-`@linkedout/contracts/v2`, with generated OpenAPI published by the backend at `/v2/openapi.json`.
+`@linkedout/contracts`, with generated OpenAPI published by the backend at `/v1/openapi.json`.
 
 ## [Unreleased]
 
-A precision pass over the v2 cutover: enforce the rules the repo already wrote down, delete
-what the cutover left behind, and pin the invariants that were only being upheld by habit.
+The web app now consumes the sole `/v1` API and root `@linkedout/contracts` export. API URLs,
+browser fixtures, Playwright servers, examples, and contract imports were consolidated together;
+the removed L persistence fields no longer appear in the real-Postgres browser seed.
+
+A precision pass over the public contract also enforces the rules the repo already wrote down,
+deletes what the cutover left behind, and pins invariants that were only being upheld by habit.
 
 ### Enforced
 
@@ -17,7 +21,7 @@ what the cutover left behind, and pin the invariants that were only being upheld
   escape hatch" applied to nothing here (`tsc --strict` rejects only *implicit* any). Added
   `typescript-eslint` with `no-explicit-any`, `consistent-type-assertions`
   (`objectLiteralTypeAssertions: never`) and `no-unnecessary-type-assertion`. The existing
-  code was already clean; nothing now stops the next `as any` at the `/v2` boundary.
+  code was already clean; nothing now stops the next `as any` at the API boundary.
 - **`pnpm lint` is `--max-warnings=0`.** `react-hooks/exhaustive-deps` and 24 other rules are
   warn-level: they ran in CI and could not fail it. (No violations existed — the gate is
   regression prevention.) Fixed in `package.json`, so CI and local dev cannot diverge.
@@ -91,7 +95,7 @@ what the cutover left behind, and pin the invariants that were only being upheld
 
 ## [1.1.0] — 2026-07-17
 
-Moves the frontend onto the **v2 API** and adds the feed's discovery rails.
+Introduces the clean API contract and the feed's discovery rails. The contract is now the sole v1.
 
 ### Added
 
@@ -113,7 +117,7 @@ Moves the frontend onto the **v2 API** and adds the feed's discovery rails.
   - `refreshAfter` becomes a derived `staleTime` rather than a poll: refetching reshuffles
     both rails, so they refresh on remount and after a follow, never under a reader.
   - The aggregate fails independently of the feed — the rails hide, the page stays whole.
-- **`src/lib/public-read.ts`** — v2 rejects a presented-but-invalid credential with `401`
+- **`src/lib/public-read.ts`** — the API rejects a presented-but-invalid credential with `401`
   on every optional-auth read instead of silently serving the guest view (contract §2), so
   a stale cookie now fails even a public page. The app cannot clear an httpOnly cookie from
   a Server Component (ADR 0001 §1.1), so it sends those viewers to `/login`: the one
@@ -125,25 +129,24 @@ Moves the frontend onto the **v2 API** and adds the feed's discovery rails.
 
 ### Changed
 
-- **The app speaks v2 only.** `NEXT_PUBLIC_API_BASE_URL` carries the `/v2` prefix; there is
+- **The app speaks the sole v1 API.** `NEXT_PUBLIC_API_BASE_URL` carries the `/v1` prefix; there is
   no second base URL and no per-call base override.
 - Feed and search no longer send a category `filter`; their query keys lost that segment.
-- The journey timeline renders `createdAt`. v2 orders the journey by `(createdAt, id)`, so
-  the label and the ordering finally agree — v1 sorted by an `eventDate ?? createdAt` alias
-  it exposed as `date`.
+- The journey timeline renders `createdAt`; the API orders the journey by `(createdAt, id)`, so
+  the label and ordering agree.
 - The composer is five fields instead of nine.
 - `mockUser.id` in the test harness is a real ULID. It was `"u_kartik"`, which fails any
   test that validates the user against the contract.
 
 ### Removed
 
-The v2 contract deletes `category`, `company`, `tags` and `eventDate` from the L wire, so
+The public contract deletes `category`, `company`, `tags` and `eventDate` from the L wire, so
 the interface they backed is gone:
 
-- feed and search **category filter chips**, and the `filter` search param — a saved v1 URL
+- feed and search **category filter chips**, and the `filter` search param — a saved URL
   carrying one still renders the full feed, the param is simply ignored
 - the composer's **category, company, event-date and tags** fields, the whole `TagsInput`,
-  and its `/tags/popular` autocomplete (that route does not exist in v2)
+  and its `/tags/popular` autocomplete (that route does not exist in the public API)
 - the **category badge, company, event date and tag chips** on cards and L detail. Tag
   chips were the only path from a card into search, so that entry point is gone too
 - **category and company** on journey timeline nodes
@@ -173,6 +176,6 @@ the interface they backed is gone:
 ### Verification
 
 Typecheck and lint clean. 73 unit/component tests. Playwright: **55 passed, 1 skipped** (the
-pre-existing `AUTH-01` fixme) against the real v2 API and real Postgres — including the
+pre-existing `AUTH-01` fixme) against the real API and real Postgres — including the
 rails driven by the backend's real ranking over seeded interactions, and every pre-existing
 journey, which is what establishes the migration did not break current flows.

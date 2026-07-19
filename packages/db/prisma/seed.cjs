@@ -1,6 +1,6 @@
 /**
  * Deterministic dev seed. Wipes app data, then creates a small realistic world:
- * 3 users, a spread of Ls (types/categories/visibility/anonymous), reactions, threaded
+ * 3 users, a spread of Ls (types/visibility/anonymity), reactions, threaded
  * comments, follows and a collection — then recomputes every denormalized counter so the
  * seeded state is exactly what the services would have produced.
  *
@@ -81,12 +81,12 @@ async function main() {
   const ls = [];
   const mkL = async (data) => { const l = await prisma.l.create({ data }); ls.push(l); return l; };
 
-  const google = await mkL({ authorId: kartik.id, title: 'Rejected after the final round at Google', story: 'Four rounds in, strong signals, then three weeks of silence. Here is the honest story and what I learned about interview signal.', type: 'STORY', category: 'INTERVIEWS', company: 'Google', tags: ['interview', 'faang'], visibility: 'PUBLIC' });
-  const layoff = await mkL({ authorId: kartik.id, title: 'Laid off two weeks after relocating', story: 'Signed the lease on Monday, got the call on Friday. The whole thing.', type: 'PLOT_TWIST', category: 'LAYOFFS', company: 'Swiggy', tags: ['layoff'], visibility: 'PUBLIC' });
-  await mkL({ authorId: kartik.id, title: 'Ship before perfect', story: 'A lesson that took me five years and one dead startup to internalize.', type: 'LESSON', category: 'CAREER', tags: ['lesson'], visibility: 'PUBLIC' });
-  const burnout = await mkL({ authorId: nadia.id, title: 'Burned out and hid it for months', story: 'I smiled in every standup while quietly falling apart. Writing this anonymously because I still work here.', type: 'SCAR', category: 'CAREER', tags: ['burnout'], visibility: 'PUBLIC', isAnonymous: true });
-  await mkL({ authorId: rahul.id, title: 'My first startup died at $0 MRR', story: 'Built for a year, launched to crickets. Talked to zero customers first.', type: 'STORY', category: 'STARTUPS', tags: ['startup', 'pmf'], visibility: 'PUBLIC' });
-  await mkL({ authorId: rahul.id, title: 'Interviewing again after the shutdown', story: 'Ongoing. Some days good, most days humbling.', type: 'BATTLE', category: 'INTERVIEWS', tags: ['interviewing'], visibility: 'PUBLIC' });
+  const google = await mkL({ authorId: kartik.id, title: 'Rejected after the final round at Google', story: 'Four rounds in, strong signals, then three weeks of silence. Here is the honest story and what I learned about interview signal.', type: 'STORY', visibility: 'PUBLIC' });
+  const layoff = await mkL({ authorId: kartik.id, title: 'Laid off two weeks after relocating', story: 'Signed the lease on Monday, got the call on Friday. The whole thing.', type: 'PLOT_TWIST', visibility: 'PUBLIC' });
+  await mkL({ authorId: kartik.id, title: 'Ship before perfect', story: 'A lesson that took me five years and one dead startup to internalize.', type: 'LESSON', visibility: 'PUBLIC' });
+  const burnout = await mkL({ authorId: nadia.id, title: 'Burned out and hid it for months', story: 'I smiled in every standup while quietly falling apart. Writing this anonymously because I still work here.', type: 'SCAR', visibility: 'PUBLIC', isAnonymous: true });
+  await mkL({ authorId: rahul.id, title: 'My first startup died at $0 MRR', story: 'Built for a year, launched to crickets. Talked to zero customers first.', type: 'STORY', visibility: 'PUBLIC' });
+  await mkL({ authorId: rahul.id, title: 'Interviewing again after the shutdown', story: 'Ongoing. Some days good, most days humbling.', type: 'BATTLE', visibility: 'PUBLIC' });
 
   // Reactions (author never reacts to their own here).
   await prisma.reaction.createMany({ data: [

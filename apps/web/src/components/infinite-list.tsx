@@ -2,7 +2,7 @@
 
 import * as React from "react";
 import { useInfiniteQuery, type QueryKey } from "@tanstack/react-query";
-import type { Paginated } from "@linkedout/contracts/v2";
+import type { Paginated } from "@linkedout/contracts";
 
 import { errorMessage } from "@/lib/api";
 import { Button } from "@/components/ui/button";

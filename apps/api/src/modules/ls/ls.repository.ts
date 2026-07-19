@@ -1,6 +1,6 @@
 import { Injectable } from '@nestjs/common';
 import { Prisma, type Visibility } from '@linkedout/db';
-import type { FeedSort, LCategory, LType, ReactionType } from '@linkedout/contracts';
+import type { FeedSort, LType, ReactionType } from '@linkedout/contracts';
 
 import { PrismaService } from '../../prisma/prisma.service';
 import { encodeCursor } from '../../common/pagination/cursor';
@@ -11,7 +11,6 @@ import {
 } from '../../common/read-models/l-read-model';
 import type {
   FeedPageCursor,
-  CreatedAtJourneyPageCursor,
   JourneyPageCursor,
   LDeletePlan,
   LUpdatePlans,
@@ -28,10 +27,6 @@ function toPrismaUpdateData(data: UpdateLData): Prisma.LUpdateInput {
     title: data.title,
     story: data.story,
     type: data.type,
-    category: data.category,
-    company: data.company,
-    tags: data.tags ? { set: data.tags } : undefined,
-    eventDate: data.eventDate,
     visibility: data.visibility,
     isAnonymous: data.isAnonymous,
     resolvedAt: data.resolvedAt,
@@ -134,7 +129,6 @@ export class LsRepository {
     visibilities: Visibility[];
     authorIds?: string[];
     followedByUserId?: string;
-    category?: LCategory;
     sort: FeedSort;
     limit: number;
     cursor?: FeedPageCursor;
@@ -142,7 +136,6 @@ export class LsRepository {
     const cursorWhere = feedCursorWhere(params.cursor);
     const where: Prisma.LWhereInput = {
       visibility: { in: params.visibilities },
-      ...(params.category ? { category: params.category } : {}),
       ...(params.authorIds ? { authorId: { in: params.authorIds } } : {}),
       ...(params.followedByUserId
         ? { author: { followers: { some: { followerId: params.followedByUserId } } } }
@@ -211,42 +204,13 @@ export class LsRepository {
     return { rows: page.rows.map((r) => r.l), nextCursor: page.nextCursor };
   }
 
-  /** Journey timeline ordered by COALESCE(eventDate, createdAt) ascending (raw for the coalesce). */
+  /** Journey timeline ordered by publication time ascending. */
   async journey(params: {
     authorId: string;
     visibilities: Visibility[];
     includeAnonymous: boolean;
     limit: number;
     cursor?: JourneyPageCursor;
-  }): Promise<EntityPage<LWithAuthor>> {
-    let cursorClause = Prisma.empty;
-    const anonymityClause = params.includeAnonymous ? Prisma.empty : Prisma.sql`AND "isAnonymous" = false`;
-    if (params.cursor) {
-      cursorClause = Prisma.sql`AND (COALESCE("eventDate", "createdAt"), "id") > (${params.cursor.date}::timestamp, ${params.cursor.id})`;
-    }
-    const idRows = await this.prisma.db.$queryRaw<Array<{ id: string }>>`
-      SELECT "id" FROM "L"
-      WHERE "authorId" = ${params.authorId}
-        AND "visibility"::text IN (${Prisma.join(params.visibilities)})
-        ${anonymityClause}
-        ${cursorClause}
-      ORDER BY COALESCE("eventDate", "createdAt") ASC, "id" ASC
-      LIMIT ${params.limit + 1}
-    `;
-    const ids = idRows.map((r) => r.id);
-    const hydrated = await this.hydrateOrdered(ids);
-    return buildPage(hydrated, params.limit, (row) =>
-      encodeCursor({ date: (row.eventDate ?? row.createdAt).toISOString(), id: row.id }),
-    );
-  }
-
-  /** V2 journey timeline ordered only by publication time; legacy eventDate is not consulted. */
-  async journeyByCreatedAt(params: {
-    authorId: string;
-    visibilities: Visibility[];
-    includeAnonymous: boolean;
-    limit: number;
-    cursor?: CreatedAtJourneyPageCursor;
   }): Promise<EntityPage<LWithAuthor>> {
     const cursorWhere: Prisma.LWhereInput | undefined = params.cursor
       ? {
@@ -270,22 +234,6 @@ export class LsRepository {
     return buildPage(rows, params.limit, (row) =>
       encodeCursor({ createdAt: row.createdAt.toISOString(), id: row.id }),
     );
-  }
-
-  /** Fetch Ls by id and return them in the given id order. */
-  async hydrateOrdered(ids: string[]): Promise<LWithAuthor[]> {
-    if (ids.length === 0) return [];
-    const rows = await this.prisma.db.l.findMany({
-      where: { id: { in: ids } },
-      include: L_AUTHOR_INCLUDE,
-    });
-    const byId = new Map(rows.map((row) => [row.id, row]));
-    const ordered: LWithAuthor[] = [];
-    for (const id of ids) {
-      const row = byId.get(id);
-      if (row) ordered.push(row);
-    }
-    return ordered;
   }
 
   /** Does the viewer follow the author? Used for FOLLOWERS-visibility checks. */

@@ -7,7 +7,7 @@ import type {
   FeedSidebarResponse,
   FeedSidebarViewer,
   SuggestedUser,
-} from "@linkedout/contracts/v2";
+} from "@linkedout/contracts";
 
 import { errorMessage, follow } from "@/lib/api";
 import { queryKeys } from "@/lib/query-keys";

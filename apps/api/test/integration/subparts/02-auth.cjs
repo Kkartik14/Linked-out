@@ -76,11 +76,10 @@ describe('02 · auth & sessions (contract §1.1, §4.1)', () => {
     h.expectError(res, 401, 'UNAUTHENTICATED');
   });
 
-  test('optional-auth routes ignore an expired cookie and serve the logged-out view', async () => {
+  test('optional-auth routes reject an expired presented cookie', async () => {
     const user = await h.createUser();
     const res = await h.get('/auth/me', { cookie: h.expiredAccessCookie(user) });
-    const body = h.expectShape(res, authMeResponseSchema);
-    assert.equal(body.user, null, 'expired token must degrade to anonymous, not 401');
+    h.expectError(res, 401, 'TOKEN_EXPIRED');
   });
 
   test('POST /auth/refresh rotates both cookies and invalidates the old refresh token', async () => {

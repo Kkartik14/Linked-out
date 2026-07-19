@@ -42,7 +42,7 @@ export function timeAgo(iso: string, now: number = Date.now()): string {
   }
   // Unreachable for anything this function is allowed to receive: DIVISIONS ends at
   // POSITIVE_INFINITY, so the loop always returns unless `duration` is NaN — and that needs
-  // an `iso` that is not the ISO 8601 UTC string the contract guarantees (contract v2 line
+  // an `iso` that is not the ISO 8601 UTC string the contract guarantees (public contract line
   // 15, enforced by `isoTimestampSchema`). TypeScript still requires a terminal return, so
   // this says what went wrong rather than rendering "" and hiding a broken timestamp behind
   // a blank byline.

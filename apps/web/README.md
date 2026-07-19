@@ -21,7 +21,7 @@ pnpm install
 pnpm dev            # http://localhost:3000  (expects the API at NEXT_PUBLIC_API_BASE_URL)
 ```
 
-Point `NEXT_PUBLIC_API_BASE_URL` (in `.env.local`) at your API — default `http://localhost:4000/v2`.
+Point `NEXT_PUBLIC_API_BASE_URL` (in `.env.local`) at your API — default `http://localhost:4000/v1`.
 
 > **After the backend rebuilds `@linkedout/contracts`, re-run `pnpm install` here.** pnpm
 > materialises the `file:` dependency as a *copy*, not a live symlink, so a rebuilt
@@ -45,17 +45,17 @@ Point `NEXT_PUBLIC_API_BASE_URL` (in `.env.local`) at your API — default `http
 
 ## The contract
 
-The app speaks **v2 only**. Runtime types and validation come from
-`@linkedout/contracts/v2`; the backend publishes generated OpenAPI at `/v2/openapi.json`.
-`NEXT_PUBLIC_API_BASE_URL` carries the `/v2` prefix and there is no second base URL.
+The app speaks the sole **v1 API**. Runtime types and validation come from
+`@linkedout/contracts`; the backend publishes generated OpenAPI at `/v1/openapi.json`.
+`NEXT_PUBLIC_API_BASE_URL` carries the `/v1` prefix and there is no second base URL.
 
-The v2 L has **no `category`, `company`, `tags`, or `eventDate`**, there is no category
+The public L contract has **no `category`, `company`, `tags`, or `eventDate`**, there is no category
 filter on the feed or search, and `/tags/popular` does not exist. `JourneyNode` carries
 `createdAt` and the journey is ordered by `(createdAt, id)`.
 
 ### Rejected credentials
 
-v2's optional-auth reads do **not** downgrade a presented-but-invalid credential to a guest
+Optional-auth reads do **not** downgrade a presented-but-invalid credential to a guest
 response — they reject it with `401` (contract §2). A stale or corrupt `lo_access` cookie
 therefore fails even a public read.
 
@@ -67,7 +67,7 @@ Delete it when the BFF/session boundary lands and a broken session is cleared at
 
 ## Architecture notes
 
-- **Types come from `@linkedout/contracts/v2`** (contract §0) — imported directly,
+- **Types come from `@linkedout/contracts`** (contract §0) — imported directly,
   never hand-written. It's a `file:` workspace dependency (`../../packages/contracts`).
 - **Two explicit backend seams:** ordinary application traffic flows through `src/lib/api/` —
   `client.ts` (credentials, error-envelope decoding, request timeouts, and a single-flight

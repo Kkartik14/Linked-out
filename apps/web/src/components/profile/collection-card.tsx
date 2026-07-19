@@ -1,6 +1,6 @@
 import Link from "next/link";
 import { ChevronRight } from "lucide-react";
-import type { Collection } from "@linkedout/contracts/v2";
+import type { Collection } from "@linkedout/contracts";
 
 export function CollectionCard({ collection }: { collection: Collection }) {
   return (

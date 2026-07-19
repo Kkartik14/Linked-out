@@ -1,5 +1,5 @@
 import { Injectable } from '@nestjs/common';
-import { Prisma, type LCategory, type ReactionType } from '@linkedout/db';
+import { Prisma, type ReactionType } from '@linkedout/db';
 
 import { PrismaService } from '../../prisma/prisma.service';
 import type { UserSummarySource } from '../../common/mappers/user-summary.mapper';
@@ -38,14 +38,10 @@ export class SearchRepository {
   /** Full-text search over visible Ls, ranked title > story via tsvector weights. */
   async searchLRows(
     q: string,
-    category: LCategory | undefined,
     viewerId: string | undefined,
     limit: number,
     cursor: SearchLCursor | null,
   ): Promise<SearchLRow[]> {
-    const categoryClause = category
-      ? Prisma.sql`AND "category" = ${category}::"LCategory"`
-      : Prisma.empty;
     const viewer = viewerId ? Prisma.sql`${viewerId}` : Prisma.sql`NULL`;
     const cursorClause = cursor
       ? Prisma.sql`WHERE (rank_score, "id") < (${cursor.rank}, ${cursor.id})`
@@ -58,7 +54,6 @@ export class SearchRepository {
         SELECT "id", ts_rank("searchVector", query.value)::double precision AS rank_score
         FROM "L", query
         WHERE "searchVector" @@ query.value
-          ${categoryClause}
           AND (
             "visibility" = 'PUBLIC'
             OR (${viewer} IS NOT NULL AND "authorId" = ${viewer})

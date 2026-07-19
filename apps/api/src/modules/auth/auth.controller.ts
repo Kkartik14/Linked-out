@@ -7,7 +7,6 @@ import {
   Req,
   Res,
   UseGuards,
-  Version,
 } from '@nestjs/common';
 import {
   oauthHandoffExchangeInputSchema,
@@ -26,9 +25,7 @@ import type { Request, Response } from 'express';
 
 import { OptionalUser } from '../../common/decorators/current-user.decorator';
 import { ApiContract, API_ROUTE_CONTRACTS } from '../../common/contracts/api-route-contracts';
-import { API_ROUTE_CONTRACTS_V2 } from '../../common/contracts/api-route-contracts-v2';
 import { OptionalAuthGuard } from '../../common/guards/optional-auth.guard';
-import { StrictOptionalAuthGuard } from '../../common/guards/strict-optional-auth.guard';
 import { AppErrors } from '../../common/errors/app-exception';
 import { getCookie } from '../../common/http/cookies';
 import { ZodValidationPipe } from '../../common/pipes/zod-validation.pipe';
@@ -44,7 +41,7 @@ import type { OAuthRequest } from './oauth.guards';
 import { OAuthHandoffService } from './oauth-handoff.service';
 import { BffSessionService } from './bff-session.service';
 
-@Controller({ path: 'auth', version: ['1', '2'] })
+@Controller('auth')
 export class AuthController {
   constructor(
     private readonly auth: AuthService,
@@ -91,26 +88,10 @@ export class AuthController {
     return this.completeOAuth(user, req, res);
   }
 
-  /** V1 downgrades an invalid credential to guest. Retained for live v1 consumers. */
   @Get('me')
-  @Version('1')
   @UseGuards(OptionalAuthGuard)
   @ApiContract(API_ROUTE_CONTRACTS.authMe)
-  meV1(@OptionalUser() user: AuthUser | undefined): Promise<AuthMeResponse> {
-    return this.describeViewer(user);
-  }
-
-  /**
-   * V2 answers "who am I" consistently with every other v2 read: no credential is a guest,
-   * but a presented-and-invalid one is a 401 rather than a silent guest downgrade. The
-   * downgrade let a client with a dead session read `user: null` here and conclude it was
-   * signed out, while every other v2 route 401'd — so it never refreshed.
-   */
-  @Get('me')
-  @Version('2')
-  @UseGuards(StrictOptionalAuthGuard)
-  @ApiContract(API_ROUTE_CONTRACTS_V2.authMe)
-  meV2(@OptionalUser() user: AuthUser | undefined): Promise<AuthMeResponse> {
+  me(@OptionalUser() user: AuthUser | undefined): Promise<AuthMeResponse> {
     return this.describeViewer(user);
   }
 
@@ -151,7 +132,6 @@ export class AuthController {
   }
 
   @Post('oauth/handoff/exchange')
-  @Version('1')
   @HttpCode(200)
   @UseGuards(BffCallerGuard)
   @RequireBffCaller('auth-exchange')
@@ -176,7 +156,6 @@ export class AuthController {
    * must additionally keep this internal route off the public ingress.
    */
   @Post('sessions/resolve')
-  @Version('1')
   @HttpCode(200)
   @UseGuards(BffCallerGuard)
   @RequireBffCaller('session-resolve')
@@ -192,7 +171,6 @@ export class AuthController {
 
   /** Tombstones a browser session before the BFF clears its host-only cookie. */
   @Post('sessions/revoke')
-  @Version('1')
   @HttpCode(200)
   @UseGuards(BffCallerGuard)
   @RequireBffCaller('session-revoke')

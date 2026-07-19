@@ -1,9 +1,9 @@
 {
   "name": "@linkedout/api",
-  "version": "0.1.0",
+  "version": "1.1.2",
   "private": true,
   "scripts": {
-    "build": "nest build",
+    "build": "rm -rf dist && nest build",
     "dev": "nest start --watch",
     "start": "node dist/main.js",
     "maintenance:cleanup": "node dist/maintenance/run-cleanup.js",

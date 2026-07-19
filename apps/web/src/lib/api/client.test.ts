@@ -1,4 +1,4 @@
-import { PRINCIPAL_BINDING_HEADER } from "@linkedout/contracts/v2";
+import { PRINCIPAL_BINDING_HEADER } from "@linkedout/contracts";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
 import type { ComposedPrincipal } from "@/lib/principal";

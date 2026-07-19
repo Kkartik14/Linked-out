@@ -1,13 +1,17 @@
-import { Injectable, UnauthorizedException } from '@nestjs/common';
+import { Injectable, type ExecutionContext } from '@nestjs/common';
 
-import type { AuthUser } from '../types/auth';
+import { ACCESS_COOKIE, getCookie } from '../http/cookies';
+import type { AuthedRequest } from '../types/auth';
 import { JwtAuthGuard } from './jwt-auth.guard';
 
-/** Legacy v1 leniency applies only to credential errors; infrastructure failures still surface. */
+/** Allows a credential-absent guest, but validates every presented access credential. */
 @Injectable()
 export class OptionalAuthGuard extends JwtAuthGuard {
-  override handleRequest<TUser = AuthUser>(err: unknown, user: TUser | false): TUser | undefined {
-    if (err && !(err instanceof UnauthorizedException)) throw err;
-    return user === false || user === null || user === undefined ? undefined : user;
+  override canActivate(context: ExecutionContext) {
+    const request = context.switchToHttp().getRequest<AuthedRequest>();
+    if (!this.hasInternalCredential(context) && getCookie(request, ACCESS_COOKIE) === null) {
+      return true;
+    }
+    return super.canActivate(context);
   }
 }

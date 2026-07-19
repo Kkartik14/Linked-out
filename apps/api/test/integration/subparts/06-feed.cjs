@@ -72,22 +72,7 @@ describe('06 · GET /feed — global feed (contract §4.4)', () => {
     assert.deepEqual(ids(await h.get('/feed?sort=helpful')), [high.id, mid.id, low.id]);
   });
 
-  test('filter selects a single lowercase category', async () => {
-    const interviews = await h.createL(author.id, { category: 'INTERVIEWS' });
-    await h.createL(author.id, { category: 'LAYOFFS' });
-
-    const res = await h.get('/feed?filter=interviews');
-    assert.deepEqual(ids(res), [interviews.id]);
-  });
-
-  test('every documented category filter is accepted', async () => {
-    for (const filter of ['interviews', 'startups', 'layoffs', 'production', 'career', 'learning']) {
-      const res = await h.get(`/feed?filter=${filter}`);
-      h.expectShape(res, feedSchema);
-    }
-  });
-
-  test('rejects an unknown sort, filter, or uppercase category', async () => {
+  test('rejects unknown sorts and removed filters', async () => {
     h.expectError(await h.get('/feed?sort=hottest'), 400, 'VALIDATION_ERROR');
     h.expectError(await h.get('/feed?sort=trending'), 400, 'VALIDATION_ERROR');
     h.expectError(await h.get('/feed?filter=INTERVIEWS'), 400, 'VALIDATION_ERROR');
@@ -232,19 +217,14 @@ describe('06b · GET /feed/following (contract §4.4)', () => {
     assert.deepEqual(ids(res), []);
   });
 
-  test('supports the same sort/filter/pagination params as /feed', async () => {
-    await h.createL(followed.id, { category: 'LAYOFFS', counters: { popularityScore: 5 } });
-    const career = await h.createL(followed.id, {
-      category: 'CAREER',
-      counters: { popularityScore: 1 },
-    });
+  test('supports the same sort and pagination params as /feed', async () => {
+    await h.createL(followed.id, { counters: { popularityScore: 5 } });
+    await h.createL(followed.id, { counters: { popularityScore: 1 } });
 
     h.expectShape(await h.get('/feed/following?sort=popular', { cookie: me.cookie }), feedSchema);
     h.expectShape(await h.get('/feed/following?sort=helpful', { cookie: me.cookie }), feedSchema);
 
-    const filtered = await h.get('/feed/following?filter=career', { cookie: me.cookie });
-    assert.deepEqual(ids(filtered), [career.id]);
-
+    h.expectError(await h.get('/feed/following?filter=career', { cookie: me.cookie }), 400, 'VALIDATION_ERROR');
     h.expectError(await h.get('/feed/following?sort=bogus', { cookie: me.cookie }), 400, 'VALIDATION_ERROR');
   });
 

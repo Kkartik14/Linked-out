@@ -26,7 +26,6 @@ describe('17 · anonymity is absolute across every surface (contract §3)', () =
       title: 'my anonymous burnout',
       story: 'anonymous burnout story',
       isAnonymous: true,
-      category: 'CAREER',
     });
   });
 

@@ -1,28 +1,17 @@
 {
   "name": "@linkedout/contracts",
-  "version": "0.1.0",
+  "version": "1.1.2",
   "private": true,
   "main": "dist/index.js",
   "types": "dist/index.d.ts",
-  "typesVersions": {
-    "*": {
-      "v2": [
-        "dist/v2/index.d.ts"
-      ]
-    }
-  },
   "exports": {
     ".": {
       "types": "./dist/index.d.ts",
       "default": "./dist/index.js"
-    },
-    "./v2": {
-      "types": "./dist/v2/index.d.ts",
-      "default": "./dist/v2/index.js"
     }
   },
   "scripts": {
-    "build": "tsc -p tsconfig.json",
+    "build": "rm -rf dist && tsc -p tsconfig.json",
     "lint": "pnpm --workspace-root exec eslint packages/contracts/src --max-warnings=0",
     "typecheck": "tsc -p tsconfig.json --noEmit"
   },
