@@ -65,9 +65,9 @@ function feedCursorWhere(cursor: FeedPageCursor | undefined): Prisma.LWhereInput
 }
 
 function feedMakeCursor(sort: FeedSort, row: LWithAuthor): string {
-  if (sort === 'popular') return encodeCursor({ score: row.popularityScore, id: row.id });
-  if (sort === 'helpful') return encodeCursor({ count: row.helpfulCount, id: row.id });
-  return encodeCursor({ id: row.id });
+  if (sort === 'popular') return encodeCursor({ sort, score: row.popularityScore, id: row.id });
+  if (sort === 'helpful') return encodeCursor({ sort, count: row.helpfulCount, id: row.id });
+  return encodeCursor({ sort, id: row.id });
 }
 
 @Injectable()

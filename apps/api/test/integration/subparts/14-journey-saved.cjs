@@ -94,12 +94,15 @@ describe('14 · L Journey (contract §4.2, FE review #4)', () => {
   });
 
   test('journey paginates ascending without gaps or duplicates', async () => {
+    const expected = [];
     for (let i = 0; i < 7; i += 1) {
       const l = await h.createL(me.id, { title: `n${i}` });
+      const createdAt = iso(`2020-01-0${i + 1}`);
       await h.ctx.prisma.l.update({
         where: { id: l.id },
-        data: { createdAt: iso(`2020-01-0${i + 1}`) },
+        data: { createdAt },
       });
+      expected.push({ id: l.id, createdAt: createdAt.toISOString() });
     }
 
     const seen = [];
@@ -108,17 +111,15 @@ describe('14 · L Journey (contract §4.2, FE review #4)', () => {
     do {
       const q = `/users/mine/journey?limit=2${cursor ? `&cursor=${encodeURIComponent(cursor)}` : ''}`;
       const page = h.expectShape(await h.get(q), journeySchema);
-      seen.push(...page.data.map((n) => n.id));
+      seen.push(...page.data.map(({ id, createdAt }) => ({ id, createdAt })));
       cursor = page.nextCursor;
       guard += 1;
       assert.ok(guard < 10, 'pagination must terminate');
     } while (cursor);
 
     assert.equal(seen.length, 7);
-    assert.equal(new Set(seen).size, 7);
-
-    const dates = seen.map((_, i) => i);
-    assert.deepEqual(dates, [...dates].sort((a, b) => a - b), 'ascending across pages');
+    assert.equal(new Set(seen.map(({ id }) => id)).size, 7);
+    assert.deepEqual(seen, expected, 'the complete walk preserves (createdAt, id) ordering');
   });
 
   test('journey pages correctly across Ls that share the same createdAt', async () => {

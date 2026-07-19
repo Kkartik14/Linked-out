@@ -237,6 +237,7 @@ model L {
   @@index([visibility, popularityScore(sort: Desc), id(sort: Desc)])
   @@index([visibility, helpfulCount(sort: Desc), id(sort: Desc)])
   @@index([authorId, createdAt(sort: Desc)])
+  @@index([authorId, id(sort: Desc)])
   @@index([authorId, type])
 }
 
@@ -267,7 +268,7 @@ model Reaction {
 
   @@unique([userId, lId, type])
   @@index([lId, type])
-  @@index([userId, type])
+  @@index([userId, type, id(sort: Desc)])
   @@index([createdAt, lId, userId])
 }
 
@@ -326,7 +327,7 @@ model Collection {
   ls CollectionL[]
 
   @@unique([ownerId, slug])
-  @@index([ownerId])
+  @@index([ownerId, id(sort: Desc)])
 }
 
 model CollectionL {
@@ -357,7 +358,7 @@ model Notification {
 
   createdAt DateTime @default(now())
 
-  @@index([recipientId, createdAt(sort: Desc)])
+  @@index([recipientId, createdAt(sort: Desc), id(sort: Desc)])
   @@index([recipientId, readAt])
 }
 

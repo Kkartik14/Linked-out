@@ -271,28 +271,34 @@ describe('11 · notifications (contract §4.11)', () => {
     assert.equal(res.status, 200);
   });
 
-  test('notifications are newest-first and paginate without overlap', async () => {
+  test('notifications fully paginate by createdAt and id without overlap', async () => {
     for (let i = 0; i < 5; i += 1) {
       await h.post(`/ls/${l.id}/comments`, { cookie: actor.cookie, body: { body: `c${i}` } });
     }
+    const same = new Date('2026-07-20T12:00:00.000Z');
+    await h.ctx.prisma.notification.updateMany({
+      where: { recipientId: author.id },
+      data: { createdAt: same },
+    });
+    const expected = await h.ctx.prisma.notification.findMany({
+      where: { recipientId: author.id },
+      orderBy: [{ createdAt: 'desc' }, { id: 'desc' }],
+      select: { id: true },
+    });
 
-    const first = await h.get('/notifications?limit=2', { cookie: author.cookie });
-    const page1 = h.expectShape(first, listSchema);
-    assert.equal(page1.data.length, 2);
-    assert.ok(page1.nextCursor);
+    const seen = [];
+    let cursor;
+    do {
+      const path = `/notifications?limit=2${
+        cursor ? `&cursor=${encodeURIComponent(cursor)}` : ''
+      }`;
+      const page = h.expectShape(await h.get(path, { cookie: author.cookie }), listSchema);
+      seen.push(...page.data.map(({ id }) => id));
+      cursor = page.nextCursor;
+    } while (cursor);
 
-    const second = await h.get(
-      `/notifications?limit=2&cursor=${encodeURIComponent(page1.nextCursor)}`,
-      { cookie: author.cookie },
-    );
-    const page2 = h.expectShape(second, listSchema);
-
-    const overlap = page1.data.filter((a) => page2.data.some((b) => b.id === a.id));
-    assert.equal(overlap.length, 0);
-
-    const times = [...page1.data, ...page2.data].map((n) => new Date(n.createdAt).getTime());
-    const sorted = [...times].sort((a, b) => b - a);
-    assert.deepEqual(times, sorted, 'newest first');
+    assert.deepEqual(seen, expected.map(({ id }) => id), 'equal timestamps use id-desc ties');
+    assert.equal(new Set(seen).size, expected.length);
   });
 
   test('a malformed notifications cursor is 400 BAD_CURSOR', async () => {
