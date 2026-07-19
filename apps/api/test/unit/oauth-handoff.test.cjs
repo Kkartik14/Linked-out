@@ -5,6 +5,9 @@ const test = require('node:test');
 
 const { AuthController } = require('../../dist/modules/auth/auth.controller');
 const {
+  DEFAULT_PRIVATE_CACHE_CONTROL,
+} = require('../../dist/common/http/cache-policy');
+const {
   BffCallerGuard,
 } = require('../../dist/modules/auth/bff-caller.guard');
 const {
@@ -153,7 +156,7 @@ test('handoff mode creates no legacy session or browser credential', async () =>
   assert.deepEqual(response.redirects, [
     `https://linkedout.example/auth/callback?code=${'A'.repeat(43)}`,
   ]);
-  assert.equal(response.headers['Cache-Control'], 'no-store');
+  assert.equal(response.headers['Cache-Control'], DEFAULT_PRIVATE_CACHE_CONTROL);
 });
 
 test('legacy callback mode remains available during the compatibility window', async () => {

@@ -75,7 +75,7 @@ describe('24 · purpose-scoped OAuth handoffs', () => {
     assert.equal(success.body.returnTo, '/journey?view=recent');
     assert.match(success.body.cookie, /^[A-Za-z0-9_-]{43}$/);
     assert.equal(typeof success.body.expiresAt, 'string');
-    assert.equal(success.headers.get('cache-control'), 'no-store');
+    assert.equal(success.headers.get('cache-control'), 'private, no-store, max-age=0');
 
     const session = await h.ctx.prisma.browserSession.findUnique({
       where: { cookieHash: hashBrowserSessionCookie(success.body.cookie) },

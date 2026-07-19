@@ -64,7 +64,7 @@ describe('26 · BFF session lifecycle', () => {
       resolved.body.expiresAt,
       new Date(verification.claims.exp * 1000).toISOString(),
     );
-    assert.equal(resolved.headers.get('cache-control'), 'no-store');
+    assert.equal(resolved.headers.get('cache-control'), 'private, no-store, max-age=0');
 
     const authenticated = await h.get('/auth/me', {
       headers: { 'x-internal-auth': resolved.body.assertion },
