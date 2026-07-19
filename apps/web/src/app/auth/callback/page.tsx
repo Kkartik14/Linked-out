@@ -7,6 +7,7 @@ import { getMe } from "@/lib/api";
 import { oauthErrorMessage, safeReturnTo } from "@/lib/auth-entry";
 import { publishSessionChanged } from "@/lib/session-channel";
 import { Button } from "@/components/ui/button";
+import { exchangeHandoff } from "./actions";
 
 function Centered({ children }: { children: React.ReactNode }) {
   return (
@@ -25,6 +26,9 @@ function CallbackInner() {
   // Kept separate from `error`: the effect below skips the session fetch on any OAuth error,
   // and it must key off the raw code, not the composed message.
   const errorCode = params.get("error");
+  // Present only in handoff mode: Nest returns `?code=` to be exchanged here for the session,
+  // whereas legacy returns `?returnTo=` because Nest already set the cookies.
+  const handoffCode = params.get("code");
   const error =
     oauthErrorMessage(errorCode) ??
     (fetchFailed ? "We couldn't complete sign-in. Please try again." : null);
@@ -33,31 +37,47 @@ function CallbackInner() {
     if (errorCode) return;
 
     let cancelled = false;
-    getMe()
-      .then((me) => {
-        if (cancelled) return;
-        if (!me.user) {
-          router.replace(`/login?returnTo=${encodeURIComponent(returnTo)}`);
-          return;
-        }
-        // Sign-in succeeded, so a new principal now owns the shared cookies. Announce it
-        // before navigating: any other tab is still rendering the previous viewer and
-        // holding its private cache. Onboarding-required is still a completed sign-in.
-        publishSessionChanged();
-        router.replace(
-          me.needsOnboarding
-            ? `/onboarding?returnTo=${encodeURIComponent(returnTo)}`
-            : returnTo,
-        );
-      })
-      .catch(() => {
-        if (!cancelled) setFetchFailed(true);
-      });
+
+    // Shared tail: confirm who the (now-established) session belongs to and route accordingly.
+    // A new principal owns the shared cookies, so announce it before navigating — other tabs are
+    // still rendering the previous viewer. Onboarding-required is still a completed sign-in.
+    const confirmAndRoute = async (destination: string) => {
+      const me = await getMe();
+      if (cancelled) return;
+      if (!me.user) {
+        router.replace(`/login?returnTo=${encodeURIComponent(destination)}`);
+        return;
+      }
+      publishSessionChanged();
+      router.replace(
+        me.needsOnboarding
+          ? `/onboarding?returnTo=${encodeURIComponent(destination)}`
+          : destination,
+      );
+    };
+
+    const run = handoffCode
+      ? // Handoff: exchange the one-time code (sets lo_sid) before confirming the session, and use
+        // the server-bound returnTo the exchange returns rather than a destination read off the URL.
+        exchangeHandoff(handoffCode).then((result) => {
+          if (cancelled) return;
+          if (!result.ok) {
+            setFetchFailed(true);
+            return;
+          }
+          return confirmAndRoute(result.returnTo);
+        })
+      : // Legacy: Nest already set the cookies, so just confirm and route.
+        confirmAndRoute(returnTo);
+
+    run.catch(() => {
+      if (!cancelled) setFetchFailed(true);
+    });
 
     return () => {
       cancelled = true;
     };
-  }, [errorCode, returnTo, router]);
+  }, [errorCode, handoffCode, returnTo, router]);
 
   if (error) {
     return (
