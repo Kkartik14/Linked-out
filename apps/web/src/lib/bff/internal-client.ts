@@ -54,7 +54,17 @@ function getConfig(): InternalClientConfig {
   ) {
     throw new Error("INTERNAL_API_BASE_URL must be an HTTP(S) origin without credentials or a path.");
   }
-  if (process.env.NODE_ENV === "production" && parsedBaseUrl.protocol !== "https:") {
+  // Plaintext internal transport is refused in production — except for a loopback host, which is a
+  // potentially-trustworthy origin (the same exception that lets Secure cookies work over
+  // http://localhost). A real production INTERNAL_API_BASE_URL is never localhost, so this keeps a
+  // production build e2e-testable over http://localhost without weakening the real-host rule.
+  const isLoopback =
+    parsedBaseUrl.hostname === "localhost" || parsedBaseUrl.hostname === "127.0.0.1";
+  if (
+    process.env.NODE_ENV === "production" &&
+    parsedBaseUrl.protocol !== "https:" &&
+    !isLoopback
+  ) {
     throw new Error("INTERNAL_API_BASE_URL must use HTTPS in production.");
   }
 
