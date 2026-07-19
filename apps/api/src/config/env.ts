@@ -36,6 +36,23 @@ const optionalUrl = z
     message: 'Must be a valid URL.',
   });
 
+const optionalOrigin = z
+  .string()
+  .default('')
+  .refine((value) => {
+    if (value.length === 0) return true;
+    const parsed = z.url().safeParse(value);
+    if (!parsed.success) return false;
+    const url = new URL(value);
+    return (
+      url.pathname === '/' &&
+      url.search.length === 0 &&
+      url.hash.length === 0 &&
+      url.username.length === 0 &&
+      url.password.length === 0
+    );
+  }, { message: 'Must be an origin without credentials, path, query, or hash.' });
+
 const optionalInternalSecret = z.string().default('').refine(
   (value) => value.length === 0 || Buffer.byteLength(value, 'utf8') >= 32,
   { message: 'Must contain at least 32 bytes.' },
@@ -48,6 +65,14 @@ function normalizeHostname(hostname: string): string {
     normalized = normalized.slice(1, -1);
   }
   return normalized;
+}
+
+function originsEqual(left: string, right: string): boolean {
+  try {
+    return new URL(left).origin === new URL(right).origin;
+  } catch {
+    return false;
+  }
 }
 
 function isLocalProductionHost(hostname: string): boolean {
@@ -87,7 +112,7 @@ function addProductionNetworkUrlIssues(
 
 function addProductionUrlIssues(
   ctx: z.RefinementCtx,
-  field: 'API_BASE_URL' | 'WEB_URL',
+  field: 'API_BASE_URL' | 'WEB_URL' | 'PUBLIC_OAUTH_CALLBACK_BASE_URL',
   value: string,
 ): void {
   const parsed = addProductionNetworkUrlIssues(ctx, field, value);
@@ -108,6 +133,7 @@ export const envSchema = z
     PORT: z.coerce.number().int().positive().default(4000),
     API_BASE_URL: z.url(),
     WEB_URL: z.url(),
+    PUBLIC_OAUTH_CALLBACK_BASE_URL: optionalOrigin,
     TRUST_PROXY_HOPS: z.coerce.number().int().min(0).default(0),
 
     DATABASE_URL: z.string().min(1),
@@ -142,6 +168,19 @@ export const envSchema = z
             message: `${field} is required when OAUTH_SESSION_MODE is handoff.`,
           });
         }
+      }
+      if (env.PUBLIC_OAUTH_CALLBACK_BASE_URL.length === 0) {
+        ctx.addIssue({
+          code: 'custom',
+          path: ['PUBLIC_OAUTH_CALLBACK_BASE_URL'],
+          message: 'PUBLIC_OAUTH_CALLBACK_BASE_URL is required when OAUTH_SESSION_MODE is handoff.',
+        });
+      } else if (originsEqual(env.PUBLIC_OAUTH_CALLBACK_BASE_URL, env.API_BASE_URL)) {
+        ctx.addIssue({
+          code: 'custom',
+          path: ['PUBLIC_OAUTH_CALLBACK_BASE_URL'],
+          message: 'The public OAuth callback origin must be distinct from the private API origin.',
+        });
       }
     }
     for (const field of ['INTERNAL_API_SECRET', 'BFF_CALLER_SECRET'] as const) {
@@ -181,6 +220,7 @@ export const envSchema = z
       'COOKIE_DOMAIN',
       'INTERNAL_API_SECRET',
       'BFF_CALLER_SECRET',
+      'PUBLIC_OAUTH_CALLBACK_BASE_URL',
     ] as const;
 
     for (const field of requiredProductionFields) {
@@ -195,6 +235,11 @@ export const envSchema = z
 
     addProductionUrlIssues(ctx, 'API_BASE_URL', env.API_BASE_URL);
     addProductionUrlIssues(ctx, 'WEB_URL', env.WEB_URL);
+    addProductionUrlIssues(
+      ctx,
+      'PUBLIC_OAUTH_CALLBACK_BASE_URL',
+      env.PUBLIC_OAUTH_CALLBACK_BASE_URL,
+    );
     addProductionNetworkUrlIssues(ctx, 'R2_PUBLIC_BASE_URL', env.R2_PUBLIC_BASE_URL);
     addProductionNetworkUrlIssues(ctx, 'R2_ENDPOINT', env.R2_ENDPOINT);
     if (env.TRUST_PROXY_HOPS <= 0) {

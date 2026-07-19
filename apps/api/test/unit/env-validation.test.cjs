@@ -9,6 +9,7 @@ const productionEnv = {
   NODE_ENV: 'production',
   API_BASE_URL: 'https://api.linkedout.example',
   WEB_URL: 'https://linkedout.example',
+  PUBLIC_OAUTH_CALLBACK_BASE_URL: 'https://linkedout.example',
   TRUST_PROXY_HOPS: '1',
   DATABASE_URL: 'postgresql://user:pass@db.example/linkedout',
   JWT_ACCESS_SECRET: 'access-secret-long-enough',
@@ -87,6 +88,23 @@ test('handoff OAuth mode requires both the caller and API assertion keys', () =>
         (issue) =>
           issue.path.join('.') === field &&
           issue.message.includes('OAUTH_SESSION_MODE is handoff'),
+      ),
+    );
+  }
+});
+
+test('handoff OAuth mode requires a public callback origin distinct from the private API', () => {
+  for (const callbackOrigin of ['', productionEnv.API_BASE_URL]) {
+    const result = envSchema.safeParse({
+      ...productionEnv,
+      NODE_ENV: 'test',
+      OAUTH_SESSION_MODE: 'handoff',
+      PUBLIC_OAUTH_CALLBACK_BASE_URL: callbackOrigin,
+    });
+    assert.equal(result.success, false);
+    assert.ok(
+      result.error.issues.some(
+        (issue) => issue.path.join('.') === 'PUBLIC_OAUTH_CALLBACK_BASE_URL',
       ),
     );
   }
