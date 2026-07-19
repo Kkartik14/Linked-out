@@ -75,3 +75,38 @@ export function subscribeSessionChanged(handler: () => void): () => void {
   target.addEventListener("message", listener);
   return () => target.removeEventListener("message", listener);
 }
+
+/** A local DOM event, because `BroadcastChannel` never delivers to its own document. */
+const SESSION_EXPIRED_EVENT = "linkedout:session-expired";
+
+/**
+ * Debounce window. A burst of authenticated requests can all 401 at once when a session dies;
+ * publishing an invalidation for each would be a cross-tab refresh storm. Leading-edge: the first
+ * failure fires immediately, the rest within the window are dropped.
+ */
+const EXPIRY_DEBOUNCE_MS = 1_000;
+let expiryScheduled = false;
+
+/**
+ * An authenticated request was rejected (`401`) and the session is no longer live. Publish **one**
+ * debounced session-expiry invalidation (the TODO's "one debounced session-expiry invalidation …
+ * a burst of failed requests must not create a cross-tab refresh storm"). Other tabs re-derive via
+ * the shared channel; this tab re-derives via a local event, since a `BroadcastChannel` does not
+ * deliver to the document that posted. A no-op on the server.
+ */
+export function publishSessionExpired(): void {
+  if (typeof window === "undefined" || expiryScheduled) return;
+  expiryScheduled = true;
+  setTimeout(() => {
+    expiryScheduled = false;
+  }, EXPIRY_DEBOUNCE_MS);
+  getChannel()?.postMessage(SESSION_CHANGED);
+  window.dispatchEvent(new Event(SESSION_EXPIRED_EVENT));
+}
+
+/** Subscribe to this tab's own session-expiry signal (see {@link publishSessionExpired}). */
+export function subscribeSessionExpired(handler: () => void): () => void {
+  if (typeof window === "undefined") return () => {};
+  window.addEventListener(SESSION_EXPIRED_EVENT, handler);
+  return () => window.removeEventListener(SESSION_EXPIRED_EVENT, handler);
+}

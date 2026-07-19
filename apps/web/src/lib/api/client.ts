@@ -1,8 +1,18 @@
 import { API_BASE_URL } from "@/lib/env";
+import { isHandoffMode } from "@/lib/bff/mode";
+import { publishSessionExpired } from "@/lib/session-channel";
 import type { ErrorEnvelope } from "@linkedout/contracts";
 import { PRINCIPAL_BINDING_HEADER } from "@linkedout/contracts";
 import type { ComposedPrincipal } from "@/lib/principal";
 import { ApiError } from "./errors";
+
+/**
+ * A relative base URL (`/v1`) means the browser talks to its own origin — the one-origin BFF is
+ * present. This is the browser-visible signal for handoff mode: the server-only
+ * `OAUTH_SESSION_MODE` cannot be read in the browser, and a relative base is exactly what a
+ * handoff deployment sets. It selects debounced expiry invalidation over legacy token refresh.
+ */
+const IS_BFF_CLIENT = API_BASE_URL.startsWith("/");
 
 export interface ApiFetchInit extends RequestInit {
   /** Internal: prevents an infinite refresh loop on repeated 401s. */
@@ -80,33 +90,32 @@ export async function apiFetch<T>(path: string, init: ApiFetchInit = {}): Promis
   const headers = new Headers(rest.headers);
   const forwardsCredentials = rest.credentials !== "omit";
   if (!forwardsCredentials) headers.delete("cookie");
-  const cookie = forwardsCredentials ? await serverCookieHeader() : null;
-  if (cookie) headers.set("cookie", cookie);
   if (principal) headers.set(PRINCIPAL_BINDING_HEADER, principal);
   if (rest.body && !headers.has("content-type")) {
     headers.set("content-type", "application/json");
   }
 
-  const res = await fetch(`${API_BASE_URL}${path}`, {
-    ...rest,
+  const res = await sendRequest(
+    path,
+    rest,
     headers,
-    credentials: rest.credentials ?? "include",
-    // Per-user/authenticated data must never be statically cached.
-    cache: rest.cache ?? "no-store",
-    signal: withTimeout(rest.signal, timeoutMs),
-  });
+    forwardsCredentials,
+    withTimeout(rest.signal, timeoutMs),
+  );
 
   if (res.status === 401) {
     const body = await safeJson(res);
-    const code = (body as ErrorEnvelope | null)?.error?.code;
-    if (
-      code === "TOKEN_EXPIRED" &&
-      !skipRefresh &&
-      forwardsCredentials &&
-      typeof window !== "undefined"
-    ) {
-      await refreshSessionSingleFlight();
-      return apiFetch<T>(path, { ...init, skipRefresh: true });
+    if (typeof window !== "undefined" && !skipRefresh && forwardsCredentials) {
+      if (IS_BFF_CLIENT) {
+        // One-origin (handoff): there is no token to refresh. An authenticated request that 401s
+        // means the session was rejected or expired and the `/v1` edge already cleared `lo_sid` —
+        // publish a single debounced expiry invalidation so every tab re-derives to a guest.
+        publishSessionExpired();
+      } else if ((body as ErrorEnvelope | null)?.error?.code === "TOKEN_EXPIRED") {
+        // Legacy: rotate the access cookie once and retry.
+        await refreshSessionSingleFlight();
+        return apiFetch<T>(path, { ...init, skipRefresh: true });
+      }
     }
     throw toApiError(401, body, res.headers);
   }
@@ -114,6 +123,61 @@ export async function apiFetch<T>(path: string, init: ApiFetchInit = {}): Promis
   if (!res.ok) throw toApiError(res.status, await safeJson(res), res.headers);
   if (res.status === 204) return undefined as T;
   return (await res.json()) as T;
+}
+
+/**
+ * Route a request to the right backend for the session topology (ADR 0001).
+ *
+ * This module is reachable from Client Components (via `endpoints.ts`), so it must never import a
+ * `server-only`/`next/headers` module — even a dynamic `import()` of one poisons the client bundle
+ * (Turbopack traces it in and `server-only` fails the build). It therefore only ever dynamically
+ * imports `next/headers`, which Next tolerates.
+ *
+ *  - **handoff + Server Component** — self-hop through this origin's own `/v1` route handler, which
+ *    is where the session resolution + assertion injection legitimately lives (it *is* server-only).
+ *    Only `lo_sid` (same-origin, to our own handler) is forwarded; the handler strips cookies before
+ *    Nest, so the browser's cookie header still never reaches Nest.
+ *  - **browser (either mode)** — `credentials: "include"` carries the cookie; in handoff the base
+ *    URL is same-origin `/v1` (the BFF route handler), in legacy it is the Nest origin.
+ *  - **legacy + Server Component** — forward the incoming request's cookies to Nest.
+ */
+async function sendRequest(
+  path: string,
+  rest: RequestInit,
+  headers: Headers,
+  forwardsCredentials: boolean,
+  signal: AbortSignal,
+): Promise<Response> {
+  if (isHandoffMode() && typeof window === "undefined") {
+    const { headers: nextHeaders, cookies } = await import("next/headers");
+    const incoming = await nextHeaders();
+    const host = incoming.get("host");
+    const proto = incoming.get("x-forwarded-proto") ?? "http";
+    if (forwardsCredentials) {
+      const cookie = (await cookies()).toString();
+      if (cookie) headers.set("cookie", cookie);
+    }
+    return fetch(`${proto}://${host}/v1${path}`, {
+      ...rest,
+      headers,
+      cache: rest.cache ?? "no-store",
+      signal,
+    });
+  }
+
+  if (typeof window === "undefined" && forwardsCredentials) {
+    const cookie = await serverCookieHeader();
+    if (cookie) headers.set("cookie", cookie);
+  }
+
+  return fetch(`${API_BASE_URL}${path}`, {
+    ...rest,
+    headers,
+    credentials: rest.credentials ?? "include",
+    // Per-user/authenticated data must never be statically cached.
+    cache: rest.cache ?? "no-store",
+    signal,
+  });
 }
 
 /**

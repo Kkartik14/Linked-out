@@ -6,7 +6,7 @@ import { useQueryClient } from "@tanstack/react-query";
 import type { UserProfile } from "@linkedout/contracts";
 
 import type { ComposedPrincipal } from "@/lib/principal";
-import { subscribeSessionChanged } from "@/lib/session-channel";
+import { subscribeSessionChanged, subscribeSessionExpired } from "@/lib/session-channel";
 
 /**
  * What this tab knows about who is viewing — four genuinely different facts, not two.
@@ -74,6 +74,14 @@ export function SessionProvider({
 
   /** Another tab signed in or out, so the shared cookies this tab renders from moved. */
   React.useEffect(() => subscribeSessionChanged(reDeriveSession), [reDeriveSession]);
+
+  /**
+   * This tab's own authenticated request just 401'd (handoff): the session expired under it. Re-
+   * derive so the layout re-runs `getSession()` — which now returns `rejected` — and the header,
+   * protected routes, and principal-scoped cache all follow, instead of the tab rendering a live
+   * viewer whose session is already dead.
+   */
+  React.useEffect(() => subscribeSessionExpired(reDeriveSession), [reDeriveSession]);
 
   /**
    * Restored from the back/forward cache, where the broadcast above could not reach: a
