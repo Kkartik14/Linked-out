@@ -7,6 +7,42 @@ This file covers `apps/web` only. Its executable API contract is
 
 ## [Unreleased]
 
+### One-origin BFF / session boundary (ADR 0001) — built behind `OAUTH_SESSION_MODE`
+
+The public web tier for the one-origin session boundary is now implemented and shipped **dark
+behind `OAUTH_SESSION_MODE`** (default `legacy`, so nothing below is live in production yet). The
+whole path is proven end-to-end against the real API + Postgres by a handoff-mode acceptance suite
+(`pnpm test:e2e:handoff`): **AUTH-01/02/03/05/07 all green.**
+
+- **`proxy.ts`** — the thin routing boundary (Next 16's `middleware` successor): optimistic
+  protected-route gating on the presence of `lo_sid` (handoff only), plus a `private, no-store`
+  cache default on authenticated HTML. No session resolution or state.
+- **`app/v1/[...path]/route.ts`** — the BFF for ordinary `/v1` traffic: CSRF check → resolve
+  `lo_sid` against the private API → inject the short-lived `X-Internal-Auth` assertion → forward
+  to Nest. Absent cookie forwarded anonymously; a rejected credential is cleared at the edge and
+  answered `401` (never downgraded to guest); an outage is `503`; OAuth legs relay faithfully. The
+  browser's cookie header never reaches Nest.
+- **`app/v1/auth/logout/route.ts`** — tombstone-first logout (revoke, then clear `lo_sid`),
+  idempotent.
+- **`app/auth/callback`** — a Server Action exchanges the OAuth handoff `code` for a session and
+  sets the host-only `lo_sid`, redirecting only to the server-bound `returnTo`.
+- **`src/lib/bff/`** — the server-only session-lifecycle client (`resolve`, `revoke`, handoff
+  `exchange`) over a shared, validated internal client, plus the CSRF guard and the
+  `OAUTH_SESSION_MODE` reader.
+- **`src/lib/api/client.ts`** — routes by topology: browser → same-origin `/v1` in handoff (Nest
+  directly in legacy); a Server Component in handoff self-hops through its own `/v1` handler; legacy
+  paths unchanged. An unrecoverable authenticated `401` publishes one debounced expiry invalidation.
+- **Session state** — `getSession()` distinguishes a rejected credential (`401` → `rejected`) from
+  a clean guest (§0/AUTH-06); `useComposedPrincipal` mints the brand only from a real viewer id,
+  never `"anon"`.
+
+Still legacy-only and intentionally deferred to the coordinated cutover: removing `public-read.ts`,
+the legacy token refresh, and the `lo_access`/`lo_refresh` cookie handling — all still required
+while `OAUTH_SESSION_MODE=legacy` serves production. Enabling `handoff` also depends on the platform
+making Nest private and provisioning the split caller/API secrets.
+
+### v1 consolidation
+
 The web app now consumes the sole `/v1` API and root `@linkedout/contracts` export. API URLs,
 browser fixtures, Playwright servers, examples, and contract imports were consolidated together;
 the removed L persistence fields no longer appear in the real-Postgres browser seed.
