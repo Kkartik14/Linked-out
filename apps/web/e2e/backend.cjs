@@ -14,7 +14,7 @@
  */
 
 const path = require('node:path');
-const { createHmac } = require('node:crypto');
+const { createHmac, randomBytes } = require('node:crypto');
 
 const DB_ENTRY = path.resolve(__dirname, '../../../packages/db/dist/index.js');
 const { createPrismaClient } = require(DB_ENTRY);
@@ -26,7 +26,11 @@ const SESSION_AUTHORITY_ENTRY = path.resolve(
   __dirname,
   '../../../packages/session-authority/dist/index.js',
 );
-const { BrowserSessionAuthority, PrismaBrowserSessionPersistence } = require(SESSION_AUTHORITY_ENTRY);
+const {
+  BrowserSessionAuthority,
+  PrismaBrowserSessionPersistence,
+  hashOAuthHandoffCode,
+} = require(SESSION_AUTHORITY_ENTRY);
 
 const { guardedReset } = require('../../../scripts/db-safety-guard.cjs');
 
@@ -97,6 +101,25 @@ async function createBrowserSession(user) {
   const authority = new BrowserSessionAuthority(new PrismaBrowserSessionPersistence(db()));
   const created = await authority.create(user.id);
   return created.cookie;
+}
+
+/**
+ * Create a pending, single-use OAuth handoff for `user` and return the plaintext code. Writes the
+ * `OAuthHandoff` row the way the API's OAuth callback would (code hashed with the same domain, a
+ * bound `returnTo`, a 60s expiry), so the code exchanges through the real
+ * `POST /v1/auth/oauth/handoff/exchange` into an authoritative session.
+ */
+async function createHandoff(user, returnTo = '/') {
+  const code = randomBytes(32).toString('base64url'); // 43-char base64url, the code shape
+  await db().oAuthHandoff.create({
+    data: {
+      codeHash: hashOAuthHandoffCode(code),
+      sub: user.id,
+      returnTo,
+      expiresAt: new Date(Date.now() + 60_000),
+    },
+  });
+  return code;
 }
 
 // ─── Fixtures ─────────────────────────────────────────────────────────────────
@@ -305,6 +328,7 @@ module.exports = {
   seedWorld,
   accessToken,
   createBrowserSession,
+  createHandoff,
   DATABASE_URL,
   ACCESS_SECRET,
   BFF_CALLER_SECRET,

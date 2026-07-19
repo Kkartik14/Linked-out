@@ -97,6 +97,11 @@ export function createBrowserSession(user: SeededUser): Promise<string> {
   return backend.createBrowserSession(user);
 }
 
+/** Writes a pending single-use `OAuthHandoff` row for `user`; returns the plaintext code. */
+export function createHandoff(user: SeededUser, returnTo = "/"): Promise<string> {
+  return backend.createHandoff(user, returnTo);
+}
+
 /**
  * Establishes a REAL browser session: writes a `BrowserSession` row and installs its matching
  * host-only `lo_sid` cookie — the one-origin BFF lifecycle (ADR 0001 §4.3), not the legacy
