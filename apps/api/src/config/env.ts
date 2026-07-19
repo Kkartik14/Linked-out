@@ -36,22 +36,30 @@ const optionalUrl = z
     message: 'Must be a valid URL.',
   });
 
+function isHttpOrigin(value: string): boolean {
+  const parsed = z.url().safeParse(value);
+  if (!parsed.success) return false;
+  const url = new URL(value);
+  return (
+    (url.protocol === 'http:' || url.protocol === 'https:') &&
+    url.pathname === '/' &&
+    url.search.length === 0 &&
+    url.hash.length === 0 &&
+    url.username.length === 0 &&
+    url.password.length === 0
+  );
+}
+
+const originMessage = 'Must be an HTTP(S) origin without credentials, path, query, or hash.';
+const requiredOrigin = z
+  .string()
+  .refine(isHttpOrigin, { message: originMessage })
+  .transform((value) => new URL(value).origin);
 const optionalOrigin = z
   .string()
   .default('')
-  .refine((value) => {
-    if (value.length === 0) return true;
-    const parsed = z.url().safeParse(value);
-    if (!parsed.success) return false;
-    const url = new URL(value);
-    return (
-      url.pathname === '/' &&
-      url.search.length === 0 &&
-      url.hash.length === 0 &&
-      url.username.length === 0 &&
-      url.password.length === 0
-    );
-  }, { message: 'Must be an origin without credentials, path, query, or hash.' });
+  .refine((value) => value.length === 0 || isHttpOrigin(value), { message: originMessage })
+  .transform((value) => (value.length === 0 ? '' : new URL(value).origin));
 
 const optionalInternalSecret = z.string().default('').refine(
   (value) => value.length === 0 || Buffer.byteLength(value, 'utf8') >= 32,
@@ -83,7 +91,7 @@ function isLocalProductionHost(hostname: string): boolean {
   return localAddressBlockList.check(normalized, family === 4 ? 'ipv4' : 'ipv6');
 }
 
-function addProductionNetworkUrlIssues(
+function addProductionHttpsUrlIssues(
   ctx: z.RefinementCtx,
   field: string,
   value: string,
@@ -100,6 +108,16 @@ function addProductionNetworkUrlIssues(
   if (parsed.protocol !== 'https:') {
     ctx.addIssue({ code: 'custom', path: [field], message: `${field} must use HTTPS in production.` });
   }
+  return parsed;
+}
+
+function addProductionNetworkUrlIssues(
+  ctx: z.RefinementCtx,
+  field: string,
+  value: string,
+): URL | null {
+  const parsed = addProductionHttpsUrlIssues(ctx, field, value);
+  if (!parsed) return null;
   if (isLocalProductionHost(parsed.hostname)) {
     ctx.addIssue({
       code: 'custom',
@@ -131,8 +149,8 @@ export const envSchema = z
   .object({
     NODE_ENV: z.enum(['development', 'production', 'test']).default('development'),
     PORT: z.coerce.number().int().positive().default(4000),
-    API_BASE_URL: z.url(),
-    WEB_URL: z.url(),
+    API_BASE_URL: requiredOrigin,
+    WEB_URL: requiredOrigin,
     PUBLIC_OAUTH_CALLBACK_BASE_URL: optionalOrigin,
     TRUST_PROXY_HOPS: z.coerce.number().int().min(0).default(0),
 
@@ -181,6 +199,12 @@ export const envSchema = z
           path: ['PUBLIC_OAUTH_CALLBACK_BASE_URL'],
           message: 'The public OAuth callback origin must be distinct from the private API origin.',
         });
+      } else if (!originsEqual(env.PUBLIC_OAUTH_CALLBACK_BASE_URL, env.WEB_URL)) {
+        ctx.addIssue({
+          code: 'custom',
+          path: ['PUBLIC_OAUTH_CALLBACK_BASE_URL'],
+          message: 'The public OAuth callback origin must match WEB_URL.',
+        });
       }
     }
     for (const field of ['INTERNAL_API_SECRET', 'BFF_CALLER_SECRET'] as const) {
@@ -220,7 +244,6 @@ export const envSchema = z
       'COOKIE_DOMAIN',
       'INTERNAL_API_SECRET',
       'BFF_CALLER_SECRET',
-      'PUBLIC_OAUTH_CALLBACK_BASE_URL',
     ] as const;
 
     for (const field of requiredProductionFields) {
@@ -233,7 +256,13 @@ export const envSchema = z
       }
     }
 
-    addProductionUrlIssues(ctx, 'API_BASE_URL', env.API_BASE_URL);
+    if (env.OAUTH_SESSION_MODE === 'legacy') {
+      addProductionUrlIssues(ctx, 'API_BASE_URL', env.API_BASE_URL);
+    } else {
+      // In handoff mode Nest is private by design. TLS remains mandatory, while RFC1918 and
+      // other internal addresses are valid deployment targets for the BFF-to-Nest hop.
+      addProductionHttpsUrlIssues(ctx, 'API_BASE_URL', env.API_BASE_URL);
+    }
     addProductionUrlIssues(ctx, 'WEB_URL', env.WEB_URL);
     addProductionUrlIssues(
       ctx,
