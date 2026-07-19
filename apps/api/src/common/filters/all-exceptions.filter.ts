@@ -1,6 +1,6 @@
 import { ArgumentsHost, Catch, HttpException, Logger, type ExceptionFilter } from '@nestjs/common';
 import type { ErrorEnvelope } from '@linkedout/contracts';
-import type { Response } from 'express';
+import type { Request, Response } from 'express';
 
 import { AppException, isAppExceptionBody } from '../errors/app-exception';
 
@@ -13,6 +13,18 @@ const STATUS_TO_CODE: Readonly<Record<number, string>> = {
   422: 'UNPROCESSABLE',
   429: 'RATE_LIMITED',
 };
+
+const SECURITY_REJECTION_CODES = new Set([
+  'UNAUTHENTICATED',
+  'TOKEN_EXPIRED',
+  'PRINCIPAL_MISMATCH',
+  'INVALID_HANDOFF',
+  'CSRF_REJECTED',
+]);
+
+function requestPath(req: Request): string {
+  return req.path || req.url.split('?')[0] || '/';
+}
 
 function extractMessage(response: string | object): string {
   if (typeof response === 'string') {
@@ -37,10 +49,18 @@ export class AllExceptionsFilter implements ExceptionFilter {
 
   catch(exception: unknown, host: ArgumentsHost): void {
     const res = host.switchToHttp().getResponse<Response>();
+    const req = host.switchToHttp().getRequest<Request>();
 
     if (exception instanceof AppException) {
       const body = exception.getResponse();
       if (isAppExceptionBody(body)) {
+        if (SECURITY_REJECTION_CODES.has(body.code)) {
+          // Never include headers, cookies, query strings, bodies, or exception text here: each
+          // may contain a browser credential, OAuth code, or internal assertion.
+          this.logger.warn(
+            `security_rejection code=${body.code} method=${req.method} path=${requestPath(req)}`,
+          );
+        }
         const envelope: ErrorEnvelope = {
           error: { code: body.code, message: body.message, details: body.details },
         };

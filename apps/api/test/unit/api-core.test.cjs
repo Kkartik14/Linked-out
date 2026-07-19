@@ -28,6 +28,10 @@ const {
   ZodValidationPipe,
 } = require('../../dist/common/pipes/zod-validation.pipe');
 const {
+  DEFAULT_PRIVATE_CACHE_CONTROL,
+  ResponseCachePolicyInterceptor,
+} = require('../../dist/common/interceptors/response-cache-policy.interceptor');
+const {
   buildPage,
   mapPage,
 } = require('../../dist/common/pagination/paginate');
@@ -47,7 +51,7 @@ function assertAppError(error, status, code) {
   return true;
 }
 
-function captureResponse() {
+function captureResponse(request = { method: 'GET', path: '/test', url: '/test' }) {
   const response = {
     statusCode: undefined,
     body: undefined,
@@ -62,11 +66,31 @@ function captureResponse() {
   };
   const host = {
     switchToHttp() {
-      return { getResponse: () => response };
+      return { getResponse: () => response, getRequest: () => request };
     },
   };
   return { host, response };
 }
+
+test('response cache policy defaults private and preserves explicit public caching', () => {
+  const interceptor = new ResponseCachePolicyInterceptor();
+  const next = { handle: () => 'handled' };
+
+  for (const existing of [undefined, 'public, max-age=60']) {
+    const headers = new Map();
+    if (existing) headers.set('cache-control', existing);
+    const response = {
+      hasHeader: (name) => headers.has(name.toLowerCase()),
+      setHeader: (name, value) => headers.set(name.toLowerCase(), value),
+    };
+    const context = {
+      getType: () => 'http',
+      switchToHttp: () => ({ getResponse: () => response }),
+    };
+    assert.equal(interceptor.intercept(context, next), 'handled');
+    assert.equal(headers.get('cache-control'), existing ?? DEFAULT_PRIVATE_CACHE_CONTROL);
+  }
+});
 
 test('ZodValidationPipe applies defaults and coercions for valid input', () => {
   const pipe = new ZodValidationPipe(createLInputSchema);
@@ -271,6 +295,24 @@ test('AllExceptionsFilter always renders the standard error envelope', () => {
       error: { code: 'INTERNAL', message: 'Something went wrong.' },
     });
   }
+});
+
+test('security rejection telemetry excludes credentials, assertions, OAuth codes, and queries', () => {
+  const filter = new AllExceptionsFilter();
+  const messages = [];
+  filter.logger.warn = (message) => messages.push(message);
+  const { host } = captureResponse({
+    method: 'POST',
+    path: '/v1/auth/sessions/resolve',
+    url: '/v1/auth/sessions/resolve?code=oauth-secret',
+    headers: { cookie: 'lo_sid=browser-secret', 'x-internal-auth': 'assertion-secret' },
+  });
+
+  filter.catch(AppErrors.unauthenticated(), host);
+  assert.deepEqual(messages, [
+    'security_rejection code=UNAUTHENTICATED method=POST path=/v1/auth/sessions/resolve',
+  ]);
+  assert.doesNotMatch(messages[0], /oauth-secret|browser-secret|assertion-secret|\?/);
 });
 
 test('cursor helpers round-trip good cursors and reject malformed cursors', () => {

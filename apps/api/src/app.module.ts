@@ -6,6 +6,7 @@ import { PrismaModule } from './prisma/prisma.module';
 import { RateLimitInterceptor } from './common/interceptors/rate-limit.interceptor';
 import { PrincipalBindingInterceptor } from './common/interceptors/principal-binding.interceptor';
 import { RequestLoggingInterceptor } from './common/interceptors/request-logging.interceptor';
+import { ResponseCachePolicyInterceptor } from './common/interceptors/response-cache-policy.interceptor';
 import { RateLimitModule } from './common/rate-limit/rate-limit.module';
 import { AuthModule } from './modules/auth/auth.module';
 import { UsersModule } from './modules/users/users.module';
@@ -41,6 +42,7 @@ import { MetaModule } from './modules/meta/meta.module';
     MetaModule,
   ],
   providers: [
+    { provide: APP_INTERCEPTOR, useClass: ResponseCachePolicyInterceptor },
     { provide: APP_INTERCEPTOR, useClass: RequestLoggingInterceptor },
     { provide: APP_INTERCEPTOR, useClass: PrincipalBindingInterceptor },
     { provide: APP_INTERCEPTOR, useClass: RateLimitInterceptor },
