@@ -6,7 +6,10 @@ import { REQUEST_AUTHENTICATION } from '../../common/auth/request-authentication
 import { JwtAuthGuard } from '../../common/guards/jwt-auth.guard';
 import { OptionalAuthGuard } from '../../common/guards/optional-auth.guard';
 import { UsersModule } from '../users/users.module';
-import { BrowserSessionAuthority } from '@linkedout/session-authority';
+import {
+  BrowserSessionAuthority,
+  PrismaBrowserSessionPersistence,
+} from '@linkedout/session-authority';
 import { ApiAssertionSigner } from '@linkedout/internal-auth';
 
 import { PrismaService } from '../../prisma/prisma.service';
@@ -49,11 +52,11 @@ const githubStrategyProvider: Provider = {
     AuthRepository,
     OAuthHandoffRepository,
     OAuthHandoffService,
-    // The authority owns all browser-session persistence; it is constructed from the one
-    // extended Prisma client so the ULID/session SQL stays in a single place.
+    // Policy depends on a persistence seam; only the Prisma adapter sees the database client.
     {
       provide: BrowserSessionAuthority,
-      useFactory: (prisma: PrismaService) => new BrowserSessionAuthority(prisma.db),
+      useFactory: (prisma: PrismaService) =>
+        new BrowserSessionAuthority(new PrismaBrowserSessionPersistence(prisma.db)),
       inject: [PrismaService],
     },
     {

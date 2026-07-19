@@ -8,6 +8,7 @@ const { ESLint } = require('eslint');
 
 const SRC = resolve(__dirname, '../../src');
 const MODULES = resolve(SRC, 'modules');
+const SESSION_AUTHORITY_SRC = resolve(__dirname, '../../../../packages/session-authority/src');
 
 function filesBelow(directory, suffix) {
   return readdirSync(directory, { withFileTypes: true }).flatMap((entry) => {
@@ -46,6 +47,16 @@ test('application services do not construct Prisma inputs', () => {
     assert.doesNotMatch(contents, /from ['"]@linkedout\/db['"]/, `${label} must not import Prisma`);
     assert.doesNotMatch(contents, /\bPrisma\./, `${label} must use domain-shaped data`);
   }
+});
+
+test('browser session policy is isolated from its Prisma persistence adapter', () => {
+  const policy = source(join(SESSION_AUTHORITY_SRC, 'browser-session-authority.ts'));
+  const adapter = source(join(SESSION_AUTHORITY_SRC, 'prisma-browser-session.persistence.ts'));
+
+  assert.doesNotMatch(policy, /@linkedout\/db|\bPrisma\b|\$queryRaw|\$transaction/);
+  assert.match(adapter, /@linkedout\/db/);
+  assert.match(adapter, /\$transaction/);
+  assert.match(adapter, /\$queryRaw/);
 });
 
 test('feature modules expose application services, never persistence repositories', () => {

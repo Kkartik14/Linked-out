@@ -6,6 +6,7 @@ const { beforeEach, describe, test } = require('node:test');
 const {
   BROWSER_SESSION_IDLE_TIMEOUT_MS,
   BrowserSessionAuthority,
+  PrismaBrowserSessionPersistence,
 } = require('@linkedout/session-authority');
 const { ApiAssertionVerifier } = require('@linkedout/internal-auth');
 const {
@@ -18,7 +19,7 @@ const h = require('../_harness.cjs');
 const VALID_BUT_UNKNOWN_COOKIE = 'A'.repeat(43);
 
 function authority() {
-  return new BrowserSessionAuthority(h.ctx.prisma);
+  return new BrowserSessionAuthority(new PrismaBrowserSessionPersistence(h.ctx.prisma));
 }
 
 function resolve(cookie, assertion = h.sessionResolveAssertion()) {

@@ -5,6 +5,7 @@ const {
   BROWSER_SESSION_ABSOLUTE_TIMEOUT_MS,
   BROWSER_SESSION_IDLE_TIMEOUT_MS,
   BrowserSessionAuthority,
+  PrismaBrowserSessionPersistence,
   hashBrowserSessionCookie,
 } = require('@linkedout/session-authority');
 const { PrismaCleanupPersistence } = require('../../../dist/maintenance/prisma-cleanup.persistence');
@@ -27,6 +28,10 @@ function after(start, milliseconds) {
   return new Date(start.getTime() + milliseconds);
 }
 
+function authority(prisma, options) {
+  return new BrowserSessionAuthority(new PrismaBrowserSessionPersistence(prisma), options);
+}
+
 describe('browser session authority', () => {
   beforeEach(async () => {
     await h.resetDb();
@@ -35,13 +40,13 @@ describe('browser session authority', () => {
   test('stores only a hashed opaque cookie and preserves explicit credential states', async () => {
     const user = await h.createUser();
     const time = clockAt(START);
-    const authority = new BrowserSessionAuthority(h.ctx.prisma, { clock: time.clock });
+    const sessionAuthority = authority(h.ctx.prisma, { clock: time.clock });
 
-    assert.deepEqual(await authority.authorize(undefined), { kind: 'absent' });
-    assert.deepEqual(await authority.authorize('not-a-session-cookie'), { kind: 'invalid' });
-    assert.deepEqual(await authority.authorize(VALID_BUT_UNKNOWN_COOKIE), { kind: 'invalid' });
+    assert.deepEqual(await sessionAuthority.authorize(undefined), { kind: 'absent' });
+    assert.deepEqual(await sessionAuthority.authorize('not-a-session-cookie'), { kind: 'invalid' });
+    assert.deepEqual(await sessionAuthority.authorize(VALID_BUT_UNKNOWN_COOKIE), { kind: 'invalid' });
 
-    const created = await authority.create(user.id);
+    const created = await sessionAuthority.create(user.id);
     assert.match(created.cookie, /^[A-Za-z0-9_-]{43}$/);
     assert.notEqual(created.sid, created.cookie);
     const stored = await h.ctx.prisma.browserSession.findUniqueOrThrow({
@@ -51,24 +56,24 @@ describe('browser session authority', () => {
     assert.notEqual(stored.cookieHash, created.cookie);
     assert.equal(stored.sub, user.id);
 
-    const authorized = await authority.authorize(created.cookie);
+    const authorized = await sessionAuthority.authorize(created.cookie);
     assert.equal(authorized.kind, 'authenticated');
     assert.equal(authorized.session.sid, created.sid);
     assert.equal(authorized.session.sub, user.id);
 
     time.set(after(START, BROWSER_SESSION_IDLE_TIMEOUT_MS));
-    assert.deepEqual(await authority.authorize(created.cookie), { kind: 'expired' });
+    assert.deepEqual(await sessionAuthority.authorize(created.cookie), { kind: 'expired' });
   });
 
   test('slides monotonically under concurrent requests and enforces the 90-day cap', async () => {
     const user = await h.createUser();
     const creationTime = clockAt(START);
-    const creator = new BrowserSessionAuthority(h.ctx.prisma, { clock: creationTime.clock });
+    const creator = authority(h.ctx.prisma, { clock: creationTime.clock });
     const created = await creator.create(user.id);
     const older = after(START, 24 * 60 * 60 * 1000);
     const newer = after(START, 2 * 24 * 60 * 60 * 1000);
     const authorities = Array.from({ length: 20 }, (_, index) =>
-      new BrowserSessionAuthority(h.ctx.prisma, {
+      authority(h.ctx.prisma, {
         clock: { now: () => (index % 2 === 0 ? newer : older) },
       }),
     );
@@ -83,7 +88,7 @@ describe('browser session authority', () => {
     assert.equal(stored.lastUsedAt.toISOString(), newer.toISOString());
 
     const longLivedTime = clockAt(START);
-    const longLivedAuthority = new BrowserSessionAuthority(h.ctx.prisma, {
+    const longLivedAuthority = authority(h.ctx.prisma, {
       clock: longLivedTime.clock,
     });
     const longLived = await longLivedAuthority.create(user.id);
@@ -97,23 +102,32 @@ describe('browser session authority', () => {
 
   test('revokes tombstone-first, is idempotent, and never turns store failure into absence', async () => {
     const user = await h.createUser();
-    const authority = new BrowserSessionAuthority(h.ctx.prisma, {
+    const sessionAuthority = authority(h.ctx.prisma, {
       clock: { now: () => START },
     });
-    const created = await authority.create(user.id);
+    const created = await sessionAuthority.create(user.id);
 
-    assert.deepEqual(await authority.revoke(created.cookie), { revoked: true });
+    assert.deepEqual(await sessionAuthority.revoke(created.cookie), { revoked: true });
     const tombstone = await h.ctx.prisma.browserSession.findUniqueOrThrow({
       where: { id: created.sid },
     });
     assert.equal(tombstone.revokedAt.toISOString(), START.toISOString());
-    assert.deepEqual(await authority.authorize(created.cookie), { kind: 'revoked' });
-    assert.deepEqual(await authority.revoke(created.cookie), { revoked: false });
-    assert.deepEqual(await authority.revoke(undefined), { revoked: false });
+    assert.deepEqual(await sessionAuthority.authorize(created.cookie), { kind: 'revoked' });
+    assert.deepEqual(await sessionAuthority.revoke(created.cookie), { revoked: false });
+    assert.deepEqual(await sessionAuthority.revoke(undefined), { revoked: false });
 
     const infrastructureFailure = new Error('session store unavailable');
     const unavailable = new BrowserSessionAuthority({
-      async $queryRaw() {
+      async authorize() {
+        throw infrastructureFailure;
+      },
+      async create() {
+        throw infrastructureFailure;
+      },
+      async exchangeOAuthHandoff() {
+        throw infrastructureFailure;
+      },
+      async revoke() {
         throw infrastructureFailure;
       },
     });
@@ -123,7 +137,7 @@ describe('browser session authority', () => {
   test('cleanup bounds work while retaining live sessions and fresh tombstones', async () => {
     const user = await h.createUser();
     const cutoff = after(START, BROWSER_SESSION_ABSOLUTE_TIMEOUT_MS + 24 * 60 * 60 * 1000);
-    const atStart = new BrowserSessionAuthority(h.ctx.prisma, { clock: { now: () => START } });
+    const atStart = authority(h.ctx.prisma, { clock: { now: () => START } });
     await atStart.create(user.id); // idle-expired
     const absoluteExpired = await atStart.create(user.id);
     await h.ctx.prisma.browserSession.update({
@@ -134,12 +148,12 @@ describe('browser session authority', () => {
     await atStart.revoke(oldTombstone.cookie);
 
     const liveCreation = after(cutoff, -24 * 60 * 60 * 1000);
-    const liveAuthority = new BrowserSessionAuthority(h.ctx.prisma, {
+    const liveAuthority = authority(h.ctx.prisma, {
       clock: { now: () => liveCreation },
     });
     const live = await liveAuthority.create(user.id);
     const freshTombstone = await liveAuthority.create(user.id);
-    const justRevoked = new BrowserSessionAuthority(h.ctx.prisma, {
+    const justRevoked = authority(h.ctx.prisma, {
       clock: { now: () => after(cutoff, -30 * 1000) },
     });
     await justRevoked.revoke(freshTombstone.cookie);

@@ -9,6 +9,7 @@ const {
 const {
   BROWSER_SESSION_ABSOLUTE_TIMEOUT_MS,
   BrowserSessionAuthority,
+  PrismaBrowserSessionPersistence,
   hashBrowserSessionCookie,
   hashOAuthHandoffCode,
 } = require('@linkedout/session-authority');
@@ -27,6 +28,13 @@ const {
 function authority() {
   const repository = new OAuthHandoffRepository({ db: h.ctx.prisma });
   return new OAuthHandoffService(repository);
+}
+
+function sessionAuthority(options) {
+  return new BrowserSessionAuthority(
+    new PrismaBrowserSessionPersistence(h.ctx.prisma),
+    options,
+  );
 }
 
 function exchange(code, assertion = h.authExchangeAssertion()) {
@@ -88,7 +96,7 @@ describe('24 · purpose-scoped OAuth handoffs', () => {
   test('session creation failure rolls back handoff consumption so the code remains retryable', async () => {
     const user = await h.createUser();
     const collidingCookie = 'C'.repeat(43);
-    const collidingAuthority = new BrowserSessionAuthority(h.ctx.prisma, {
+    const collidingAuthority = sessionAuthority({
       tokenSource: { generate: () => collidingCookie },
     });
     await collidingAuthority.create(user.id);
@@ -102,7 +110,7 @@ describe('24 · purpose-scoped OAuth handoffs', () => {
     assert.equal(rolledBack.consumedAt, null);
     assert.equal(await h.ctx.prisma.browserSession.count(), 1, 'no orphan session was inserted');
 
-    const recovered = await new BrowserSessionAuthority(h.ctx.prisma).exchangeOAuthHandoff(code);
+    const recovered = await sessionAuthority().exchangeOAuthHandoff(code);
     assert.ok(recovered);
     assert.equal(recovered.returnTo, '/retry-after-outage');
     assert.equal(await h.ctx.prisma.browserSession.count(), 2);
