@@ -3,6 +3,8 @@ import type { ErrorEnvelope } from '@linkedout/contracts';
 import type { Request, Response } from 'express';
 
 import { AppException, isAppExceptionBody } from '../errors/app-exception';
+import { DEFAULT_PRIVATE_CACHE_CONTROL } from '../http/cache-policy';
+import { requestPathForLogging } from '../http/request-path';
 
 const STATUS_TO_CODE: Readonly<Record<number, string>> = {
   400: 'BAD_REQUEST',
@@ -13,18 +15,6 @@ const STATUS_TO_CODE: Readonly<Record<number, string>> = {
   422: 'UNPROCESSABLE',
   429: 'RATE_LIMITED',
 };
-
-const SECURITY_REJECTION_CODES = new Set([
-  'UNAUTHENTICATED',
-  'TOKEN_EXPIRED',
-  'PRINCIPAL_MISMATCH',
-  'INVALID_HANDOFF',
-  'CSRF_REJECTED',
-]);
-
-function requestPath(req: Request): string {
-  return req.path || req.url.split('?')[0] || '/';
-}
 
 function extractMessage(response: string | object): string {
   if (typeof response === 'string') {
@@ -50,15 +40,18 @@ export class AllExceptionsFilter implements ExceptionFilter {
   catch(exception: unknown, host: ArgumentsHost): void {
     const res = host.switchToHttp().getResponse<Response>();
     const req = host.switchToHttp().getRequest<Request>();
+    // Guards, router misses, and body-parser failures can happen before global interceptors.
+    // The exception boundary therefore repeats the fail-closed default for every error response.
+    res.setHeader('Cache-Control', DEFAULT_PRIVATE_CACHE_CONTROL);
 
     if (exception instanceof AppException) {
       const body = exception.getResponse();
       if (isAppExceptionBody(body)) {
-        if (SECURITY_REJECTION_CODES.has(body.code)) {
+        if (exception.telemetryClassification === 'security-rejection') {
           // Never include headers, cookies, query strings, bodies, or exception text here: each
           // may contain a browser credential, OAuth code, or internal assertion.
           this.logger.warn(
-            `security_rejection code=${body.code} method=${req.method} path=${requestPath(req)}`,
+            `security_rejection code=${body.code} method=${req.method} path=${requestPathForLogging(req)}`,
           );
         }
         const envelope: ErrorEnvelope = {

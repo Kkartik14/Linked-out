@@ -1,16 +1,48 @@
 import { HttpException } from '@nestjs/common';
-import type { FieldError } from '@linkedout/contracts';
+import { fieldErrorSchema, type FieldError } from '@linkedout/contracts';
+
+export const APP_ERROR_CODES = [
+  'VALIDATION_ERROR',
+  'BAD_CURSOR',
+  'UNAUTHENTICATED',
+  'TOKEN_EXPIRED',
+  'INVALID_HANDOFF',
+  'PRINCIPAL_MISMATCH',
+  'FORBIDDEN',
+  'NOT_L_OWNER',
+  'L_NOT_FOUND',
+  'USER_NOT_FOUND',
+  'COMMENT_NOT_FOUND',
+  'COLLECTION_NOT_FOUND',
+  'USERNAME_TAKEN',
+  'USERNAME_INVALID',
+  'EMAIL_TAKEN',
+  'ALREADY_FOLLOWING',
+  'RATE_LIMITED',
+  'PROVIDER_NOT_CONFIGURED',
+  'UPLOADS_DISABLED',
+  'INTERNAL',
+] as const;
+export type AppErrorCode = (typeof APP_ERROR_CODES)[number];
+const appErrorCodeSet = new Set<string>(APP_ERROR_CODES);
 
 export interface AppExceptionBody {
-  code: string;
+  code: AppErrorCode;
   message: string;
   details?: FieldError[];
 }
 
+export interface AppExceptionOptions {
+  telemetryClassification?: 'security-rejection';
+}
+
 /** Carries a stable machine `code` (+ optional field details) rendered by the global filter. */
 export class AppException extends HttpException {
-  constructor(status: number, body: AppExceptionBody) {
+  readonly telemetryClassification: AppExceptionOptions['telemetryClassification'];
+
+  constructor(status: number, body: AppExceptionBody, options: AppExceptionOptions = {}) {
     super(body, status);
+    this.telemetryClassification = options.telemetryClassification;
   }
 }
 
@@ -21,7 +53,13 @@ export function isAppExceptionBody(value: unknown): value is AppExceptionBody {
     'code' in value &&
     'message' in value &&
     typeof (value as { code: unknown }).code === 'string' &&
-    typeof (value as { message: unknown }).message === 'string'
+    appErrorCodeSet.has((value as { code: string }).code) &&
+    typeof (value as { message: unknown }).message === 'string' &&
+    (!('details' in value) ||
+      (Array.isArray((value as { details: unknown }).details) &&
+        (value as { details: unknown[] }).details.every(
+          (detail) => fieldErrorSchema.safeParse(detail).success,
+        )))
   );
 }
 
@@ -38,22 +76,38 @@ export const AppErrors = {
   validationMessage: (message: string): AppException =>
     new AppException(400, { code: 'VALIDATION_ERROR', message }),
   unauthenticated: (): AppException =>
-    new AppException(401, { code: 'UNAUTHENTICATED', message: 'You must be signed in.' }),
+    new AppException(
+      401,
+      { code: 'UNAUTHENTICATED', message: 'You must be signed in.' },
+      { telemetryClassification: 'security-rejection' },
+    ),
   tokenExpired: (): AppException =>
-    new AppException(401, {
-      code: 'TOKEN_EXPIRED',
-      message: 'Your session expired. Refresh and retry.',
-    }),
+    new AppException(
+      401,
+      {
+        code: 'TOKEN_EXPIRED',
+        message: 'Your session expired. Refresh and retry.',
+      },
+      { telemetryClassification: 'security-rejection' },
+    ),
   invalidHandoff: (): AppException =>
-    new AppException(400, {
-      code: 'INVALID_HANDOFF',
-      message: 'The sign-in handoff is invalid or expired.',
-    }),
+    new AppException(
+      400,
+      {
+        code: 'INVALID_HANDOFF',
+        message: 'The sign-in handoff is invalid or expired.',
+      },
+      { telemetryClassification: 'security-rejection' },
+    ),
   principalMismatch: (): AppException =>
-    new AppException(409, {
-      code: 'PRINCIPAL_MISMATCH',
-      message: 'Your signed-in identity changed. Refresh this view before retrying.',
-    }),
+    new AppException(
+      409,
+      {
+        code: 'PRINCIPAL_MISMATCH',
+        message: 'Your signed-in identity changed. Refresh this view before retrying.',
+      },
+      { telemetryClassification: 'security-rejection' },
+    ),
   forbidden: (message = 'You do not have access to this.'): AppException =>
     new AppException(403, { code: 'FORBIDDEN', message }),
   onboardingRequired: (): AppException =>
