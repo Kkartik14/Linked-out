@@ -72,6 +72,16 @@ export function bffCallerSigner(): BffCallerAssertionSigner {
   return getConfig().signer;
 }
 
+/**
+ * The validated private Nest origin ordinary `/v1/*` traffic is forwarded to. Same validation as
+ * the lifecycle calls (no credentials, no path, HTTPS in production), so the forward target can
+ * never be a misconfigured or attacker-influenced URL.
+ */
+export function internalApiOrigin(): string {
+  assertServer();
+  return getConfig().apiBaseUrl;
+}
+
 /** A slow private hop must not hold a render open indefinitely; fail closed instead. */
 const DEFAULT_TIMEOUT_MS = 3_000;
 
