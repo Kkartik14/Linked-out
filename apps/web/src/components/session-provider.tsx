@@ -9,11 +9,17 @@ import type { ComposedPrincipal } from "@/lib/principal";
 import { subscribeSessionChanged } from "@/lib/session-channel";
 
 /**
- * What this tab knows about who is viewing — three genuinely different facts, not two.
+ * What this tab knows about who is viewing — four genuinely different facts, not two.
  *
  *  - `authenticated` — a live viewer, with the onboarding bit the server resolved.
- *  - `guest` — no viewer: either no credential was presented, or one was and it was rejected.
- *    Both lead to the same remedy (sign in), so the UI need not tell them apart.
+ *  - `guest` — **no credential was presented** (`/auth/me` answered `200 { user: null }`). A
+ *    clean visitor; the offer is to sign in.
+ *  - `rejected` — a credential **was** presented and the API rejected it with `401` (invalid,
+ *    expired, or revoked). Not the same fact as a clean guest: the contract forbids downgrading
+ *    a bad credential to guest (§0), and conflating them is what once let a client answer "am I
+ *    signed in?" with "you're a guest" and never attempt recovery. Rendering is the same as
+ *    guest (sign in), but the state is distinct so the broken cookie can be cleared and one
+ *    expiry invalidation published instead of silently pretending nothing was wrong.
  *  - `unavailable` — we could **not determine** identity: `/auth/me` failed for a reason that
  *    is not "not signed in" (a 5xx, a network error, a timeout). This is the state AUTH-06
  *    exists for. Collapsing it into `guest` — which the old shape did — renders an outage as a
@@ -23,6 +29,7 @@ import { subscribeSessionChanged } from "@/lib/session-channel";
 export type Session =
   | { status: "authenticated"; user: UserProfile; needsOnboarding: boolean }
   | { status: "guest" }
+  | { status: "rejected" }
   | { status: "unavailable" };
 
 /** The viewer's profile, or `null` when there is none to show — guest and unavailable alike. */
@@ -146,10 +153,31 @@ export function usePrincipal(): string {
  * later render, which is exactly the freeze — and unlike reading `ref.current` during
  * render, it is something React actually guarantees.
  *
- * The one place a `ComposedPrincipal` is minted, hence the one cast: this is the only site
- * that can honestly claim the value means what the brand says it means.
+ * The one place a `ComposedPrincipal` is minted, hence the one cast — and it is minted **only
+ * from a real authenticated viewer id**, never from the `"anon"` cache-scoping placeholder.
+ * Returns `null` for every non-authenticated session (guest, rejected, unavailable), because a
+ * guest has no principal to compose a mutation under. Guests do not mutate; if one somehow
+ * reaches a mutation, `null` makes it a caught error at the call site instead of an
+ * `X-LinkedOut-Principal: anon` the API would 409 anyway.
  */
-export function useComposedPrincipal(): ComposedPrincipal {
-  const [composedAs] = React.useState(usePrincipal());
-  return composedAs as ComposedPrincipal;
+export function useComposedPrincipal(): ComposedPrincipal | null {
+  const session = useSession();
+  const [composedAs] = React.useState(() =>
+    session.status === "authenticated" ? (session.user.id as ComposedPrincipal) : null,
+  );
+  return composedAs;
+}
+
+/**
+ * Narrow a possibly-`null` composed principal at a mutation call site. Throws when absent — an
+ * authenticated-only action was reached without an authenticated principal, which the UI should
+ * have prevented; failing loudly beats sending a meaningless one.
+ */
+export function assertComposedPrincipal(
+  principal: ComposedPrincipal | null,
+): ComposedPrincipal {
+  if (principal === null) {
+    throw new Error("This action requires you to be signed in.");
+  }
+  return principal;
 }

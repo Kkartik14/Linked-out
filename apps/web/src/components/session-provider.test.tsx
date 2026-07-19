@@ -51,7 +51,7 @@ function renderProvider(
 }
 
 /** Renders whatever it was composed under, and records every value it ever declared. */
-function Composed({ seen }: { seen: string[] }) {
+function Composed({ seen }: { seen: (string | null)[] }) {
   const composedAs = useComposedPrincipal();
   seen.push(composedAs);
   return <output>{composedAs}</output>;
@@ -98,7 +98,7 @@ describe("useComposedPrincipal", () => {
     // declaring A while the cookie already says B, so the API can reject the write. If this
     // ever tracked the live principal it would agree with the session on every request and
     // the 409 would never fire — passing tests, silent hole.
-    const seen: string[] = [];
+    const seen: (string | null)[] = [];
     const view = renderProvider(signedIn, new QueryClient(), routerSpy(), <Composed seen={seen} />);
 
     expect(view.getByRole("status")).toHaveTextContent(mockUser.id);
@@ -108,7 +108,7 @@ describe("useComposedPrincipal", () => {
   it("remounts on a principal change so the declaration follows the new viewer", () => {
     // Freezing without remounting would pin the old principal forever: an ordinary
     // sign-out/sign-in in this very tab would then 409 every mutation until a hard reload.
-    const seen: string[] = [];
+    const seen: (string | null)[] = [];
     const view = renderProvider(signedIn, new QueryClient(), routerSpy(), <Composed seen={seen} />);
     view.rerenderWith(otherUser);
 
@@ -119,20 +119,22 @@ describe("useComposedPrincipal", () => {
   it("does not remount when the snapshot changes but the principal does not", () => {
     // A profile edit re-renders the layout. Remounting there would throw away whatever the
     // viewer was in the middle of typing, for no safety gain — same person, same session.
-    const seen: string[] = [];
+    const seen: (string | null)[] = [];
     const view = renderProvider(signedIn, new QueryClient(), routerSpy(), <Composed seen={seen} />);
     view.rerenderWith({ status: "authenticated", user: { ...mockUser, bio: "edited" }, needsOnboarding: false });
 
     expect(new Set(seen)).toEqual(new Set([mockUser.id]));
   });
 
-  it("declares the guest principal when signed out", () => {
-    const seen: string[] = [];
+  it("mints no principal when signed out — never brands the 'anon' placeholder", () => {
+    // A guest has no principal to compose a mutation under. The hook returns null rather than
+    // branding the "anon" cache-scoping placeholder as an authenticated principal.
+    const seen: (string | null)[] = [];
     renderProvider({ status: "guest" }, new QueryClient(), routerSpy(), (
       <Composed seen={seen} />
     ));
 
-    expect(seen).toEqual(["anon"]);
+    expect(seen).toEqual([null]);
   });
 });
 

@@ -25,7 +25,7 @@ import {
 } from "@/components/ui/form";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
-import { useComposedPrincipal } from "@/components/session-provider";
+import { assertComposedPrincipal, useComposedPrincipal } from "@/components/session-provider";
 import { Button } from "@/components/ui/button";
 import { Switch } from "@/components/ui/switch";
 import {
@@ -101,7 +101,7 @@ export function LComposer({ initial }: { initial?: LDetail }) {
 
   async function onSubmit(values: FormValues) {
     try {
-      const saved = initial ? await patchL(composedAs, initial.id, values) : await createL(composedAs, values);
+      const saved = initial ? await patchL(assertComposedPrincipal(composedAs), initial.id, values) : await createL(assertComposedPrincipal(composedAs), values);
       toast.success(initial ? "Changes saved." : "Your L is live.");
       router.push(`/ls/${saved.id}`);
       router.refresh();

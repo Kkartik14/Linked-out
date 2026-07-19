@@ -7,7 +7,7 @@ import type { UserProfile } from "@linkedout/contracts";
 
 import { errorMessage, follow, unfollow } from "@/lib/api";
 import { queryKeys } from "@/lib/query-keys";
-import { useComposedPrincipal, usePrincipal, useViewer } from "@/components/session-provider";
+import { assertComposedPrincipal, useComposedPrincipal, usePrincipal, useViewer } from "@/components/session-provider";
 import { Button } from "@/components/ui/button";
 
 export function FollowButton({
@@ -27,7 +27,7 @@ export function FollowButton({
   const mutation = useMutation({
     mutationKey: [...profileKey, "follow"] as const,
     mutationFn: (wasFollowing: boolean) =>
-      wasFollowing ? unfollow(composedAs, username) : follow(composedAs, username),
+      wasFollowing ? unfollow(assertComposedPrincipal(composedAs), username) : follow(assertComposedPrincipal(composedAs), username),
     onMutate: async (wasFollowing) => {
       await queryClient.cancelQueries({ queryKey: profileKey, exact: true });
       const previous = queryClient.getQueryData<UserProfile>(profileKey);

@@ -16,7 +16,7 @@ import {
   type CommentPages,
 } from "@/lib/comment-cache";
 import { queryKeys } from "@/lib/query-keys";
-import { useComposedPrincipal, usePrincipal, useViewer } from "@/components/session-provider";
+import { assertComposedPrincipal, useComposedPrincipal, usePrincipal, useViewer } from "@/components/session-provider";
 import { statusOption, useMeta } from "@/components/meta-provider";
 import { UserAvatar } from "@/components/user-avatar";
 import { ConfirmDialog } from "@/components/confirm-dialog";
@@ -57,7 +57,7 @@ function CommentBody({
   });
 
   const reply = useMutation({
-    mutationFn: (body: string) => addReply(composedAs, comment.id, { body }),
+    mutationFn: (body: string) => addReply(assertComposedPrincipal(composedAs), comment.id, { body }),
     onMutate: async () => {
       await Promise.all([
         queryClient.cancelQueries({ queryKey: repliesKey, exact: true }),
@@ -86,7 +86,7 @@ function CommentBody({
   const parentId = comment.parentId;
 
   const del = useMutation({
-    mutationFn: () => deleteComment(composedAs, comment.id),
+    mutationFn: () => deleteComment(assertComposedPrincipal(composedAs), comment.id),
     onMutate: async () => {
       const affectedRepliesKey = parentId
         ? queryKeys.comments.replies(principal, parentId)

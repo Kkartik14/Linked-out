@@ -15,7 +15,7 @@ import { ReactionBar } from "@/components/l/reaction-bar";
 import { SaveToCollectionButton } from "@/components/collections/save-to-collection-button";
 import { ConfirmDialog } from "@/components/confirm-dialog";
 import { Badge } from "@/components/ui/badge";
-import { useComposedPrincipal } from "@/components/session-provider";
+import { assertComposedPrincipal, useComposedPrincipal } from "@/components/session-provider";
 import { Button } from "@/components/ui/button";
 import { timeAgo } from "@/lib/format";
 
@@ -31,7 +31,7 @@ export function LDetailView({ l }: { l: LDetail }) {
   const isBattle = l.type === "BATTLE";
 
   const del = useMutation({
-    mutationFn: () => deleteL(composedAs, l.id),
+    mutationFn: () => deleteL(assertComposedPrincipal(composedAs), l.id),
     onSuccess: () => {
       toast.success("Your L was deleted.");
       router.push("/");
@@ -41,7 +41,7 @@ export function LDetailView({ l }: { l: LDetail }) {
   });
 
   const resolve = useMutation({
-    mutationFn: (on: boolean) => patchL(composedAs, l.id, { resolvedAt: on ? new Date() : null }),
+    mutationFn: (on: boolean) => patchL(assertComposedPrincipal(composedAs), l.id, { resolvedAt: on ? new Date() : null }),
     onSuccess: (updated) => {
       setResolvedAt(updated.resolvedAt);
       toast.success(updated.resolvedAt ? "Marked as resolved." : "Reopened.");

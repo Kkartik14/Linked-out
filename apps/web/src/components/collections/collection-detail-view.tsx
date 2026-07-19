@@ -17,7 +17,7 @@ import {
 import { LCard } from "@/components/l/l-card";
 import { ConfirmDialog } from "@/components/confirm-dialog";
 import { EmptyState } from "@/components/empty-state";
-import { useComposedPrincipal } from "@/components/session-provider";
+import { assertComposedPrincipal, useComposedPrincipal } from "@/components/session-provider";
 import { Button } from "@/components/ui/button";
 import {
   Dialog,
@@ -44,7 +44,7 @@ export function CollectionDetailView({
   const canManage = collection.viewer.canEdit;
 
   const rename = useMutation({
-    mutationFn: (nextTitle: string) => renameCollection(composedAs, collection.id, nextTitle),
+    mutationFn: (nextTitle: string) => renameCollection(assertComposedPrincipal(composedAs), collection.id, nextTitle),
     onSuccess: (updated) => {
       setTitle(updated.title);
       setDraftTitle(updated.title);
@@ -56,7 +56,7 @@ export function CollectionDetailView({
   });
 
   const del = useMutation({
-    mutationFn: () => deleteCollection(composedAs, collection.id),
+    mutationFn: () => deleteCollection(assertComposedPrincipal(composedAs), collection.id),
     onSuccess: () => {
       toast.success("Collection deleted.");
       router.push(`/u/${collection.owner.username}`);
@@ -66,7 +66,7 @@ export function CollectionDetailView({
   });
 
   const remove = useMutation({
-    mutationFn: (lId: string) => removeLFromCollection(composedAs, collection.id, lId),
+    mutationFn: (lId: string) => removeLFromCollection(assertComposedPrincipal(composedAs), collection.id, lId),
     onSuccess: (_res, lId) => {
       setItems((current) => current.filter((item) => item.id !== lId));
       toast.success("Removed from collection.");
