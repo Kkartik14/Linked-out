@@ -309,18 +309,22 @@ export class CollectionsRepository {
   }
 
   private async rebalanceRanks(tx: CollectionTransaction, collectionId: string): Promise<void> {
-    const members = await tx.collectionL.findMany({
-      where: { collectionId },
-      select: { lId: true },
-      orderBy: [{ position: 'asc' }, { lId: 'asc' }],
-    });
-    for (const [index, member] of members.entries()) {
-      await tx.collectionL.update({
-        where: { collectionId_lId: { collectionId, lId: member.lId } },
-        data: { position: index * POSITION_GAP },
-        select: { lId: true },
-      });
-    }
+    await tx.$executeRaw`
+      WITH ranked AS (
+        SELECT
+          "collectionId",
+          "lId",
+          ((ROW_NUMBER() OVER (ORDER BY "position" ASC, "lId" ASC) - 1) * ${POSITION_GAP})::integer
+            AS "newPosition"
+        FROM "CollectionL"
+        WHERE "collectionId" = ${collectionId}
+      )
+      UPDATE "CollectionL" AS member
+      SET "position" = ranked."newPosition"
+      FROM ranked
+      WHERE member."collectionId" = ranked."collectionId"
+        AND member."lId" = ranked."lId"
+    `;
   }
 
   async removeL(collectionId: string, lId: string): Promise<void> {
