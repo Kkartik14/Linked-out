@@ -1,6 +1,6 @@
 import { expect, test } from "@playwright/test";
 import { BffCallerAssertionSigner, INTERNAL_AUTH_HEADER } from "@linkedout/internal-auth";
-import { sessionResolveResponseSchema } from "@linkedout/contracts";
+import { PRINCIPAL_BINDING_HEADER, sessionResolveResponseSchema } from "@linkedout/contracts";
 
 import {
   API_ORIGIN,
@@ -96,5 +96,36 @@ test.describe("handoff session (lo_sid, one-origin BFF)", () => {
       data: { title: "hijack", story: "cross-site write should be blocked" },
     });
     expect(res.status()).toBe(403);
+  });
+
+  test("AUTH-05: many concurrent requests on one lo_sid all authenticate", async ({ context }) => {
+    await signInBff(context, world.kartik);
+
+    // No per-request token rotation exists to race; each request resolves + slides the same row.
+    const results = await Promise.all(
+      Array.from({ length: 10 }, () => context.request.get(`${WEB_ORIGIN}/v1/auth/me`)),
+    );
+    for (const res of results) {
+      expect(res.status()).toBe(200);
+      expect(((await res.json()) as { user?: { username?: string } }).user?.username).toBe("kartik");
+    }
+  });
+
+  test("AUTH-03/FRONTEND-24: a mutation declaring a different principal is rejected (409)", async ({
+    context,
+  }) => {
+    await signInBff(context, world.kartik); // the live session is kartik's
+
+    // A stale form composed under nadia declares her principal; the API binds the mutation to the
+    // live credential and rejects the mismatch, even though the session and CSRF checks pass.
+    const res = await context.request.post(`${WEB_ORIGIN}/v1/ls`, {
+      headers: {
+        origin: WEB_ORIGIN,
+        "content-type": "application/json",
+        [PRINCIPAL_BINDING_HEADER]: world.nadia.id,
+      },
+      data: { title: "stale", story: "composed under a different principal" },
+    });
+    expect(res.status()).toBe(409);
   });
 });
