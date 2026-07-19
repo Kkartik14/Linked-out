@@ -89,6 +89,36 @@ export async function signIn(context: BrowserContext, user: SeededUser): Promise
   ]);
 }
 
+/** The e2e BFF caller secret the API boots with — used to sign `session-resolve` assertions. */
+export const BFF_CALLER_SECRET: string = backend.BFF_CALLER_SECRET;
+
+/** Writes a real `BrowserSession` row for `user`; returns the opaque `lo_sid` cookie value. */
+export function createBrowserSession(user: SeededUser): Promise<string> {
+  return backend.createBrowserSession(user);
+}
+
+/**
+ * Establishes a REAL browser session: writes a `BrowserSession` row and installs its matching
+ * host-only `lo_sid` cookie — the one-origin BFF lifecycle (ADR 0001 §4.3), not the legacy
+ * access cookie. This is the lifecycle the acceptance suite (AUTH-01/02/05/03) needs; it
+ * becomes the sole `signIn` once the app runs in `OAUTH_SESSION_MODE=handoff`. Returns the
+ * cookie so a spec can also resolve or revoke it directly.
+ */
+export async function signInBff(context: BrowserContext, user: SeededUser): Promise<string> {
+  const cookie = await createBrowserSession(user);
+  await context.addCookies([
+    {
+      name: "lo_sid",
+      value: cookie,
+      domain: "localhost",
+      path: "/",
+      httpOnly: true,
+      sameSite: "Lax",
+    },
+  ]);
+  return cookie;
+}
+
 export async function signOut(context: BrowserContext): Promise<void> {
   await context.clearCookies();
 }

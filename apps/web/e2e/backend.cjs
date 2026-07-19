@@ -19,6 +19,15 @@ const { createHmac } = require('node:crypto');
 const DB_ENTRY = path.resolve(__dirname, '../../../packages/db/dist/index.js');
 const { createPrismaClient } = require(DB_ENTRY);
 
+// The session authority is required by dist path — same as @linkedout/db — because it lives
+// outside this workspace's dependency graph. Creating a session through it writes the exact
+// BrowserSession row (hashed cookie, ULID sid) the production OAuth handoff would.
+const SESSION_AUTHORITY_ENTRY = path.resolve(
+  __dirname,
+  '../../../packages/session-authority/dist/index.js',
+);
+const { BrowserSessionAuthority, PrismaBrowserSessionPersistence } = require(SESSION_AUTHORITY_ENTRY);
+
 const { guardedReset } = require('../../../scripts/db-safety-guard.cjs');
 
 const DATABASE_URL =
@@ -26,6 +35,12 @@ const DATABASE_URL =
   'postgresql://linkedout:linkedout@localhost:5432/linkedout_test?schema=public';
 
 const ACCESS_SECRET = process.env.E2E_JWT_ACCESS_SECRET ?? 'e2e-access-secret-0123456789abcdef';
+
+// Purpose-scoped BFF caller key. MUST equal the value the e2e API boots with
+// (playwright.config.ts), so a `session-resolve` caller assertion a spec signs is one the API's
+// BffCallerGuard accepts. This is not a user-signing key and never mints identity.
+const BFF_CALLER_SECRET =
+  process.env.E2E_BFF_CALLER_SECRET ?? 'e2e-bff-caller-secret-0123456789abcdef';
 
 let prisma = null;
 
@@ -67,6 +82,23 @@ function accessToken(user) {
   return `${header}.${payload}.${signature}`;
 }
 
+// ─── Browser session (lo_sid) ───────────────────────────────────────────────────
+
+/**
+ * Create a live browser session for `user` and return its opaque `lo_sid` cookie value.
+ *
+ * This goes through the real `BrowserSessionAuthority`: it hashes the generated cookie the
+ * same way the API does and writes a `BrowserSession` row (ULID `sid`, `sub = user.id`). The
+ * returned plaintext cookie therefore resolves through the production
+ * `POST /v1/auth/sessions/resolve` path. A fresh authority per call avoids holding a Prisma
+ * client across a `disconnect()`.
+ */
+async function createBrowserSession(user) {
+  const authority = new BrowserSessionAuthority(new PrismaBrowserSessionPersistence(db()));
+  const created = await authority.create(user.id);
+  return created.cookie;
+}
+
 // ─── Fixtures ─────────────────────────────────────────────────────────────────
 
 const TABLES = [
@@ -78,6 +110,8 @@ const TABLES = [
   'Reaction',
   'L',
   'Session',
+  'BrowserSession',
+  'OAuthHandoff',
   'Account',
   'VerificationToken',
   'User',
@@ -264,4 +298,14 @@ async function seedWorld() {
   return { kartik, nadia, newcomer, google, startup, nadiaPublic, anonymous, privateL, comment, collection };
 }
 
-module.exports = { db, disconnect, resetDb, seedWorld, accessToken, DATABASE_URL, ACCESS_SECRET };
+module.exports = {
+  db,
+  disconnect,
+  resetDb,
+  seedWorld,
+  accessToken,
+  createBrowserSession,
+  DATABASE_URL,
+  ACCESS_SECRET,
+  BFF_CALLER_SECRET,
+};
