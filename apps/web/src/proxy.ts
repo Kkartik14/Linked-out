@@ -13,8 +13,9 @@ import { isHandoffMode } from "@/lib/bff/mode";
  * will bounce. Ordinary `/v1/*` traffic is served by the `app/v1/[...path]` route handler, so
  * nothing is rewritten here.
  *
- * Inert until the cutover: a straight pass-through in legacy, where auth rides the legacy access
- * cookie and this optimistic signal (`lo_sid`) does not exist.
+ * The optimistic gating is handoff-only (legacy auth rides the access cookie, and this `lo_sid`
+ * signal does not exist there). The private/no-store cache default it also applies is correct in
+ * both modes — authenticated HTML is viewer-dependent regardless of session topology.
  */
 
 const LO_SID = "lo_sid";
@@ -26,17 +27,26 @@ function isProtected(pathname: string): boolean {
 }
 
 export function proxy(request: NextRequest): NextResponse {
-  if (!isHandoffMode()) return NextResponse.next();
-
   const { pathname } = request.nextUrl;
-  if (isProtected(pathname) && !request.cookies.has(LO_SID)) {
+
+  // Optimistic protected-route gating (handoff only): redirect an obviously signed-out navigation
+  // before rendering a shell we know will bounce. The page still resolves the session server-side.
+  if (isHandoffMode() && isProtected(pathname) && !request.cookies.has(LO_SID)) {
     const url = request.nextUrl.clone();
     url.pathname = "/login";
     url.search = `returnTo=${encodeURIComponent(pathname)}`;
     return NextResponse.redirect(url);
   }
 
-  return NextResponse.next();
+  const response = NextResponse.next();
+  // Authenticated HTML and viewer-dependent page responses default to private/no-store, so a
+  // shared cache never keeps one viewer's rendered page and serves it to another. Public caching
+  // is an explicit opt-in. `/v1/*` API responses are left to the route handler's own policy, so a
+  // deliberately cacheable public read (e.g. GET /v1/meta/enums) is not forced to no-store here.
+  if (!pathname.startsWith("/v1/")) {
+    response.headers.set("Cache-Control", "private, no-store, max-age=0");
+  }
+  return response;
 }
 
 export const config = {

@@ -34,6 +34,9 @@ const internalApiSecret =
  */
 export default defineConfig({
   testDir: "./e2e",
+  // The handoff acceptance suite needs a handoff-mode build + server; it has its own config
+  // (playwright.handoff.config.ts, run via `pnpm test:e2e:handoff`) and must not run here.
+  testIgnore: "auth-handoff.spec.ts",
   fullyParallel: false,
   workers: 1,
   timeout: 30_000,
