@@ -281,6 +281,17 @@ test('sidebar cache contract and static discovery caches are explicit', () => {
   assert.equal(cacheControl(MetaController.prototype.openApi), STATIC_METADATA_CACHE_CONTROL);
 });
 
+test('OpenAPI marks operational health probes as internal and unauthenticated', () => {
+  const document = new MetaService().getOpenApi();
+  for (const component of ['private-api', 'database', 'session-authority']) {
+    const operation = document.paths[`/health/${component}`].get;
+    assert.deepEqual(operation.security, []);
+    assert.equal(operation['x-internal'], true);
+    assert.deepEqual(operation.tags, ['operations']);
+    assert.ok(operation.responses['200']);
+  }
+});
+
 test('OpenAPI and enum metadata are built once and frozen where appropriate', () => {
   const first = new MetaService();
   const second = new MetaService();

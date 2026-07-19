@@ -286,6 +286,15 @@ export function buildOpenApiDocument(): OpenApiDocument {
       '/notifications/{id}/read': { post: { parameters: [idPath()] } },
       '/notifications/read-all': { post: {} },
       '/meta/enums': { get: { security: [] } },
+      '/health/private-api': {
+        get: { security: [], tags: ['operations'], 'x-internal': true },
+      },
+      '/health/database': {
+        get: { security: [], tags: ['operations'], 'x-internal': true },
+      },
+      '/health/session-authority': {
+        get: { security: [], tags: ['operations'], 'x-internal': true },
+      },
       '/openapi.json': { get: { security: [] } },
     }),
     components: {

@@ -24,6 +24,7 @@ import {
   lDetailSchema,
   metaEnumsResponseSchema,
   notificationSchema,
+  operationalHealthResponseSchema,
   paginatedSchema,
   reactionResultSchema,
   unreadCountSchema,
@@ -75,6 +76,7 @@ export const API_COMPONENT_SCHEMAS = {
   LCard: lCardSchema,
   LDetail: lDetailSchema,
   MetaEnumsResponse: metaEnumsResponseSchema,
+  OperationalHealthResponse: operationalHealthResponseSchema,
   OkResponse: okSchema,
   PaginatedCollection: paginatedCollectionSchema,
   PaginatedComment: paginatedCommentSchema,
@@ -359,6 +361,21 @@ export const API_ROUTE_CONTRACTS = {
     jsonResponse('OkResponse'),
   ),
   metaEnums: route('get /meta/enums', 200, jsonResponse('MetaEnumsResponse')),
+  healthPrivateApi: route(
+    'get /health/private-api',
+    200,
+    jsonResponse('OperationalHealthResponse'),
+  ),
+  healthDatabase: route(
+    'get /health/database',
+    200,
+    jsonResponse('OperationalHealthResponse'),
+  ),
+  healthSessionAuthority: route(
+    'get /health/session-authority',
+    200,
+    jsonResponse('OperationalHealthResponse'),
+  ),
   openApi: route(
     'get /openapi.json',
     200,
