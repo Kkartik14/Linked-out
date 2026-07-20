@@ -48,6 +48,18 @@ async function resolveStatus(cookie: string): Promise<string> {
   return sessionResolveResponseSchema.parse(await res.json()).status;
 }
 
+async function revokeSession(cookie: string): Promise<void> {
+  const response = await fetch(`${API_ORIGIN}/v1/auth/sessions/revoke`, {
+    method: "POST",
+    headers: {
+      "content-type": "application/json",
+      [INTERNAL_AUTH_HEADER]: signer.signSessionRevoke(),
+    },
+    body: JSON.stringify({ cookie }),
+  });
+  expect(response.status).toBe(200);
+}
+
 test.describe("handoff session (lo_sid, one-origin BFF)", () => {
   test("the handoff callback atomically sets lo_sid and redirects to the bound destination", async ({
     context,
@@ -153,6 +165,18 @@ test.describe("handoff session (lo_sid, one-origin BFF)", () => {
     await page.reload();
     await expect(page.getByRole("button", { name: "Account menu" })).toBeVisible();
     await expect(page.getByText("Nothing saved yet.", { exact: false })).toBeVisible();
+  });
+
+  test("an RSC-only rejected session clears lo_sid at a browser-visible boundary", async ({
+    context,
+    page,
+  }) => {
+    const cookie = await signInBff(context, world.kartik);
+    await revokeSession(cookie);
+
+    await page.goto("/saved");
+    await expect(page).toHaveURL(`${WEB_ORIGIN}/login?returnTo=%2Fsaved`);
+    expect((await context.cookies()).some(({ name }) => name === "lo_sid")).toBe(false);
   });
 
   test("AUTH-02: BFF logout tombstones the session, clears lo_sid, and is idempotent", async ({

@@ -25,6 +25,7 @@ import { connection } from "next/server";
 
 afterEach(() => {
   vi.clearAllMocks();
+  vi.unstubAllEnvs();
 });
 
 describe("getSession — distinguishing states instead of flattening to logged-out (AUTH-06)", () => {
@@ -91,6 +92,14 @@ describe("requireViewer — gating a protected page", () => {
   it("sends a rejected credential to sign in, like a guest", () => {
     expect(() => requireViewer({ status: "rejected" }, "/settings")).toThrow(/REDIRECT:/);
     expect(redirect).toHaveBeenCalledWith("/login?returnTo=%2Fsettings");
+  });
+
+  it("uses the browser-visible cookie healer for a rejected handoff session", () => {
+    vi.stubEnv("OAUTH_SESSION_MODE", "handoff");
+    expect(() => requireViewer({ status: "rejected" }, "/settings")).toThrow(/REDIRECT:/);
+    expect(redirect).toHaveBeenCalledWith(
+      "/auth/session/rejected?returnTo=%2Fsettings",
+    );
   });
 
   it("rejects an unsafe returnTo rather than opening a redirect", () => {

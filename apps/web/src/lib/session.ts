@@ -5,6 +5,7 @@ import type { MetaEnumsResponse } from "@linkedout/contracts";
 
 import { getMe, getMeta, isApiError } from "@/lib/api";
 import { safeReturnTo } from "@/lib/auth-entry";
+import { isHandoffMode } from "@/lib/bff/mode";
 import { DEFAULT_META } from "@/lib/meta-fallback";
 import type { Session } from "@/components/session-provider";
 
@@ -55,6 +56,11 @@ type AuthenticatedSession = Extract<Session, { status: "authenticated" }>;
 export function requireViewer(session: Session, returnTo: string): AuthenticatedSession {
   if (session.status === "unavailable") {
     throw new Error("We couldn't confirm your session right now. Please try again.");
+  }
+  if (session.status === "rejected" && isHandoffMode()) {
+    redirect(
+      `/auth/session/rejected?returnTo=${encodeURIComponent(safeReturnTo(returnTo))}`,
+    );
   }
   if (session.status === "guest" || session.status === "rejected") {
     redirect(`/login?returnTo=${encodeURIComponent(safeReturnTo(returnTo))}`);
