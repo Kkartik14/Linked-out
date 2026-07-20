@@ -4,6 +4,10 @@ import { INTERNAL_AUTH_HEADER } from "@linkedout/internal-auth";
 import { csrfRejection } from "@/lib/bff/csrf";
 import { internalApiOrigin } from "@/lib/bff/internal-client";
 import { isHandoffMode } from "@/lib/bff/mode";
+import {
+  OAUTH_STATE_COOKIE,
+  oauthStateCookieForUpstream,
+} from "@/lib/bff/oauth-relay";
 import { resolveBffSession } from "@/lib/bff/session-resolver";
 
 /**
@@ -53,6 +57,11 @@ async function forwardToNest(
 
   const headers = new Headers(request.headers);
   headers.delete("cookie"); // stop forwarding the browser's complete cookie header
+  const oauthStateCookie = oauthStateCookieForUpstream(
+    request.nextUrl.pathname,
+    request.cookies.get(OAUTH_STATE_COOKIE)?.value,
+  );
+  if (oauthStateCookie) headers.set("cookie", oauthStateCookie);
   headers.delete(INTERNAL_AUTH_HEADER); // the assertion is minted here, never accepted from the client
   headers.delete("host");
   headers.delete("content-length"); // fetch recomputes for the forwarded body

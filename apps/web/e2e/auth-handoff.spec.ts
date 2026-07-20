@@ -45,6 +45,26 @@ async function resolveStatus(cookie: string): Promise<string> {
 }
 
 test.describe("handoff session (lo_sid, one-origin BFF)", () => {
+  test("AUTH-08: the public OAuth relay preserves state through the provider callback", async ({
+    context,
+  }) => {
+    const start = await context.request.get(`${WEB_ORIGIN}/v1/auth/google?returnTo=%2Fsaved`, {
+      maxRedirects: 0,
+    });
+    expect(start.status()).toBe(302);
+    const provider = new URL(start.headers().location ?? "");
+    const state = provider.searchParams.get("state");
+    expect(state).toBeTruthy();
+    expect((await context.cookies()).some(({ name }) => name === "lo_oauth_state")).toBe(true);
+
+    const callback = await context.request.get(
+      `${WEB_ORIGIN}/v1/auth/google/callback?error=access_denied&state=${encodeURIComponent(state ?? "")}`,
+      { maxRedirects: 0 },
+    );
+    expect(callback.status()).toBe(302);
+    expect(callback.headers().location).toBe(`${WEB_ORIGIN}/auth/callback?error=access_denied`);
+  });
+
   test("AUTH-01: a live lo_sid authenticates a protected render and a client API call", async ({
     context,
     page,

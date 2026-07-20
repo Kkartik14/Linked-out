@@ -48,6 +48,8 @@ export default defineConfig({
         PORT: apiPort,
         API_BASE_URL: `http://localhost:${apiPort}`,
         WEB_URL: webBaseUrl,
+        PUBLIC_OAUTH_CALLBACK_BASE_URL: webBaseUrl,
+        OAUTH_SESSION_MODE: "handoff",
         TRUST_PROXY_HOPS: "0",
         DATABASE_URL: testDatabaseUrl,
         DIRECT_URL: testDatabaseUrl,
