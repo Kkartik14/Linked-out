@@ -17,9 +17,17 @@ export function GET(request: NextRequest): NextResponse {
   );
   const response = NextResponse.redirect(destination);
   response.headers.set("cache-control", PRIVATE_NO_STORE);
-  response.cookies.set(BROWSER_SESSION_COOKIE, "", {
-    ...browserSessionCookieOptions(),
-    maxAge: 0,
-  });
+
+  // Clear the cookie only for a genuine same-origin navigation (the requireViewer redirect). A
+  // cross-site subresource — `<img src="…/auth/session/rejected">` — sets `Sec-Fetch-Site:
+  // cross-site`; honouring its cookie clear would be a logout-CSRF. When the signal is absent (an
+  // older browser) we still clear: the worst case is a forced re-login, and the legitimate path
+  // always carries a `same-origin`/`none` value.
+  if (request.headers.get("sec-fetch-site") !== "cross-site") {
+    response.cookies.set(BROWSER_SESSION_COOKIE, "", {
+      ...browserSessionCookieOptions(),
+      maxAge: 0,
+    });
+  }
   return response;
 }
