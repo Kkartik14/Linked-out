@@ -2,6 +2,8 @@ import "server-only";
 
 import { BffCallerAssertionSigner, INTERNAL_AUTH_HEADER } from "@linkedout/internal-auth";
 
+import { validatedHttpOrigin } from "./origin-validation";
+
 /**
  * The shared BFF → private-Nest client (ADR 0001 §4.2).
  *
@@ -43,32 +45,8 @@ function getConfig(): InternalClientConfig {
     throw new Error("INTERNAL_API_BASE_URL is required to call the private session API.");
   }
 
-  const parsedBaseUrl = new URL(configuredBaseUrl);
-  if (
-    !["http:", "https:"].includes(parsedBaseUrl.protocol) ||
-    parsedBaseUrl.username.length > 0 ||
-    parsedBaseUrl.password.length > 0 ||
-    parsedBaseUrl.pathname !== "/" ||
-    parsedBaseUrl.search.length > 0 ||
-    parsedBaseUrl.hash.length > 0
-  ) {
-    throw new Error("INTERNAL_API_BASE_URL must be an HTTP(S) origin without credentials or a path.");
-  }
-  // Plaintext internal transport is refused in production — except for a loopback host, which is a
-  // potentially-trustworthy origin (the same exception that lets Secure cookies work over
-  // http://localhost). A real production INTERNAL_API_BASE_URL is never localhost, so this keeps a
-  // production build e2e-testable over http://localhost without weakening the real-host rule.
-  const isLoopback =
-    parsedBaseUrl.hostname === "localhost" || parsedBaseUrl.hostname === "127.0.0.1";
-  if (
-    process.env.NODE_ENV === "production" &&
-    parsedBaseUrl.protocol !== "https:" &&
-    !isLoopback
-  ) {
-    throw new Error("INTERNAL_API_BASE_URL must use HTTPS in production.");
-  }
-
-  config = { signer: new BffCallerAssertionSigner(secret), apiBaseUrl: parsedBaseUrl.origin };
+  const apiBaseUrl = validatedHttpOrigin(configuredBaseUrl, "INTERNAL_API_BASE_URL");
+  config = { signer: new BffCallerAssertionSigner(secret), apiBaseUrl };
   return config;
 }
 

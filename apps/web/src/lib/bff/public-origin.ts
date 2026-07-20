@@ -1,3 +1,5 @@
+import { validatedHttpOrigin } from "./origin-validation";
+
 /**
  * Validated browser-facing origin for server-side self-hops and security comparisons.
  *
@@ -11,23 +13,5 @@ export function publicWebOrigin(): string {
 
   const configured = process.env.WEB_URL;
   if (!configured) throw new Error("WEB_URL is required in handoff mode.");
-
-  const parsed = new URL(configured);
-  if (
-    !["http:", "https:"].includes(parsed.protocol) ||
-    parsed.username.length > 0 ||
-    parsed.password.length > 0 ||
-    parsed.pathname !== "/" ||
-    parsed.search.length > 0 ||
-    parsed.hash.length > 0
-  ) {
-    throw new Error("WEB_URL must be an HTTP(S) origin without credentials or a path.");
-  }
-
-  const isLoopback = parsed.hostname === "localhost" || parsed.hostname === "127.0.0.1";
-  if (process.env.NODE_ENV === "production" && parsed.protocol !== "https:" && !isLoopback) {
-    throw new Error("WEB_URL must use HTTPS in production.");
-  }
-
-  return parsed.origin;
+  return validatedHttpOrigin(configured, "WEB_URL");
 }
