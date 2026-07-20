@@ -8,6 +8,7 @@
     "db:down": "docker compose down",
     "db:logs": "docker compose logs -f postgres",
     "build": "pnpm --filter @linkedout/contracts build && pnpm --filter @linkedout/db build && pnpm --filter @linkedout/session-authority build && pnpm --filter @linkedout/internal-auth build && pnpm --filter @linkedout/api build",
+    "vercel:install:web": "pnpm install --frozen-lockfile && pnpm --filter @linkedout/contracts build && pnpm --filter @linkedout/internal-auth build && pnpm --dir apps/web install --frozen-lockfile",
     "lint": "pnpm --filter @linkedout/contracts lint && pnpm --filter @linkedout/db lint && pnpm --filter @linkedout/session-authority lint && pnpm --filter @linkedout/internal-auth lint && pnpm --filter @linkedout/api lint && pnpm lint:scripts",
     "lint:scripts": "eslint scripts apps/api/test --max-warnings=0",
     "typecheck": "pnpm --filter @linkedout/contracts typecheck && pnpm --filter @linkedout/db typecheck && pnpm --filter @linkedout/session-authority typecheck && pnpm --filter @linkedout/internal-auth typecheck && pnpm --filter @linkedout/api typecheck",
