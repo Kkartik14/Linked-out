@@ -211,7 +211,9 @@ export class AuthController {
     if (this.config.oauthSessionMode === 'handoff') {
       const code = await this.handoffs.issue(user.id, returnTo);
       this.tokens.clearAuthCookies(res);
-      res.redirect(`${this.config.webUrl}/auth/callback?code=${encodeURIComponent(code)}`);
+      res.redirect(
+        `${this.config.webUrl}/auth/callback/handoff?code=${encodeURIComponent(code)}`,
+      );
       return;
     }
 

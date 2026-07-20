@@ -6,6 +6,7 @@ import {
   API_ORIGIN,
   BFF_CALLER_SECRET,
   WEB_ORIGIN,
+  createHandoff,
   disconnect,
   seedWorld,
   signInBff,
@@ -45,6 +46,22 @@ async function resolveStatus(cookie: string): Promise<string> {
 }
 
 test.describe("handoff session (lo_sid, one-origin BFF)", () => {
+  test("the handoff callback atomically sets lo_sid and redirects to the bound destination", async ({
+    context,
+  }) => {
+    const code = await createHandoff(world.kartik, "/saved");
+    const callback = await context.request.get(
+      `${WEB_ORIGIN}/auth/callback/handoff?code=${encodeURIComponent(code)}`,
+      { maxRedirects: 0 },
+    );
+
+    expect(callback.status()).toBe(307);
+    expect(callback.headers().location).toBe(`${WEB_ORIGIN}/auth/callback?returnTo=%2Fsaved`);
+    const sid = (await context.cookies()).find(({ name }) => name === "lo_sid");
+    expect(sid?.value).toMatch(/^[A-Za-z0-9_-]{43}$/);
+    expect(await resolveStatus(sid?.value ?? "")).toBe("authenticated");
+  });
+
   test("AUTH-08: the public OAuth relay preserves state through the provider callback", async ({
     context,
   }) => {

@@ -7,7 +7,6 @@ import { getMe } from "@/lib/api";
 import { oauthErrorMessage, safeReturnTo } from "@/lib/auth-entry";
 import { publishSessionChanged } from "@/lib/session-channel";
 import { Button } from "@/components/ui/button";
-import { exchangeHandoff } from "./actions";
 
 function Centered({ children }: { children: React.ReactNode }) {
   return (
@@ -26,9 +25,6 @@ function CallbackInner() {
   // Kept separate from `error`: the effect below skips the session fetch on any OAuth error,
   // and it must key off the raw code, not the composed message.
   const errorCode = params.get("error");
-  // Present only in handoff mode: Nest returns `?code=` to be exchanged here for the session,
-  // whereas legacy returns `?returnTo=` because Nest already set the cookies.
-  const handoffCode = params.get("code");
   const error =
     oauthErrorMessage(errorCode) ??
     (fetchFailed ? "We couldn't complete sign-in. Please try again." : null);
@@ -56,19 +52,9 @@ function CallbackInner() {
       );
     };
 
-    const run = handoffCode
-      ? // Handoff: exchange the one-time code (sets lo_sid) before confirming the session, and use
-        // the server-bound returnTo the exchange returns rather than a destination read off the URL.
-        exchangeHandoff(handoffCode).then((result) => {
-          if (cancelled) return;
-          if (!result.ok) {
-            setFetchFailed(true);
-            return;
-          }
-          return confirmAndRoute(result.returnTo);
-        })
-      : // Legacy: Nest already set the cookies, so just confirm and route.
-        confirmAndRoute(returnTo);
+    // Both callback modes arrive here only after the browser credential has been committed:
+    // Nest sets legacy cookies directly, while the handoff route atomically sets `lo_sid`.
+    const run = confirmAndRoute(returnTo);
 
     run.catch(() => {
       if (!cancelled) setFetchFailed(true);
@@ -77,7 +63,7 @@ function CallbackInner() {
     return () => {
       cancelled = true;
     };
-  }, [errorCode, handoffCode, returnTo, router]);
+  }, [errorCode, returnTo, router]);
 
   if (error) {
     return (

@@ -2,6 +2,10 @@ import { NextResponse, type NextRequest } from "next/server";
 import { INTERNAL_AUTH_HEADER } from "@linkedout/internal-auth";
 
 import { csrfRejection } from "@/lib/bff/csrf";
+import {
+  BROWSER_SESSION_COOKIE,
+  browserSessionCookieOptions,
+} from "@/lib/bff/browser-session-cookie";
 import { internalApiOrigin } from "@/lib/bff/internal-client";
 import { isHandoffMode } from "@/lib/bff/mode";
 import {
@@ -24,16 +28,11 @@ import { resolveBffSession } from "@/lib/bff/session-resolver";
  * exposes no `/v1` surface and the handler answers `404`.
  */
 
-const LO_SID = "lo_sid";
-
 /** Cleared with the same host-only attributes the exchange set it with, so the browser drops it. */
 function clearSidCookie(response: NextResponse): void {
-  response.cookies.set(LO_SID, "", {
+  response.cookies.set(BROWSER_SESSION_COOKIE, "", {
+    ...browserSessionCookieOptions(),
     maxAge: 0,
-    path: "/",
-    httpOnly: true,
-    sameSite: "lax",
-    secure: true,
   });
 }
 
@@ -102,7 +101,7 @@ async function handle(request: NextRequest): Promise<NextResponse> {
     return jsonError("CSRF_REJECTED", `Cross-site ${rejection} rejected.`, 403);
   }
 
-  const cookie = request.cookies.get(LO_SID)?.value;
+  const cookie = request.cookies.get(BROWSER_SESSION_COOKIE)?.value;
   if (!cookie) {
     // No credential presented: forward as a guest, with no assertion.
     return forwardToNest(request, null);

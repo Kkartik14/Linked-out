@@ -1,6 +1,10 @@
 import { NextResponse, type NextRequest } from "next/server";
 
 import { csrfRejection } from "@/lib/bff/csrf";
+import {
+  BROWSER_SESSION_COOKIE,
+  browserSessionCookieOptions,
+} from "@/lib/bff/browser-session-cookie";
 import { revokeBffSession } from "@/lib/bff/lifecycle";
 import { isHandoffMode } from "@/lib/bff/mode";
 
@@ -15,8 +19,6 @@ import { isHandoffMode } from "@/lib/bff/mode";
  *
  * Inert until the cutover: `404` in legacy, where the browser logs out against Nest directly.
  */
-
-const LO_SID = "lo_sid";
 
 export async function POST(request: NextRequest): Promise<NextResponse> {
   if (!isHandoffMode()) {
@@ -34,7 +36,7 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
     );
   }
 
-  const cookie = request.cookies.get(LO_SID)?.value;
+  const cookie = request.cookies.get(BROWSER_SESSION_COOKIE)?.value;
   if (cookie) {
     try {
       await revokeBffSession(cookie);
@@ -52,12 +54,9 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
     { ok: true },
     { status: 200, headers: { "cache-control": "no-store" } },
   );
-  response.cookies.set(LO_SID, "", {
+  response.cookies.set(BROWSER_SESSION_COOKIE, "", {
+    ...browserSessionCookieOptions(),
     maxAge: 0,
-    path: "/",
-    httpOnly: true,
-    sameSite: "lax",
-    secure: true,
   });
   return response;
 }

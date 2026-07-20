@@ -154,7 +154,7 @@ test('handoff mode creates no legacy session or browser credential', async () =>
   assert.equal(authCookiesSet, false);
   assert.equal(authCookiesCleared, true);
   assert.deepEqual(response.redirects, [
-    `https://linkedout.example/auth/callback?code=${'A'.repeat(43)}`,
+    `https://linkedout.example/auth/callback/handoff?code=${'A'.repeat(43)}`,
   ]);
   assert.equal(response.headers['Cache-Control'], DEFAULT_PRIVATE_CACHE_CONTROL);
 });
