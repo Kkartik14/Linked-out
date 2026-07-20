@@ -12,6 +12,7 @@ import { defineConfig, devices } from "@playwright/test";
  */
 
 const apiPort = process.env.E2E_API_PORT ?? "4010";
+const internalProxyPort = process.env.E2E_INTERNAL_PROXY_PORT ?? "4011";
 const webPort = process.env.PLAYWRIGHT_WEB_PORT ?? "3100";
 const apiBaseUrl = `http://localhost:${apiPort}/v1`;
 const webBaseUrl = `http://localhost:${webPort}`;
@@ -71,6 +72,16 @@ export default defineConfig({
       },
     },
     {
+      command: "node e2e/internal-api-proxy.cjs",
+      url: `http://127.0.0.1:${internalProxyPort}/__e2e/health`,
+      reuseExistingServer: false,
+      timeout: 60_000,
+      env: {
+        E2E_INTERNAL_PROXY_PORT: internalProxyPort,
+        E2E_INTERNAL_PROXY_UPSTREAM: `http://localhost:${apiPort}`,
+      },
+    },
+    {
       // The one-origin web tier, running in handoff: proxy + /v1 route handlers live, and RSC
       // self-hops through /v1 to reach Nest. Requires a build with a relative NEXT_PUBLIC base URL.
       command: `pnpm exec next start -p ${webPort}`,
@@ -80,7 +91,7 @@ export default defineConfig({
       env: {
         OAUTH_SESSION_MODE: "handoff",
         WEB_URL: webBaseUrl,
-        INTERNAL_API_BASE_URL: `http://localhost:${apiPort}`,
+        INTERNAL_API_BASE_URL: `http://127.0.0.1:${internalProxyPort}`,
         BFF_CALLER_SECRET: bffCallerSecret,
         NEXT_PUBLIC_API_BASE_URL: "/v1",
       },

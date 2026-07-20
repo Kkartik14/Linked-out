@@ -29,6 +29,7 @@ const SESSION_AUTHORITY_ENTRY = path.resolve(
 const {
   BrowserSessionAuthority,
   PrismaBrowserSessionPersistence,
+  hashBrowserSessionCookie,
   hashOAuthHandoffCode,
 } = require(SESSION_AUTHORITY_ENTRY);
 
@@ -101,6 +102,15 @@ async function createBrowserSession(user) {
   const authority = new BrowserSessionAuthority(new PrismaBrowserSessionPersistence(db()));
   const created = await authority.create(user.id);
   return created.cookie;
+}
+
+/** Move a real session beyond the former access-token boundary without sleeping in the suite. */
+async function backdateBrowserSession(cookie, ageMs) {
+  const at = new Date(Date.now() - ageMs);
+  await db().browserSession.update({
+    where: { cookieHash: hashBrowserSessionCookie(cookie) },
+    data: { createdAt: at, lastUsedAt: at },
+  });
 }
 
 /**
@@ -328,6 +338,7 @@ module.exports = {
   seedWorld,
   accessToken,
   createBrowserSession,
+  backdateBrowserSession,
   createHandoff,
   DATABASE_URL,
   ACCESS_SECRET,

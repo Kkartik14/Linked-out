@@ -5,6 +5,7 @@ const backend = createRequire(import.meta.url)("./backend.cjs");
 
 export const WEB_PORT = process.env.PLAYWRIGHT_WEB_PORT ?? "3100";
 export const API_PORT = process.env.E2E_API_PORT ?? "4010";
+export const INTERNAL_PROXY_PORT = process.env.E2E_INTERNAL_PROXY_PORT ?? "4011";
 export const WEB_ORIGIN = `http://localhost:${WEB_PORT}`;
 export const API_ORIGIN = `http://localhost:${API_PORT}`;
 
@@ -95,6 +96,10 @@ export const BFF_CALLER_SECRET: string = backend.BFF_CALLER_SECRET;
 /** Writes a real `BrowserSession` row for `user`; returns the opaque `lo_sid` cookie value. */
 export function createBrowserSession(user: SeededUser): Promise<string> {
   return backend.createBrowserSession(user);
+}
+
+export function backdateBrowserSession(cookie: string, ageMs: number): Promise<void> {
+  return backend.backdateBrowserSession(cookie, ageMs);
 }
 
 /** Writes a pending single-use `OAuthHandoff` row for `user`; returns the plaintext code. */

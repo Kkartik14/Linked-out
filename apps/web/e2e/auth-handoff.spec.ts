@@ -5,7 +5,9 @@ import { PRINCIPAL_BINDING_HEADER, sessionResolveResponseSchema } from "@linkedo
 import {
   API_ORIGIN,
   BFF_CALLER_SECRET,
+  INTERNAL_PROXY_PORT,
   WEB_ORIGIN,
+  backdateBrowserSession,
   createHandoff,
   disconnect,
   seedWorld,
@@ -104,22 +106,52 @@ test.describe("handoff session (lo_sid, one-origin BFF)", () => {
     expect(response.headers()["cache-control"]).toBe("private, no-store, max-age=0");
   });
 
-  test("AUTH-01: a live lo_sid authenticates a protected render and a client API call", async ({
+  test("AUTH-01: lo_sid remains live beyond the former 15-minute access boundary", async ({
     context,
     page,
   }) => {
-    await signInBff(context, world.kartik);
+    const cookie = await signInBff(context, world.kartik);
+    await backdateBrowserSession(cookie, 16 * 60 * 1_000);
+    const names = (await context.cookies()).map(({ name }) => name);
+    expect(names).toContain("lo_sid");
+    expect(names).not.toContain("lo_access");
+    expect(names).not.toContain("lo_refresh");
 
-    // A protected Server Component render survives — there is no 15-minute access boundary to
-    // fall off. getSession() self-hops through /v1/auth/me, which resolves the lo_sid session.
+    // The protected RSC resolves the backdated session, then SavedList's browser apiFetch proves
+    // the same session survives through the client runtime rather than a Node request shortcut.
     await page.goto("/saved");
     await expect(page).not.toHaveURL(/\/login/);
     await expect(page.getByRole("button", { name: "Account menu" })).toBeVisible();
+    await expect(page.getByText("Nothing saved yet.", { exact: false })).toBeVisible();
+  });
 
-    // A client API call routes through the same-origin /v1 BFF and resolves the same session.
-    const me = await context.request.get(`${WEB_ORIGIN}/v1/auth/me`);
-    expect(me.status()).toBe(200);
-    expect(((await me.json()) as { user?: { username?: string } }).user?.username).toBe("kartik");
+  test("AUTH-06: session-resolution outage is unavailable, never a guest downgrade", async ({
+    context,
+    page,
+  }) => {
+    const cookie = await signInBff(context, world.kartik);
+    const faultUrl = `http://127.0.0.1:${INTERNAL_PROXY_PORT}/__e2e/session-resolve-fault`;
+    await fetch(`${faultUrl}?enabled=1`, { method: "POST" });
+    try {
+      const api = await context.request.get(`${WEB_ORIGIN}/v1/auth/me`);
+      expect(api.status()).toBe(503);
+      expect(await api.json()).toMatchObject({ error: { code: "SESSION_UNAVAILABLE" } });
+      expect((await context.cookies()).find(({ name }) => name === "lo_sid")?.value).toBe(cookie);
+
+      await page.goto("/saved");
+      await expect(page).toHaveURL(`${WEB_ORIGIN}/saved`);
+      await expect(page.locator('section[role="alert"]')).toContainText(
+        "This page could not be loaded.",
+      );
+      await expect(page.getByRole("link", { name: "Log in" })).toHaveCount(0);
+      expect((await context.cookies()).find(({ name }) => name === "lo_sid")?.value).toBe(cookie);
+    } finally {
+      await fetch(`${faultUrl}?enabled=0`, { method: "POST" });
+    }
+
+    await page.reload();
+    await expect(page.getByRole("button", { name: "Account menu" })).toBeVisible();
+    await expect(page.getByText("Nothing saved yet.", { exact: false })).toBeVisible();
   });
 
   test("AUTH-02: BFF logout tombstones the session, clears lo_sid, and is idempotent", async ({
