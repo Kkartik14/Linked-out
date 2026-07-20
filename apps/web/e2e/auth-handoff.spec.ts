@@ -83,6 +83,20 @@ test.describe("handoff session (lo_sid, one-origin BFF)", () => {
     expect(callback.headers().location).toBe(`${WEB_ORIGIN}/auth/callback?error=access_denied`);
   });
 
+  test("the public BFF does not expose private operational or lifecycle routes", async ({
+    context,
+  }) => {
+    for (const path of [
+      "/v1/health/private-api",
+      "/v1/auth/sessions/resolve",
+      "/v1/auth/oauth/handoff/exchange",
+    ]) {
+      const response = await context.request.get(`${WEB_ORIGIN}${path}`);
+      expect(response.status()).toBe(404);
+      expect(response.headers()["cache-control"]).toBe("private, no-store, max-age=0");
+    }
+  });
+
   test("AUTH-01: a live lo_sid authenticates a protected render and a client API call", async ({
     context,
     page,

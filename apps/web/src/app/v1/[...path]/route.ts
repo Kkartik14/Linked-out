@@ -13,8 +13,10 @@ import { publicWebOrigin } from "@/lib/bff/public-origin";
 import { logCsrfRejection } from "@/lib/bff/security-rejection";
 import {
   OAUTH_STATE_COOKIE,
+  oauthSetCookieForBrowser,
   oauthStateCookieForUpstream,
 } from "@/lib/bff/oauth-relay";
+import { isPrivateApiPath } from "@/lib/bff/public-route-policy";
 import { resolveBffSession } from "@/lib/bff/session-resolver";
 
 /**
@@ -91,13 +93,17 @@ async function forwardToNest(
     headers: responseHeaders,
   });
   for (const cookie of upstream.headers.getSetCookie()) {
-    response.headers.append("set-cookie", cookie);
+    const allowed = oauthSetCookieForBrowser(request.nextUrl.pathname, cookie);
+    if (allowed) response.headers.append("set-cookie", allowed);
   }
   return response;
 }
 
 async function handle(request: NextRequest): Promise<NextResponse> {
   if (!isHandoffMode()) return jsonError("NOT_FOUND", "Not found.", 404);
+  if (isPrivateApiPath(request.nextUrl.pathname)) {
+    return jsonError("NOT_FOUND", "Not found.", 404);
+  }
 
   const rejection = csrfRejection(request, publicWebOrigin());
   if (rejection) {
