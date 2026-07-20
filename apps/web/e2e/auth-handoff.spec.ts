@@ -1,6 +1,6 @@
 import { expect, test } from "@playwright/test";
 import { BffCallerAssertionSigner, INTERNAL_AUTH_HEADER } from "@linkedout/internal-auth";
-import { PRINCIPAL_BINDING_HEADER, sessionResolveResponseSchema } from "@linkedout/contracts";
+import { sessionResolveResponseSchema } from "@linkedout/contracts";
 
 import {
   API_ORIGIN,
@@ -9,6 +9,7 @@ import {
   WEB_ORIGIN,
   backdateBrowserSession,
   createHandoff,
+  db,
   disconnect,
   seedWorld,
   signInBff,
@@ -204,21 +205,66 @@ test.describe("handoff session (lo_sid, one-origin BFF)", () => {
     }
   });
 
-  test("AUTH-03/FRONTEND-24: a mutation declaring a different principal is rejected (409)", async ({
+  test("AUTH-03: a real stale form is rejected after another tab switches sessions", async ({
     context,
+    page: composingTab,
   }) => {
-    await signInBff(context, world.kartik); // the live session is kartik's
+    await signInBff(context, world.kartik);
+    await composingTab.goto("/new");
+    await composingTab.getByLabel("Title").fill("Must never be persisted");
+    await composingTab.getByLabel("Story").fill("This form was composed while Kartik was live.");
 
-    // A stale form composed under nadia declares her principal; the API binds the mutation to the
-    // live credential and rejects the mismatch, even though the session and CSRF checks pass.
-    const res = await context.request.post(`${WEB_ORIGIN}/v1/ls`, {
-      headers: {
-        origin: WEB_ORIGIN,
-        "content-type": "application/json",
-        [PRINCIPAL_BINDING_HEADER]: world.nadia.id,
-      },
-      data: { title: "stale", story: "composed under a different principal" },
-    });
-    expect(res.status()).toBe(409);
+    // A second tab commits Nadia's handoff cookie without visiting the callback page, deliberately
+    // pausing before its BroadcastChannel invalidation. The first tab still owns Kartik's mounted
+    // form while the shared httpOnly cookie now resolves to Nadia.
+    const switchingTab = await context.newPage();
+    await switchingTab.goto("/");
+    const code = await createHandoff(world.nadia, "/");
+    await switchingTab.evaluate(async (callbackUrl) => {
+      await fetch(callbackUrl, { credentials: "include", redirect: "manual" });
+    }, `${WEB_ORIGIN}/auth/callback/handoff?code=${encodeURIComponent(code)}`);
+
+    const responsePromise = composingTab.waitForResponse(
+      (response) => response.url().endsWith("/v1/ls") && response.request().method() === "POST",
+    );
+    await composingTab.getByRole("button", { name: "Share this L" }).click();
+    const response = await responsePromise;
+    expect(response.status()).toBe(409);
+    expect(await response.json()).toMatchObject({ error: { code: "PRINCIPAL_MISMATCH" } });
+    await expect(
+      composingTab.getByText("Your signed-in identity changed. Refresh this view before retrying."),
+    ).toBeVisible();
+    expect(await db().l.count({ where: { title: "Must never be persisted" } })).toBe(0);
+  });
+
+  test("FRONTEND-24: callback broadcast remounts stale forms under the new principal", async ({
+    context,
+    page: composingTab,
+  }) => {
+    await signInBff(context, world.kartik);
+    await composingTab.goto("/new");
+    const title = composingTab.getByLabel("Title");
+    const story = composingTab.getByLabel("Story");
+    await title.fill("Kartik draft that must be discarded");
+    await story.fill("Principal-owned client state must not cross accounts.");
+
+    const switchingTab = await context.newPage();
+    const code = await createHandoff(world.nadia, "/");
+    await switchingTab.goto(
+      `${WEB_ORIGIN}/auth/callback/handoff?code=${encodeURIComponent(code)}`,
+    );
+    await expect(switchingTab).toHaveURL(`${WEB_ORIGIN}/`);
+
+    // The invalidation makes tab A re-derive Nadia from the server. Principal-key remounting drops
+    // Kartik's draft; a new submission is then explicitly composed and persisted as Nadia.
+    await expect(title).toHaveValue("");
+    await expect(story).toHaveValue("");
+    await title.fill("Nadia owns this fresh draft");
+    await story.fill("This was composed only after the session switch converged.");
+    await composingTab.getByRole("button", { name: "Share this L" }).click();
+    await expect(composingTab).toHaveURL(/\/ls\//);
+
+    const persisted = await db().l.findFirst({ where: { title: "Nadia owns this fresh draft" } });
+    expect(persisted.authorId).toBe(world.nadia.id);
   });
 });
