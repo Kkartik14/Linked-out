@@ -12,7 +12,7 @@ This file covers `apps/web` only. Its executable API contract is
 The public web tier for the one-origin session boundary is now implemented and shipped **dark
 behind `OAUTH_SESSION_MODE`** (default `legacy`, so nothing below is live in production yet). The
 whole path is proven end-to-end against the real API + Postgres by a handoff-mode acceptance suite
-(`pnpm test:e2e:handoff`): **AUTH-01/02/03/05/07 all green.**
+(`pnpm test:e2e:handoff`): **AUTH-01/02/03/05/06/07/08 all green**, with an independent CI job.
 
 - **`proxy.ts`** — the thin routing boundary (Next 16's `middleware` successor): optimistic
   protected-route gating on the presence of `lo_sid` (handoff only), plus a `private, no-store`
@@ -24,14 +24,16 @@ whole path is proven end-to-end against the real API + Postgres by a handoff-mod
   browser's cookie header never reaches Nest.
 - **`app/v1/auth/logout/route.ts`** — tombstone-first logout (revoke, then clear `lo_sid`),
   idempotent.
-- **`app/auth/callback`** — a Server Action exchanges the OAuth handoff `code` for a session and
-  sets the host-only `lo_sid`, redirecting only to the server-bound `returnTo`.
+- **`app/auth/callback/handoff`** — an atomic browser-visible route exchanges the OAuth handoff
+  `code`, sets the host-only `lo_sid`, and redirects only to the server-bound `returnTo`.
 - **`src/lib/bff/`** — the server-only session-lifecycle client (`resolve`, `revoke`, handoff
-  `exchange`) over a shared, validated internal client, plus the CSRF guard and the
-  `OAUTH_SESSION_MODE` reader.
+  `exchange`) over validated internal/public origins, plus strict CSRF/content-type policy,
+  sanitized rejection telemetry, private-route shielding, OAuth cookie filtering, and canonical
+  cache policy.
 - **`src/lib/api/client.ts`** — routes by topology: browser → same-origin `/v1` in handoff (Nest
   directly in legacy); a Server Component in handoff self-hops through its own `/v1` handler; legacy
-  paths unchanged. An unrecoverable authenticated `401` publishes one debounced expiry invalidation.
+  paths unchanged. Only `SESSION_REJECTED` publishes a debounced expiry invalidation; RSC-only
+  rejection clears `lo_sid` through a browser-visible healer.
 - **Session state** — `getSession()` distinguishes a rejected credential (`401` → `rejected`) from
   a clean guest (§0/AUTH-06); `useComposedPrincipal` mints the brand only from a real viewer id,
   never `"anon"`.
