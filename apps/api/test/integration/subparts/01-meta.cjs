@@ -10,6 +10,7 @@ const {
   VISIBILITY_META,
   NOTIFICATION_TYPE_META,
   REPUTATION_META,
+  operationalHealthResponseSchema,
 } = require('@linkedout/contracts');
 
 const h = require('../_harness.cjs');
@@ -65,6 +66,15 @@ describe('01 · meta & discovery (contract §4.12)', () => {
     assert.ok(res.body.openapi.startsWith('3.'), 'must be OpenAPI 3.x');
     assert.ok(res.body.paths && typeof res.body.paths === 'object');
     assert.equal(res.headers.get('cache-control'), STATIC_METADATA_CACHE_CONTROL);
+  });
+
+  test('operations probes distinguish private API, database, and session authority', async () => {
+    for (const component of ['private-api', 'database', 'session-authority']) {
+      const res = await h.get(`/health/${component}`);
+      const body = h.expectShape(res, operationalHealthResponseSchema);
+      assert.deepEqual(body, { status: 'ok', component });
+      assert.equal(res.headers.get('cache-control'), 'private, no-store, max-age=0');
+    }
   });
 
   test('removed tag discovery route is not exposed', async () => {

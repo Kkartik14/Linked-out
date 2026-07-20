@@ -8,7 +8,7 @@ import { toast } from "sonner";
 
 import { logout } from "@/lib/api";
 import { publishSessionChanged } from "@/lib/session-channel";
-import { useComposedPrincipal, useSession } from "@/components/session-provider";
+import { assertComposedPrincipal, useComposedPrincipal, useSession } from "@/components/session-provider";
 import { useMeta, statusOption } from "@/components/meta-provider";
 import { UserAvatar } from "@/components/user-avatar";
 import { Button } from "@/components/ui/button";
@@ -29,7 +29,7 @@ export function UserMenu() {
   const composedAs = useComposedPrincipal();
 
   const signOut = useMutation({
-    mutationFn: () => logout(composedAs),
+    mutationFn: () => logout(assertComposedPrincipal(composedAs)),
     onSuccess: () => {
       toast.success("Signed out.");
       // The session cookies are gone for every tab, not just this one.
@@ -40,10 +40,11 @@ export function UserMenu() {
   });
 
   if (session.status !== "authenticated") {
-    // A guest is offered sign-in. An `unavailable` session renders nothing at all — showing
-    // "Log in" would claim they are signed out when the truth is only that we could not
-    // confirm the session, and a bare header is the honest way to say "we don't know yet".
-    return session.status === "guest" ? (
+    // A guest — or a rejected credential, which likewise needs sign-in — is offered "Log in".
+    // An `unavailable` session renders nothing at all: showing "Log in" would claim they are
+    // signed out when the truth is only that we could not confirm the session, and a bare
+    // header is the honest way to say "we don't know yet".
+    return session.status === "guest" || session.status === "rejected" ? (
       <Button asChild size="sm">
         <Link href="/login">Log in</Link>
       </Button>

@@ -7,6 +7,15 @@ and their CI/test boundaries. Newest first.
 
 ### Changed
 
+- Split browser-session policy/orchestration from its Prisma persistence adapter. Opaque-token
+  generation, collision retries, and timeout semantics now depend on a typed persistence seam;
+  Prisma CRUD, row locking, transactions, and raw SQL remain localized in the adapter.
+- Default every non-explicit response to `Cache-Control: private, no-store, max-age=0`; static
+  viewer-independent metadata keeps its explicit public cache policy.
+- Added an explicit `PUBLIC_OAUTH_CALLBACK_BASE_URL` for the future handoff cutover, distinct from
+  the private API origin, while legacy mode continues to use the current API callback URL.
+- Added sanitized auth/principal rejection telemetry that excludes headers, cookies, query strings,
+  OAuth codes, request bodies, and internal assertions.
 - Consolidated the pre-launch resource APIs into the sole `/v1` surface. The clean schemas now
   live at the root `@linkedout/contracts` export; duplicate controllers, guards, mappers, OpenAPI,
   fixtures, and compatibility tests were deleted. The matching database migration removes the
@@ -24,6 +33,9 @@ and their CI/test boundaries. Newest first.
 
 ### Added
 
+- Added separate `/v1/health/private-api`, `/v1/health/database`, and
+  `/v1/health/session-authority` operational probes, published in generated OpenAPI as internal
+  operations so monitors can distinguish process, database, and session-store failures.
 - Added the accepted API-owned BFF session lifecycle. OAuth handoff exchange now creates the
   authoritative server session in the same transaction that consumes the one-time code, then
   returns `{ cookie, expiresAt, returnTo }`, where `expiresAt` is the browser cookie's 90-day

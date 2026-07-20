@@ -7,9 +7,11 @@ import {
   REPUTATION_META,
   VISIBILITY_META,
   type MetaEnumsResponse,
+  type OperationalHealthResponse,
 } from '@linkedout/contracts';
 
 import { OPEN_API_DOCUMENT, type OpenApiDocument } from './openapi';
+import { HealthRepository } from './health.repository';
 
 function deepFreeze<T>(value: T): T {
   if (value !== null && typeof value === 'object' && !Object.isFrozen(value)) {
@@ -48,12 +50,28 @@ const META_ENUMS_RESPONSE: MetaEnumsResponse = deepFreeze({
 
 @Injectable()
 export class MetaService {
+  constructor(private readonly health: HealthRepository) {}
+
   getEnums(): MetaEnumsResponse {
     return META_ENUMS_RESPONSE;
   }
 
   getOpenApi(): OpenApiDocument {
     return OPEN_API_DOCUMENT;
+  }
+
+  privateApiHealth(): OperationalHealthResponse {
+    return { status: 'ok', component: 'private-api' };
+  }
+
+  async databaseHealth(): Promise<OperationalHealthResponse> {
+    await this.health.assertDatabaseAvailable();
+    return { status: 'ok', component: 'database' };
+  }
+
+  async sessionAuthorityHealth(): Promise<OperationalHealthResponse> {
+    await this.health.assertSessionAuthorityAvailable();
+    return { status: 'ok', component: 'session-authority' };
   }
 
 }

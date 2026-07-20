@@ -28,6 +28,7 @@ import { ApiContract, API_ROUTE_CONTRACTS } from '../../common/contracts/api-rou
 import { OptionalAuthGuard } from '../../common/guards/optional-auth.guard';
 import { AppErrors } from '../../common/errors/app-exception';
 import { getCookie } from '../../common/http/cookies';
+import { DEFAULT_PRIVATE_CACHE_CONTROL } from '../../common/http/cache-policy';
 import { ZodValidationPipe } from '../../common/pipes/zod-validation.pipe';
 import type { AuthUser } from '../../common/types/auth';
 import { AppConfigService } from '../../config/app-config.service';
@@ -141,7 +142,7 @@ export class AuthController {
     @Body(new ZodValidationPipe(oauthHandoffExchangeInputSchema))
     input: OAuthHandoffExchangeInput,
   ): Promise<OAuthHandoffExchangeResponse> {
-    res.setHeader('Cache-Control', 'no-store');
+    res.setHeader('Cache-Control', DEFAULT_PRIVATE_CACHE_CONTROL);
     const handoff = await this.bffSessions.exchangeOAuthHandoff(input.code);
     if (!handoff) throw AppErrors.invalidHandoff();
     return handoff;
@@ -165,7 +166,7 @@ export class AuthController {
     @Body(new ZodValidationPipe(sessionResolveInputSchema))
     input: SessionResolveInput,
   ): Promise<SessionResolveResponse> {
-    res.setHeader('Cache-Control', 'no-store');
+    res.setHeader('Cache-Control', DEFAULT_PRIVATE_CACHE_CONTROL);
     return this.bffSessions.resolve(input.cookie);
   }
 
@@ -180,7 +181,7 @@ export class AuthController {
     @Body(new ZodValidationPipe(sessionRevokeInputSchema))
     input: SessionRevokeInput,
   ): Promise<SessionRevokeResponse> {
-    res.setHeader('Cache-Control', 'no-store');
+    res.setHeader('Cache-Control', DEFAULT_PRIVATE_CACHE_CONTROL);
     return this.bffSessions.revoke(input.cookie);
   }
 
@@ -189,7 +190,7 @@ export class AuthController {
     req: Request,
     res: Response,
   ): Promise<void> {
-    res.setHeader('Cache-Control', 'no-store');
+    res.setHeader('Cache-Control', DEFAULT_PRIVATE_CACHE_CONTROL);
     res.clearCookie(OAUTH_STATE_COOKIE, {
       domain: this.config.oauthStateCookieDomain,
       path: '/v1/auth',
@@ -210,7 +211,9 @@ export class AuthController {
     if (this.config.oauthSessionMode === 'handoff') {
       const code = await this.handoffs.issue(user.id, returnTo);
       this.tokens.clearAuthCookies(res);
-      res.redirect(`${this.config.webUrl}/auth/callback?code=${encodeURIComponent(code)}`);
+      res.redirect(
+        `${this.config.webUrl}/auth/callback/handoff?code=${encodeURIComponent(code)}`,
+      );
       return;
     }
 

@@ -10,6 +10,8 @@ const {
 
 const h = require('../_harness.cjs');
 
+const PRIVATE_NO_STORE = 'private, no-store, max-age=0';
+
 /** Every list endpoint, so cross-cutting pagination rules are checked once, everywhere. */
 const LIST_ENDPOINTS = [
   { path: '/feed', auth: false },
@@ -115,6 +117,33 @@ describe('18 · cross-cutting contract invariants (§1.5–§1.7)', () => {
       assert.ok(res.status >= 400, `expected a failure, got ${res.status}`);
       const parsed = errorEnvelopeSchema.safeParse(res.body);
       assert.ok(parsed.success, `bad envelope: ${JSON.stringify(res.body)}`);
+    }
+  });
+
+  test('successes and failures fail closed with the canonical private cache policy', async () => {
+    const malformedJson = await fetch(`${h.ctx.baseUrl}/ls`, {
+      method: 'POST',
+      headers: {
+        'content-type': 'application/json',
+        cookie: user.cookie,
+        [PRINCIPAL_BINDING_HEADER]: user.id,
+      },
+      body: '{ this is not json',
+    });
+    const responses = [
+      await h.get('/auth/me'),
+      await h.get('/notifications'),
+      await h.get('/feed?sort=nope'),
+      await h.get('/no/such/route'),
+      malformedJson,
+    ];
+
+    for (const response of responses) {
+      assert.equal(
+        response.headers.get('cache-control'),
+        PRIVATE_NO_STORE,
+        `${response.status} response must use the canonical private cache policy`,
+      );
     }
   });
 
@@ -226,6 +255,16 @@ describe('18 · cross-cutting contract invariants (§1.5–§1.7)', () => {
       'the API must never echo an arbitrary origin',
     );
     assert.notEqual(hostile.headers.get('access-control-allow-origin'), '*');
+
+    const preflight = await fetch(`${h.ctx.baseUrl}/auth/me`, {
+      method: 'OPTIONS',
+      headers: {
+        origin: h.WEB_URL,
+        'access-control-request-method': 'GET',
+      },
+    });
+    assert.equal(preflight.status, 204);
+    assert.equal(preflight.headers.get('cache-control'), PRIVATE_NO_STORE);
   });
 
   test('mutation responses return the affected resource so the FE need not refetch', async () => {

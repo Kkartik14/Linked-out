@@ -11,6 +11,16 @@ const testDatabaseUrl =
 
 const accessSecret = process.env.E2E_JWT_ACCESS_SECRET ?? "e2e-access-secret-0123456789abcdef";
 
+// BFF/session-authority secrets. Optional in legacy mode, so setting them here activates the
+// internal `/v1/auth/sessions/{resolve,revoke}` + handoff-exchange endpoints without flipping
+// OAUTH_SESSION_MODE — the legacy suite is unaffected. `bffCallerSecret` MUST match
+// backend.cjs's default so a caller assertion a spec signs is one the API accepts. Both are
+// ≥32 bytes (the API's minimum for a set internal secret).
+const bffCallerSecret =
+  process.env.E2E_BFF_CALLER_SECRET ?? "e2e-bff-caller-secret-0123456789abcdef";
+const internalApiSecret =
+  process.env.E2E_INTERNAL_API_SECRET ?? "e2e-internal-api-secret-0123456789abcdef";
+
 /**
  * The e2e suite drives the real Next.js app against the real NestJS API and a real
  * Postgres — no mock backend. A pass therefore proves the browser, the fetch layer,
@@ -24,6 +34,9 @@ const accessSecret = process.env.E2E_JWT_ACCESS_SECRET ?? "e2e-access-secret-012
  */
 export default defineConfig({
   testDir: "./e2e",
+  // The handoff acceptance suite needs a handoff-mode build + server; it has its own config
+  // (playwright.handoff.config.ts, run via `pnpm test:e2e:handoff`) and must not run here.
+  testIgnore: "auth-handoff.spec.ts",
   fullyParallel: false,
   workers: 1,
   timeout: 30_000,
@@ -57,6 +70,8 @@ export default defineConfig({
         DIRECT_URL: testDatabaseUrl,
         JWT_ACCESS_SECRET: accessSecret,
         JWT_REFRESH_SECRET: "e2e-refresh-secret-0123456789abcdef",
+        BFF_CALLER_SECRET: bffCallerSecret,
+        INTERNAL_API_SECRET: internalApiSecret,
         COOKIE_DOMAIN: "",
         GOOGLE_CLIENT_ID: "e2e-google-client-id",
         GOOGLE_CLIENT_SECRET: "e2e-google-client-secret",

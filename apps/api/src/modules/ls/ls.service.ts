@@ -78,6 +78,7 @@ function cursorString(value: string | number | undefined): string {
 function feedCursor(sort: FeedQuery['sort'], cursor: string | undefined): FeedPageCursor | undefined {
   if (cursor === undefined) return undefined;
   const payload = decodeCursor(cursor);
+  if (payload.sort !== sort) throw AppErrors.badCursor();
   const id = cursorString(payload.id);
   if (sort === 'popular') {
     if (typeof payload.score !== 'number' || !Number.isFinite(payload.score)) {

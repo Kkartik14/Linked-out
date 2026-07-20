@@ -68,6 +68,23 @@ test('concurrent first requests share one principal lookup', async () => {
   ]);
 });
 
+test('tokens with identical times but different subjects never share a cached principal', async () => {
+  const otherId = '01ARZ3NDEKTSV4RRFFQ69G5FAW';
+  const lookedUp = [];
+  const resolver = new AccessPrincipalResolver({
+    findAccessPrincipal: async (id) => {
+      lookedUp.push(id);
+      return { id, username: id === USER_ID ? 'kartik' : 'other' };
+    },
+  });
+  const first = claims();
+  const second = { ...first, sub: otherId, username: 'other' };
+
+  assert.deepEqual(await resolver.resolve(first), { id: USER_ID, username: 'kartik' });
+  assert.deepEqual(await resolver.resolve(second), { id: otherId, username: 'other' });
+  assert.deepEqual(lookedUp, [USER_ID, otherId]);
+});
+
 test('a deleted principal stays rejected for the remainder of that token', async () => {
   let lookups = 0;
   const resolver = new AccessPrincipalResolver({

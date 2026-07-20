@@ -73,7 +73,9 @@ export class AppConfigService {
 
   /** Handoff callbacks enter through the public BFF; legacy callbacks still enter Nest. */
   get oauthCallbackBaseUrl(): string {
-    return this.oauthSessionMode === 'handoff' ? this.webUrl : this.apiBaseUrl;
+    return this.oauthSessionMode === 'handoff'
+      ? this.env.PUBLIC_OAUTH_CALLBACK_BASE_URL
+      : this.apiBaseUrl;
   }
 
   /** Handoff state is host-only; legacy keeps its bounded cross-subdomain compatibility. */

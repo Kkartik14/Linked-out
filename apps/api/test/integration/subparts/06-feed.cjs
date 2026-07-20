@@ -125,10 +125,8 @@ describe('06 · GET /feed — global feed (contract §4.4)', () => {
 
     const popular = await h.get('/feed?sort=popular&limit=1');
     const cursor = encodeURIComponent(popular.body.nextCursor);
-    // A popularity cursor carries {score,id}; the latest sort needs {id}. It must not 500.
     const res = await h.get(`/feed?sort=latest&cursor=${cursor}`);
-    assert.ok(res.status === 200 || res.status === 400, `got ${res.status}`);
-    if (res.status === 400) h.expectError(res, 400, 'BAD_CURSOR');
+    h.expectError(res, 400, 'BAD_CURSOR');
   });
 
   test('a malformed cursor is 400 BAD_CURSOR, never a 500', async () => {

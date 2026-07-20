@@ -349,6 +349,7 @@ function baseEnv(port, extra) {
     PORT: String(port),
     API_BASE_URL: `http://127.0.0.1:${port}`,
     WEB_URL,
+    PUBLIC_OAUTH_CALLBACK_BASE_URL: WEB_URL,
     TRUST_PROXY_HOPS: '0',
     DATABASE_URL,
     DIRECT_URL: DATABASE_URL,

@@ -7,6 +7,7 @@ import cookieParser from 'cookie-parser';
 import { AppModule } from './app.module';
 import { AppConfigService } from './config/app-config.service';
 import { AllExceptionsFilter } from './common/filters/all-exceptions.filter';
+import { applyDefaultPrivateCachePolicy } from './common/http/cache-policy';
 
 async function bootstrap(): Promise<void> {
   const app = await NestFactory.create(AppModule, { bufferLogs: false });
@@ -16,6 +17,9 @@ async function bootstrap(): Promise<void> {
     app.getHttpAdapter().getInstance().set('trust proxy', config.trustProxyHops);
   }
   app.enableVersioning({ type: VersioningType.URI, defaultVersion: '1' });
+  // This must precede CORS: successful preflights can finish inside that middleware and never
+  // enter Nest's interceptor/exception pipeline.
+  app.use(applyDefaultPrivateCachePolicy);
   app.use(cookieParser());
   app.useGlobalFilters(new AllExceptionsFilter());
   app.enableCors({

@@ -6,7 +6,7 @@ import { toast } from "sonner";
 import { usernameInputSchema } from "@linkedout/contracts";
 
 import { errorMessage, isApiError, patchMe } from "@/lib/api";
-import { useComposedPrincipal } from "@/components/session-provider";
+import { assertComposedPrincipal, useComposedPrincipal } from "@/components/session-provider";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -36,7 +36,7 @@ export function OnboardingForm({
     setBusy(true);
     setError(null);
     try {
-      await patchMe(composedAs, { username, name: name.trim() || null });
+      await patchMe(assertComposedPrincipal(composedAs), { username, name: name.trim() || null });
       toast.success("You're all set.");
       router.replace(returnTo);
       router.refresh();

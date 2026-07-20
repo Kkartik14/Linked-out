@@ -13,6 +13,7 @@ const {
 } = require('@linkedout/contracts');
 
 const {
+  AppException,
   AppErrors,
 } = require('../../dist/common/errors/app-exception');
 const {
@@ -27,6 +28,13 @@ const {
 const {
   ZodValidationPipe,
 } = require('../../dist/common/pipes/zod-validation.pipe');
+const {
+  applyDefaultPrivateCachePolicy,
+  DEFAULT_PRIVATE_CACHE_CONTROL,
+} = require('../../dist/common/http/cache-policy');
+const {
+  requestPathForLogging,
+} = require('../../dist/common/http/request-path');
 const {
   buildPage,
   mapPage,
@@ -47,10 +55,17 @@ function assertAppError(error, status, code) {
   return true;
 }
 
-function captureResponse() {
+function captureResponse(request = { method: 'GET', path: '/test', url: '/test' }) {
   const response = {
     statusCode: undefined,
     body: undefined,
+    headers: new Map(),
+    setHeader(name, value) {
+      this.headers.set(name.toLowerCase(), value);
+    },
+    getHeader(name) {
+      return this.headers.get(name.toLowerCase());
+    },
     status(code) {
       this.statusCode = code;
       return this;
@@ -62,11 +77,28 @@ function captureResponse() {
   };
   const host = {
     switchToHttp() {
-      return { getResponse: () => response };
+      return { getResponse: () => response, getRequest: () => request };
     },
   };
   return { host, response };
 }
+
+test('response cache policy defaults private and preserves explicit public caching', () => {
+  for (const existing of [undefined, 'public, max-age=60']) {
+    const headers = new Map();
+    if (existing) headers.set('cache-control', existing);
+    const response = {
+      hasHeader: (name) => headers.has(name.toLowerCase()),
+      setHeader: (name, value) => headers.set(name.toLowerCase(), value),
+    };
+    let continued = false;
+    applyDefaultPrivateCachePolicy({}, response, () => {
+      continued = true;
+    });
+    assert.equal(continued, true);
+    assert.equal(headers.get('cache-control'), existing ?? DEFAULT_PRIVATE_CACHE_CONTROL);
+  }
+});
 
 test('ZodValidationPipe applies defaults and coercions for valid input', () => {
   const pipe = new ZodValidationPipe(createLInputSchema);
@@ -251,6 +283,7 @@ test('AllExceptionsFilter always renders the standard error envelope', () => {
         details: undefined,
       },
     });
+    assert.equal(response.getHeader('cache-control'), DEFAULT_PRIVATE_CACHE_CONTROL);
   }
 
   {
@@ -271,6 +304,82 @@ test('AllExceptionsFilter always renders the standard error envelope', () => {
       error: { code: 'INTERNAL', message: 'Something went wrong.' },
     });
   }
+});
+
+test('security rejection telemetry excludes credentials, assertions, OAuth codes, and queries', () => {
+  const filter = new AllExceptionsFilter();
+  const messages = [];
+  filter.logger.warn = (message) => messages.push(message);
+  const { host } = captureResponse({
+    method: 'POST',
+    path: '/v1/auth/sessions/resolve',
+    url: '/v1/auth/sessions/resolve?code=oauth-secret',
+    headers: { cookie: 'lo_sid=browser-secret', 'x-internal-auth': 'assertion-secret' },
+  });
+
+  filter.catch(AppErrors.unauthenticated(), host);
+  assert.deepEqual(messages, [
+    'security_rejection code=UNAUTHENTICATED method=POST path=/v1/auth/sessions/resolve',
+  ]);
+  assert.doesNotMatch(messages[0], /oauth-secret|browser-secret|assertion-secret|\?/);
+});
+
+test('security telemetry is explicit backend metadata, not inferred from the wire code', () => {
+  const securityErrors = [
+    AppErrors.unauthenticated(),
+    AppErrors.tokenExpired(),
+    AppErrors.invalidHandoff(),
+    AppErrors.principalMismatch(),
+  ];
+  for (const error of securityErrors) {
+    assert.equal(error.telemetryClassification, 'security-rejection');
+    assert.equal('telemetryClassification' in error.getResponse(), false);
+  }
+  assert.equal(AppErrors.forbidden().telemetryClassification, undefined);
+
+  const filter = new AllExceptionsFilter();
+  const messages = [];
+  filter.logger.warn = (message) => messages.push(message);
+  const { host } = captureResponse();
+  filter.catch(
+    new AppException(401, { code: 'UNAUTHENTICATED', message: 'A non-security domain error.' }),
+    host,
+  );
+  assert.deepEqual(messages, [], 'a code string alone must not opt an exception into security logs');
+});
+
+test('the AppException runtime guard rejects codes outside its declared catalogue', () => {
+  const filter = new AllExceptionsFilter();
+  const { host, response } = captureResponse();
+  filter.catch(
+    new AppException(418, { code: 'NOT_CATALOGUED', message: 'invalid body' }),
+    host,
+  );
+
+  assert.equal(response.statusCode, 418);
+  assert.deepEqual(response.body, { error: { code: 'ERROR', message: 'invalid body' } });
+});
+
+test('the AppException runtime guard rejects malformed details on a valid code', () => {
+  const filter = new AllExceptionsFilter();
+  const { host, response } = captureResponse();
+  filter.catch(
+    new AppException(400, { code: 'VALIDATION_ERROR', message: 'invalid details', details: 7 }),
+    host,
+  );
+
+  assert.equal(response.statusCode, 400);
+  assert.deepEqual(response.body, { error: { code: 'BAD_REQUEST', message: 'invalid details' } });
+});
+
+test('request log paths prefer Express routing and never retain query parameters', () => {
+  assert.equal(
+    requestPathForLogging({ path: '/v1/search', url: '/ignored?token=secret' }),
+    '/v1/search',
+  );
+  assert.equal(requestPathForLogging({ path: '', url: '/v1/search?q=secret' }), '/v1/search');
+  assert.equal(requestPathForLogging({ path: '', url: '?token=secret' }), '/');
+  assert.equal(requestPathForLogging({ path: '', url: '' }), '/');
 });
 
 test('cursor helpers round-trip good cursors and reject malformed cursors', () => {

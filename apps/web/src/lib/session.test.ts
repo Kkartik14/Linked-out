@@ -25,6 +25,7 @@ import { connection } from "next/server";
 
 afterEach(() => {
   vi.clearAllMocks();
+  vi.unstubAllEnvs();
 });
 
 describe("getSession — distinguishing states instead of flattening to logged-out (AUTH-06)", () => {
@@ -51,10 +52,11 @@ describe("getSession — distinguishing states instead of flattening to logged-o
     await expect(getSession()).resolves.toEqual({ status: "guest" });
   });
 
-  it("reports a guest when the credential was rejected (401)", async () => {
-    // Not signed in — the remedy is to sign in, so guest is the honest offer.
+  it("reports rejected — not guest — when a presented credential is refused (401)", async () => {
+    // Contract §0/AUTH-06: a credential was presented and the API refused it. That is not the
+    // same fact as a clean guest, and collapsing them is the forbidden downgrade.
     vi.mocked(getMe).mockRejectedValue(new ApiError(401, "UNAUTHENTICATED", "no"));
-    await expect(getSession()).resolves.toEqual({ status: "guest" });
+    await expect(getSession()).resolves.toEqual({ status: "rejected" });
   });
 
   it("reports unavailable — not guest — when identity cannot be determined", async () => {
@@ -85,6 +87,19 @@ describe("requireViewer — gating a protected page", () => {
   it("sends a guest to sign in, preserving a safe returnTo", () => {
     expect(() => requireViewer({ status: "guest" }, "/settings")).toThrow(/REDIRECT:/);
     expect(redirect).toHaveBeenCalledWith("/login?returnTo=%2Fsettings");
+  });
+
+  it("sends a rejected credential to sign in, like a guest", () => {
+    expect(() => requireViewer({ status: "rejected" }, "/settings")).toThrow(/REDIRECT:/);
+    expect(redirect).toHaveBeenCalledWith("/login?returnTo=%2Fsettings");
+  });
+
+  it("uses the browser-visible cookie healer for a rejected handoff session", () => {
+    vi.stubEnv("OAUTH_SESSION_MODE", "handoff");
+    expect(() => requireViewer({ status: "rejected" }, "/settings")).toThrow(/REDIRECT:/);
+    expect(redirect).toHaveBeenCalledWith(
+      "/auth/session/rejected?returnTo=%2Fsettings",
+    );
   });
 
   it("rejects an unsafe returnTo rather than opening a redirect", () => {

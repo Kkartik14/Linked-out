@@ -13,7 +13,7 @@ import {
   errorMessage,
   getUserCollections,
 } from "@/lib/api";
-import { useComposedPrincipal, usePrincipal, useViewer } from "@/components/session-provider";
+import { assertComposedPrincipal, useComposedPrincipal, usePrincipal, useViewer } from "@/components/session-provider";
 import { queryKeys } from "@/lib/query-keys";
 import { Button } from "@/components/ui/button";
 import {
@@ -71,7 +71,7 @@ function SaveToCollection({
   };
 
   const addExisting = useMutation({
-    mutationFn: (collectionId: string) => addLToCollection(composedAs, collectionId, lId),
+    mutationFn: (collectionId: string) => addLToCollection(assertComposedPrincipal(composedAs), collectionId, lId),
     onSuccess: () => {
       toast.success("Added to collection.");
       afterChange();
@@ -81,8 +81,8 @@ function SaveToCollection({
 
   const createAndAdd = useMutation({
     mutationFn: async (nextTitle: string) => {
-      const collection = await createCollection(composedAs, nextTitle);
-      await addLToCollection(composedAs, collection.id, lId);
+      const collection = await createCollection(assertComposedPrincipal(composedAs), nextTitle);
+      await addLToCollection(assertComposedPrincipal(composedAs), collection.id, lId);
       return collection;
     },
     onSuccess: () => {

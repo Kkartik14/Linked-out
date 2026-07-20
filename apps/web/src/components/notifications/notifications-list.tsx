@@ -11,7 +11,7 @@ import { Skeleton } from "@/components/ui/skeleton";
 import { timeAgo } from "@/lib/format";
 import { cn } from "@/lib/utils";
 import { queryKeys } from "@/lib/query-keys";
-import { useComposedPrincipal, usePrincipal } from "@/components/session-provider";
+import { assertComposedPrincipal, useComposedPrincipal, usePrincipal } from "@/components/session-provider";
 
 export function NotificationsList() {
   const queryClient = useQueryClient();
@@ -30,12 +30,12 @@ export function NotificationsList() {
     queryClient.invalidateQueries({ queryKey: queryKeys.notifications.all(principal) });
 
   const markAll = useMutation({
-    mutationFn: () => markAllNotificationsRead(composedAs),
+    mutationFn: () => markAllNotificationsRead(assertComposedPrincipal(composedAs)),
     onSuccess: () => void invalidateAll(),
   });
 
   const markOne = useMutation({
-    mutationFn: (id: string) => markNotificationRead(composedAs, id),
+    mutationFn: (id: string) => markNotificationRead(assertComposedPrincipal(composedAs), id),
     onSuccess: () => void invalidateAll(),
   });
 

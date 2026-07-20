@@ -143,6 +143,38 @@ describe('10 · collections (contract §4.8)', () => {
     );
   });
 
+  test('a dense rank gap is repaired before the requested move', async () => {
+    const collection = await create('Dense ranks');
+    const ls = await Promise.all(['A', 'B', 'C'].map((title) => h.createL(owner.id, { title })));
+    for (const l of ls) {
+      await h.put(`/collections/${collection.body.id}/ls/${l.id}`, { cookie: owner.cookie });
+    }
+    await Promise.all(
+      ls.map((l, position) =>
+        h.ctx.prisma.collectionL.update({
+          where: { collectionId_lId: { collectionId: collection.body.id, lId: l.id } },
+          data: { position },
+        }),
+      ),
+    );
+
+    const response = await h.put(`/collections/${collection.body.id}/ls/${ls[2].id}`, {
+      cookie: owner.cookie,
+      body: { position: 1 },
+    });
+    assert.deepEqual(
+      h.expectShape(response, collectionDetailSchema).ls.map(({ title }) => title),
+      ['A', 'C', 'B'],
+    );
+
+    const rows = await h.ctx.prisma.collectionL.findMany({
+      where: { collectionId: collection.body.id },
+      orderBy: [{ position: 'asc' }, { lId: 'asc' }],
+      select: { position: true },
+    });
+    assert.deepEqual(rows.map(({ position }) => position), [0, 512, 1024]);
+  });
+
   test('an out-of-range position clamps to the ends instead of erroring', async () => {
     const collection = await create();
     const ls = await Promise.all(['A', 'B'].map((title) => h.createL(owner.id, { title })));
@@ -331,6 +363,27 @@ describe('10 · collections (contract §4.8)', () => {
     const asOwner = await h.get('/users/owner/collections', { cookie: owner.cookie });
     assert.equal(asOwner.body.data[0].lCount, 2);
     assert.equal(asOwner.body.data[0].viewer.canEdit, true);
+  });
+
+  test('owner collections paginate to a null cursor without gaps or duplicates', async () => {
+    const created = [];
+    for (let index = 0; index < 5; index += 1) {
+      created.push(h.expectShape(await create(`Collection ${index}`), collectionSchema, 201));
+    }
+
+    const seen = [];
+    let cursor;
+    do {
+      const path = `/users/owner/collections?limit=2${
+        cursor ? `&cursor=${encodeURIComponent(cursor)}` : ''
+      }`;
+      const page = h.expectShape(await h.get(path), listSchema);
+      seen.push(...page.data.map(({ id }) => id));
+      cursor = page.nextCursor;
+    } while (cursor);
+
+    assert.deepEqual(seen, created.map(({ id }) => id).reverse(), 'the full walk is id-desc');
+    assert.equal(new Set(seen).size, created.length);
   });
 
   test('collections of an unknown user are 404', async () => {

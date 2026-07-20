@@ -1,7 +1,8 @@
 import { Controller, Get, Header } from '@nestjs/common';
-import type { MetaEnumsResponse } from '@linkedout/contracts';
+import type { MetaEnumsResponse, OperationalHealthResponse } from '@linkedout/contracts';
 
 import { ApiContract, API_ROUTE_CONTRACTS } from '../../common/contracts/api-route-contracts';
+import { SkipRateLimit } from '../../common/decorators/skip-rate-limit.decorator';
 import { MetaService } from './meta.service';
 import type { OpenApiDocument } from './openapi';
 
@@ -24,5 +25,26 @@ export class MetaController {
   @ApiContract(API_ROUTE_CONTRACTS.openApi)
   openApi(): OpenApiDocument {
     return this.meta.getOpenApi();
+  }
+
+  @Get('health/private-api')
+  @SkipRateLimit()
+  @ApiContract(API_ROUTE_CONTRACTS.healthPrivateApi)
+  privateApiHealth(): OperationalHealthResponse {
+    return this.meta.privateApiHealth();
+  }
+
+  @Get('health/database')
+  @SkipRateLimit()
+  @ApiContract(API_ROUTE_CONTRACTS.healthDatabase)
+  databaseHealth(): Promise<OperationalHealthResponse> {
+    return this.meta.databaseHealth();
+  }
+
+  @Get('health/session-authority')
+  @SkipRateLimit()
+  @ApiContract(API_ROUTE_CONTRACTS.healthSessionAuthority)
+  sessionAuthorityHealth(): Promise<OperationalHealthResponse> {
+    return this.meta.sessionAuthorityHealth();
   }
 }

@@ -75,6 +75,8 @@ describe("apiFetch", () => {
     vi.mocked(fetch).mockResolvedValueOnce(new Response(null, { status: 204 }));
 
     await expect(apiFetch("/comments/1", { method: "DELETE" })).resolves.toBeUndefined();
+    expect(new Headers(vi.mocked(fetch).mock.calls[0]?.[1]?.headers).get("content-type"))
+      .toBe("application/json");
   });
 
   it("throws ApiError from the backend error envelope", async () => {

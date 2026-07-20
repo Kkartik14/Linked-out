@@ -56,6 +56,11 @@ describe('19 · rate limiting (contract §1.8)', () => {
     }
     assert.ok(limited, `expected a 429 within ${READ_LIMIT + 2} reads`);
     h.expectError(limited, 429, 'RATE_LIMITED');
+
+    for (const path of ['/health/private-api', '/health/database', '/health/session-authority']) {
+      const health = await h.get(path, { cookie: user.cookie });
+      assert.equal(health.status, 200, `${path} must bypass an exhausted read bucket`);
+    }
   });
 
   test('read and write budgets are independent buckets', async () => {

@@ -33,26 +33,32 @@ function CallbackInner() {
     if (errorCode) return;
 
     let cancelled = false;
-    getMe()
-      .then((me) => {
-        if (cancelled) return;
-        if (!me.user) {
-          router.replace(`/login?returnTo=${encodeURIComponent(returnTo)}`);
-          return;
-        }
-        // Sign-in succeeded, so a new principal now owns the shared cookies. Announce it
-        // before navigating: any other tab is still rendering the previous viewer and
-        // holding its private cache. Onboarding-required is still a completed sign-in.
-        publishSessionChanged();
-        router.replace(
-          me.needsOnboarding
-            ? `/onboarding?returnTo=${encodeURIComponent(returnTo)}`
-            : returnTo,
-        );
-      })
-      .catch(() => {
-        if (!cancelled) setFetchFailed(true);
-      });
+
+    // Shared tail: confirm who the (now-established) session belongs to and route accordingly.
+    // A new principal owns the shared cookies, so announce it before navigating — other tabs are
+    // still rendering the previous viewer. Onboarding-required is still a completed sign-in.
+    const confirmAndRoute = async (destination: string) => {
+      const me = await getMe();
+      if (cancelled) return;
+      if (!me.user) {
+        router.replace(`/login?returnTo=${encodeURIComponent(destination)}`);
+        return;
+      }
+      publishSessionChanged();
+      router.replace(
+        me.needsOnboarding
+          ? `/onboarding?returnTo=${encodeURIComponent(destination)}`
+          : destination,
+      );
+    };
+
+    // Both callback modes arrive here only after the browser credential has been committed:
+    // Nest sets legacy cookies directly, while the handoff route atomically sets `lo_sid`.
+    const run = confirmAndRoute(returnTo);
+
+    run.catch(() => {
+      if (!cancelled) setFetchFailed(true);
+    });
 
     return () => {
       cancelled = true;

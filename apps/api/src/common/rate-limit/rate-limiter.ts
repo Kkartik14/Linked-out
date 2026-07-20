@@ -1,4 +1,4 @@
-import { Injectable } from '@nestjs/common';
+import { Inject, Injectable } from '@nestjs/common';
 
 import {
   RateLimitRepository,
@@ -25,6 +25,15 @@ interface LocalLease {
   windowMs: number;
 }
 
+export interface RateLimiterOptions {
+  maxLocalKeys?: number;
+  reservedLocalKeys?: number;
+  reservedKeyPrefixes?: readonly string[];
+}
+
+export const RATE_LIMITER_OPTIONS = Symbol('RATE_LIMITER_OPTIONS');
+const DEFAULT_MAX_LOCAL_KEYS = 10_000;
+
 /** Leases are at most 10% for normal buckets and never exceed ten permits. */
 function maximumReservationSize(limit: number): number {
   return Math.max(1, Math.min(10, Math.floor(limit / 10)));
@@ -43,9 +52,36 @@ function maximumReservationSize(limit: number): number {
 export class RateLimiter {
   private readonly leases = new Map<string, LocalLease>();
   private readonly refills = new Map<string, Promise<void>>();
+  private readonly regularKeys = new Set<string>();
+  private readonly reservedKeys = new Set<string>();
+  private readonly maxLocalKeys: number;
+  private readonly reservedLocalKeys: number;
+  private readonly reservedKeyPrefixes: readonly string[];
+  private earliestRegularLeaseResetAt = Number.POSITIVE_INFINITY;
+  private earliestReservedLeaseResetAt = Number.POSITIVE_INFINITY;
   private requestCount = 0;
 
-  constructor(private readonly repository: RateLimitRepository) {}
+  constructor(
+    private readonly repository: RateLimitRepository,
+    @Inject(RATE_LIMITER_OPTIONS) options: RateLimiterOptions = {},
+  ) {
+    this.maxLocalKeys = options.maxLocalKeys ?? DEFAULT_MAX_LOCAL_KEYS;
+    this.reservedLocalKeys = options.reservedLocalKeys ?? 0;
+    this.reservedKeyPrefixes = Object.freeze([...(options.reservedKeyPrefixes ?? [])]);
+    if (
+      !Number.isSafeInteger(this.maxLocalKeys) ||
+      this.maxLocalKeys <= 0 ||
+      !Number.isSafeInteger(this.reservedLocalKeys) ||
+      this.reservedLocalKeys < 0 ||
+      this.reservedLocalKeys >= this.maxLocalKeys ||
+      (this.reservedLocalKeys > 0 && this.reservedKeyPrefixes.length === 0) ||
+      (this.reservedLocalKeys === 0 && this.reservedKeyPrefixes.length > 0) ||
+      this.reservedKeyPrefixes.some((prefix) => prefix.length === 0) ||
+      new Set(this.reservedKeyPrefixes).size !== this.reservedKeyPrefixes.length
+    ) {
+      throw new TypeError('Rate-limiter local key limits must be valid.');
+    }
+  }
 
   async take(request: RateLimitRequest): Promise<RateLimitDecision> {
     this.assertRequest(request);
@@ -66,7 +102,12 @@ export class RateLimiter {
         };
       }
 
-      await this.refill(request, nowMs, lease);
+      if (!(await this.refill(request, nowMs, lease))) {
+        return {
+          allowed: false,
+          retryAfterSeconds: this.capacityRetryAfterSeconds(request, nowMs),
+        };
+      }
     }
   }
 
@@ -74,9 +115,32 @@ export class RateLimiter {
     this.requestCount += 1;
     if (this.requestCount % 1000 !== 0) return;
 
-    for (const [key, lease] of this.leases) {
-      if (lease.resetAt <= nowMs) this.leases.delete(key);
+    this.removeExpiredLeases(nowMs);
+  }
+
+  private removeExpiredLeases(nowMs: number): void {
+    if (
+      Math.min(this.earliestRegularLeaseResetAt, this.earliestReservedLeaseResetAt) > nowMs
+    ) {
+      return;
     }
+
+    let earliestRegularResetAt = Number.POSITIVE_INFINITY;
+    let earliestReservedResetAt = Number.POSITIVE_INFINITY;
+    for (const [key, lease] of this.leases) {
+      if (lease.resetAt <= nowMs) {
+        this.leases.delete(key);
+        if (!this.refills.has(key)) this.untrackKey(key);
+      } else {
+        if (this.isReservedKey(key)) {
+          earliestReservedResetAt = Math.min(earliestReservedResetAt, lease.resetAt);
+        } else {
+          earliestRegularResetAt = Math.min(earliestRegularResetAt, lease.resetAt);
+        }
+      }
+    }
+    this.earliestRegularLeaseResetAt = earliestRegularResetAt;
+    this.earliestReservedLeaseResetAt = earliestReservedResetAt;
   }
 
   private currentLease(request: RateLimitRequest, nowMs: number): LocalLease | undefined {
@@ -86,6 +150,14 @@ export class RateLimiter {
       (lease.resetAt <= nowMs || lease.limit !== request.limit || lease.windowMs !== request.windowMs)
     ) {
       this.leases.delete(request.key);
+      if (!this.refills.has(request.key)) this.untrackKey(request.key);
+      if (this.isReservedKey(request.key)) {
+        if (lease.resetAt === this.earliestReservedLeaseResetAt) {
+          this.earliestReservedLeaseResetAt = nowMs;
+        }
+      } else if (lease.resetAt === this.earliestRegularLeaseResetAt) {
+        this.earliestRegularLeaseResetAt = nowMs;
+      }
       return undefined;
     }
     return lease;
@@ -95,18 +167,58 @@ export class RateLimiter {
     request: RateLimitRequest,
     nowMs: number,
     current: LocalLease | undefined,
-  ): Promise<void> {
+  ): Promise<boolean> {
     const pending = this.refills.get(request.key);
     if (pending) {
       await pending;
-      return;
+      return true;
     }
 
-    const refill = this.reserve(request, nowMs, current).finally(() => {
-      if (this.refills.get(request.key) === refill) this.refills.delete(request.key);
-    });
+    if (!this.hasCapacityFor(request.key, nowMs)) return false;
+
+    const refill = this.reserve(request, nowMs, current);
     this.refills.set(request.key, refill);
-    await refill;
+    try {
+      await refill;
+      return true;
+    } finally {
+      if (this.refills.get(request.key) === refill) this.refills.delete(request.key);
+      if (!this.leases.has(request.key)) this.untrackKey(request.key);
+    }
+  }
+
+  private hasCapacityFor(key: string, nowMs: number): boolean {
+    if (this.isTracked(key)) return true;
+
+    this.removeExpiredLeases(nowMs);
+    const reserved = this.isReservedKey(key);
+    const hasCapacity = reserved
+      ? this.reservedKeys.size < this.reservedLocalKeys
+      : this.regularKeys.size < this.maxLocalKeys - this.reservedLocalKeys;
+    if (!hasCapacity) return false;
+    (reserved ? this.reservedKeys : this.regularKeys).add(key);
+    return true;
+  }
+
+  private isReservedKey(key: string): boolean {
+    return this.reservedKeyPrefixes.some((prefix) => key.startsWith(prefix));
+  }
+
+  private isTracked(key: string): boolean {
+    return this.regularKeys.has(key) || this.reservedKeys.has(key);
+  }
+
+  private untrackKey(key: string): void {
+    this.regularKeys.delete(key);
+    this.reservedKeys.delete(key);
+  }
+
+  private capacityRetryAfterSeconds(request: RateLimitRequest, nowMs: number): number {
+    const poolResetAt = this.isReservedKey(request.key)
+      ? this.earliestReservedLeaseResetAt
+      : this.earliestRegularLeaseResetAt;
+    const earliestResetAt = Math.min(poolResetAt, nowMs + request.windowMs);
+    return Math.max(1, Math.ceil((earliestResetAt - nowMs) / 1000));
   }
 
   private async reserve(
@@ -133,6 +245,17 @@ export class RateLimiter {
       limit: request.limit,
       windowMs: request.windowMs,
     });
+    if (this.isReservedKey(request.key)) {
+      this.earliestReservedLeaseResetAt = Math.min(
+        this.earliestReservedLeaseResetAt,
+        reservation.resetAt,
+      );
+    } else {
+      this.earliestRegularLeaseResetAt = Math.min(
+        this.earliestRegularLeaseResetAt,
+        reservation.resetAt,
+      );
+    }
   }
 
   private assertRequest(request: RateLimitRequest): void {

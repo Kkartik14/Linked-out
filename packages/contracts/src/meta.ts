@@ -25,3 +25,16 @@ export const metaEnumsResponseSchema = z.object({
   reputation: z.array(z.object({ key: z.string(), label: z.string() })),
 });
 export type MetaEnumsResponse = z.infer<typeof metaEnumsResponseSchema>;
+
+export const operationalComponentSchema = z.enum([
+  'private-api',
+  'database',
+  'session-authority',
+]);
+export type OperationalComponent = z.infer<typeof operationalComponentSchema>;
+
+export const operationalHealthResponseSchema = z.object({
+  status: z.literal('ok'),
+  component: operationalComponentSchema,
+});
+export type OperationalHealthResponse = z.infer<typeof operationalHealthResponseSchema>;

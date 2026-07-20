@@ -6,7 +6,7 @@ import { useInfiniteQuery, useMutation, useQuery, useQueryClient } from "@tansta
 import { addComment, getComments } from "@/lib/api";
 import { appendComment, flattenComments, type CommentPages } from "@/lib/comment-cache";
 import { queryKeys } from "@/lib/query-keys";
-import { useComposedPrincipal, usePrincipal, useViewer } from "@/components/session-provider";
+import { assertComposedPrincipal, useComposedPrincipal, usePrincipal, useViewer } from "@/components/session-provider";
 import { CommentForm } from "@/components/comments/comment-form";
 import { CommentItem } from "@/components/comments/comment-item";
 import { Button } from "@/components/ui/button";
@@ -48,7 +48,7 @@ export function CommentsSection({ lId, commentCount }: { lId: string; commentCou
   });
 
   const add = useMutation({
-    mutationFn: (body: string) => addComment(composedAs, lId, { body }),
+    mutationFn: (body: string) => addComment(assertComposedPrincipal(composedAs), lId, { body }),
     onMutate: async () => {
       await queryClient.cancelQueries({ queryKey: commentsKey, exact: true });
       return { hadData: queryClient.getQueryData<CommentPages>(commentsKey) !== undefined };

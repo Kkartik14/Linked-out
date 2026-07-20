@@ -10,7 +10,7 @@ import type { ReactionResult, ReactionsSummary, ReactionType } from "@linkedout/
 
 import { addReaction, removeReaction, errorMessage } from "@/lib/api";
 import { queryKeys } from "@/lib/query-keys";
-import { useComposedPrincipal, usePrincipal, useViewer } from "@/components/session-provider";
+import { assertComposedPrincipal, useComposedPrincipal, usePrincipal, useViewer } from "@/components/session-provider";
 import { reactionOption, useMeta } from "@/components/meta-provider";
 import { cn } from "@/lib/utils";
 
@@ -106,7 +106,7 @@ export function ReactionBar({
     // rendered by multiple component instances (for example, a card and a detail pane).
     scope: { id: `reaction:${principal}:${lId}` },
     mutationFn: ({ type, willAdd }: { type: ReactionType; willAdd: boolean }) =>
-      willAdd ? addReaction(composedAs, lId, type) : removeReaction(composedAs, lId, type),
+      willAdd ? addReaction(assertComposedPrincipal(composedAs), lId, type) : removeReaction(assertComposedPrincipal(composedAs), lId, type),
     onMutate: async ({ type, willAdd }) => {
       await queryClient.cancelQueries({ queryKey: reactionKey, exact: true });
       const previous = queryClient.getQueryData<ReactionResult>(reactionKey) ?? initialReaction;

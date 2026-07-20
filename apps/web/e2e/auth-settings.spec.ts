@@ -133,28 +133,10 @@ test.describe("auth surface", () => {
     ).toBeVisible();
   });
 
-  // Pending acceptance criterion for ADR 0001 §6 (AUTH-01). Runs as `fixme` (skipped) until
-  // the auth epic lands the one-origin/BFF boundary. Completing it ALSO requires the e2e
-  // harness to establish a real refresh session (lo_refresh + a DB Session row) — today
-  // `signIn()` only sets lo_access, which is why the test above (and Codex TEST-02) model
-  // the wrong lifecycle. That helper is part of the epic.
-  test.fixme(
-    "AUTH-01: a protected page survives access-cookie expiry via refresh",
-    async ({ page, context }) => {
-      await signIn(context, world.kartik);
-
-      // Simulate the browser dropping lo_access at its 15-min Max-Age, keeping the refresh.
-      const kept = (await context.cookies()).filter((c) => c.name !== "lo_access");
-      await context.clearCookies();
-      await context.addCookies(kept);
-
-      // Target: the boundary refreshes and the page renders authenticated (today it bounces
-      // to /login because there is no server-side refresh).
-      await page.goto("/saved");
-      await expect(page).not.toHaveURL(/\/login/);
-      await expect(page.getByRole("heading", { name: "Saved" })).toBeVisible();
-    },
-  );
+  // AUTH-01 (ADR 0001 §6) is now a real, passing test in `auth-handoff.spec.ts`: a live `lo_sid`
+  // authenticates a protected render and a client API call through the one-origin BFF, with no
+  // 15-minute access boundary to fall off. The old `test.fixme` here modeled the wrong (access
+  // cookie + refresh) lifecycle and has been removed now that the handoff path exists.
 });
 
 test.describe("saved, notifications & settings", () => {

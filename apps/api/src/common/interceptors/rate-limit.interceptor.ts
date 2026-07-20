@@ -4,6 +4,7 @@ import {
   type ExecutionContext,
   type NestInterceptor,
 } from '@nestjs/common';
+import { Reflector } from '@nestjs/core';
 import type { Observable } from 'rxjs';
 import type { Response } from 'express';
 
@@ -12,6 +13,7 @@ import { clientIp } from '../http/client-ip';
 import type { AuthedRequest } from '../types/auth';
 import { RateLimiter } from '../rate-limit/rate-limiter';
 import { verifiedBffCallerPurpose } from '../auth/verified-bff-caller';
+import { SKIP_RATE_LIMIT_METADATA } from '../decorators/skip-rate-limit.decorator';
 
 type BucketKind = 'read' | 'write';
 
@@ -34,10 +36,21 @@ function identity(req: AuthedRequest): string {
 
 @Injectable()
 export class RateLimitInterceptor implements NestInterceptor {
-  constructor(private readonly limiter: RateLimiter) {}
+  constructor(
+    private readonly limiter: RateLimiter,
+    private readonly reflector: Reflector,
+  ) {}
 
   async intercept(context: ExecutionContext, next: CallHandler): Promise<Observable<unknown>> {
     if (context.getType() !== 'http') return next.handle();
+    if (
+      this.reflector.getAllAndOverride<boolean>(SKIP_RATE_LIMIT_METADATA, [
+        context.getHandler(),
+        context.getClass(),
+      ])
+    ) {
+      return next.handle();
+    }
 
     const req = context.switchToHttp().getRequest<AuthedRequest>();
     const res = context.switchToHttp().getResponse<Response>();
