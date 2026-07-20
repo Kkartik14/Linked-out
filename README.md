@@ -73,6 +73,49 @@ pnpm --dir apps/web typecheck
 pnpm --dir apps/web test
 ```
 
+## Deploying on Vercel
+
+Production is two Vercel projects connected to this GitHub repository. A push to `main` deploys
+both projects automatically; Vercel skips a project when neither it nor one of its workspace
+dependencies changed.
+
+| Project | Root directory | Runtime region | Public URL |
+|---|---|---|---|
+| `linked-out-api` | `apps/api` | Singapore (`sin1`) | `https://linked-out-api.vercel.app` |
+| `linked-out-fe` | `apps/web` | Singapore (`sin1`) | `https://linked-out-fe.vercel.app` |
+
+The API project uses the root workspace build. The web project first builds and installs its
+`file:` shared packages through `pnpm vercel:install:web`, then runs the Next production build.
+Both projects enable Corepack and use the repository-pinned pnpm version.
+
+Set the API production environment from `.env.example`, using Neon pooled/direct URLs and
+`OAUTH_SESSION_MODE=handoff`. Set the web production environment from `apps/web/.env.example` with:
+
+```dotenv
+NEXT_PUBLIC_API_BASE_URL=/v1
+OAUTH_SESSION_MODE=handoff
+WEB_URL=https://linked-out-fe.vercel.app
+INTERNAL_API_BASE_URL=https://linked-out-api.vercel.app
+BFF_CALLER_SECRET=<same purpose-scoped value as the API project>
+```
+
+Register both OAuth providers against the public BFF callback routes:
+
+```text
+https://linked-out-fe.vercel.app/v1/auth/google/callback
+https://linked-out-fe.vercel.app/v1/auth/github/callback
+```
+
+Never run Prisma migrations during Nest function startup: cold starts can overlap. Apply a reviewed
+migration once, before deploying the code that requires it:
+
+```bash
+vercel env run --environment production --project linked-out-api -- pnpm --filter @linkedout/db migrate:deploy
+```
+
+The same production environment can run the bounded retention job explicitly with
+`pnpm maintenance:cleanup`. Secrets stay in Vercel; local production env exports remain ignored.
+
 The development seed deletes all application data. It therefore refuses to connect unless
 the target is a loopback database with an allowlisted name and the expected login role is
 explicitly pinned:
