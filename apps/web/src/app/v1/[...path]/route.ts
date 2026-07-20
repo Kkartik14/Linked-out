@@ -8,6 +8,7 @@ import {
 } from "@/lib/bff/browser-session-cookie";
 import { internalApiOrigin } from "@/lib/bff/internal-client";
 import { isHandoffMode } from "@/lib/bff/mode";
+import { publicWebOrigin } from "@/lib/bff/public-origin";
 import {
   OAUTH_STATE_COOKIE,
   oauthStateCookieForUpstream,
@@ -96,7 +97,7 @@ async function forwardToNest(
 async function handle(request: NextRequest): Promise<NextResponse> {
   if (!isHandoffMode()) return jsonError("NOT_FOUND", "Not found.", 404);
 
-  const rejection = csrfRejection(request, request.nextUrl.origin);
+  const rejection = csrfRejection(request, publicWebOrigin());
   if (rejection) {
     return jsonError("CSRF_REJECTED", `Cross-site ${rejection} rejected.`, 403);
   }

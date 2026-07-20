@@ -7,9 +7,10 @@ import {
 } from "@/lib/bff/browser-session-cookie";
 import { exchangeOAuthHandoff } from "@/lib/bff/lifecycle";
 import { isHandoffMode } from "@/lib/bff/mode";
+import { publicWebOrigin } from "@/lib/bff/public-origin";
 
-function failureRedirect(request: NextRequest): NextResponse {
-  return NextResponse.redirect(new URL("/auth/callback?error=oauth_failed", request.nextUrl.origin));
+function failureRedirect(): NextResponse {
+  return NextResponse.redirect(new URL("/auth/callback?error=oauth_failed", publicWebOrigin()));
 }
 
 /**
@@ -17,13 +18,13 @@ function failureRedirect(request: NextRequest): NextResponse {
  * redirect in one response. A failed/replayed code never sets a cookie.
  */
 export async function GET(request: NextRequest): Promise<NextResponse> {
-  if (!isHandoffMode()) return failureRedirect(request);
+  if (!isHandoffMode()) return failureRedirect();
   const parsed = oauthHandoffCodeSchema.safeParse(request.nextUrl.searchParams.get("code"));
-  if (!parsed.success) return failureRedirect(request);
+  if (!parsed.success) return failureRedirect();
 
   try {
     const handoff = await exchangeOAuthHandoff(parsed.data);
-    const destination = new URL("/auth/callback", request.nextUrl.origin);
+    const destination = new URL("/auth/callback", publicWebOrigin());
     destination.searchParams.set("returnTo", handoff.returnTo);
     const response = NextResponse.redirect(destination);
     response.cookies.set(
@@ -33,6 +34,6 @@ export async function GET(request: NextRequest): Promise<NextResponse> {
     );
     return response;
   } catch {
-    return failureRedirect(request);
+    return failureRedirect();
   }
 }

@@ -1,5 +1,7 @@
 import { API_BASE_URL } from "@/lib/env";
+import { BROWSER_SESSION_COOKIE } from "@/lib/bff/browser-session-cookie";
 import { isHandoffMode } from "@/lib/bff/mode";
+import { publicWebOrigin } from "@/lib/bff/public-origin";
 import { publishSessionExpired } from "@/lib/session-channel";
 import type { ErrorEnvelope } from "@linkedout/contracts";
 import { PRINCIPAL_BINDING_HEADER } from "@linkedout/contracts";
@@ -149,15 +151,12 @@ async function sendRequest(
   signal: AbortSignal,
 ): Promise<Response> {
   if (isHandoffMode() && typeof window === "undefined") {
-    const { headers: nextHeaders, cookies } = await import("next/headers");
-    const incoming = await nextHeaders();
-    const host = incoming.get("host");
-    const proto = incoming.get("x-forwarded-proto") ?? "http";
+    const { cookies } = await import("next/headers");
     if (forwardsCredentials) {
-      const cookie = (await cookies()).toString();
-      if (cookie) headers.set("cookie", cookie);
+      const sid = (await cookies()).get(BROWSER_SESSION_COOKIE)?.value;
+      if (sid) headers.set("cookie", `${BROWSER_SESSION_COOKIE}=${sid}`);
     }
-    return fetch(`${proto}://${host}/v1${path}`, {
+    return fetch(`${publicWebOrigin()}/v1${path}`, {
       ...rest,
       headers,
       cache: rest.cache ?? "no-store",

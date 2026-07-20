@@ -7,6 +7,7 @@ import {
 } from "@/lib/bff/browser-session-cookie";
 import { revokeBffSession } from "@/lib/bff/lifecycle";
 import { isHandoffMode } from "@/lib/bff/mode";
+import { publicWebOrigin } from "@/lib/bff/public-origin";
 
 /**
  * Tombstone-first BFF logout (ADR 0001 §4.5). A more specific route than the `/v1/[...path]`
@@ -28,7 +29,7 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
     );
   }
 
-  const rejection = csrfRejection(request, request.nextUrl.origin);
+  const rejection = csrfRejection(request, publicWebOrigin());
   if (rejection) {
     return NextResponse.json(
       { error: { code: "CSRF_REJECTED", message: `Cross-site ${rejection} rejected.` } },

@@ -79,6 +79,7 @@ export default defineConfig({
       timeout: 120_000,
       env: {
         OAUTH_SESSION_MODE: "handoff",
+        WEB_URL: webBaseUrl,
         INTERNAL_API_BASE_URL: `http://localhost:${apiPort}`,
         BFF_CALLER_SECRET: bffCallerSecret,
         NEXT_PUBLIC_API_BASE_URL: "/v1",
