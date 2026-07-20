@@ -4,6 +4,15 @@ const OAUTH_CALLBACK_PATH = /^\/v1\/auth\/(?:google|github)\/callback$/;
 const OAUTH_ROUTE_PATH = /^\/v1\/auth\/(?:google|github)(?:\/callback)?$/;
 
 /**
+ * The OAuth start and callback legs. These establish a *new* session, so the BFF must forward them
+ * to Nest **without** resolving the browser's existing `lo_sid` — otherwise a stale/expired cookie
+ * would 401 the very request meant to sign the user back in.
+ */
+export function isOAuthRelayPath(pathname: string): boolean {
+  return OAUTH_ROUTE_PATH.test(pathname);
+}
+
+/**
  * OAuth callbacks are the sole exception to the BFF's browser-cookie stripping rule.
  * Nest needs its nonce cookie to validate the provider's `state`, but it must never receive
  * `lo_sid`, legacy credentials, or unrelated browser cookies.
@@ -25,6 +34,7 @@ export function oauthSetCookieForBrowser(
   setCookie: string,
 ): string | null {
   if (!OAUTH_ROUTE_PATH.test(pathname)) return null;
-  const cookieName = setCookie.trimStart().slice(0, setCookie.indexOf("=")).trim();
+  const trimmed = setCookie.trimStart();
+  const cookieName = trimmed.slice(0, trimmed.indexOf("=")).trim();
   return cookieName === OAUTH_STATE_COOKIE ? setCookie : null;
 }

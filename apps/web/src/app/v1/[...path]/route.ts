@@ -13,6 +13,7 @@ import { publicWebOrigin } from "@/lib/bff/public-origin";
 import { logCsrfRejection } from "@/lib/bff/security-rejection";
 import {
   OAUTH_STATE_COOKIE,
+  isOAuthRelayPath,
   oauthSetCookieForBrowser,
   oauthStateCookieForUpstream,
 } from "@/lib/bff/oauth-relay";
@@ -69,6 +70,12 @@ async function forwardToNest(
   headers.delete(INTERNAL_AUTH_HEADER); // the assertion is minted here, never accepted from the client
   headers.delete("host");
   headers.delete("content-length"); // fetch recomputes for the forwarded body
+  // The browser can set X-Forwarded-* / Forwarded on a fetch; forwarding them would let a client
+  // spoof its IP to Nest's trust-proxy chain, bypassing IP rate limits and poisoning audit logs.
+  // Strip them at the boundary so Nest only ever trusts the values its own ingress sets.
+  for (const header of ["x-forwarded-for", "x-forwarded-host", "x-forwarded-proto", "x-forwarded-port", "forwarded", "x-real-ip"]) {
+    headers.delete(header);
+  }
   if (assertion) headers.set(INTERNAL_AUTH_HEADER, assertion);
 
   const hasBody = request.method !== "GET" && request.method !== "HEAD";
@@ -109,6 +116,13 @@ async function handle(request: NextRequest): Promise<NextResponse> {
   if (rejection) {
     logCsrfRejection(request, rejection);
     return jsonError("CSRF_REJECTED", `Cross-site ${rejection} rejected.`, 403);
+  }
+
+  // OAuth start/callback establish a NEW session — never resolve the OLD lo_sid for them, or a
+  // stale cookie would 401 the request meant to sign the user back in. Forward anonymously; the
+  // handler still relays the `lo_oauth_state` nonce (upstream) and Nest's 302 (downstream).
+  if (isOAuthRelayPath(request.nextUrl.pathname)) {
+    return forwardToNest(request, null);
   }
 
   const cookie = request.cookies.get(BROWSER_SESSION_COOKIE)?.value;
