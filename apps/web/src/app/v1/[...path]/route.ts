@@ -6,9 +6,11 @@ import {
   BROWSER_SESSION_COOKIE,
   browserSessionCookieOptions,
 } from "@/lib/bff/browser-session-cookie";
+import { PRIVATE_NO_STORE_HEADERS } from "@/lib/bff/cache-policy";
 import { internalApiOrigin } from "@/lib/bff/internal-client";
 import { isHandoffMode } from "@/lib/bff/mode";
 import { publicWebOrigin } from "@/lib/bff/public-origin";
+import { logCsrfRejection } from "@/lib/bff/security-rejection";
 import {
   OAUTH_STATE_COOKIE,
   oauthStateCookieForUpstream,
@@ -40,7 +42,7 @@ function clearSidCookie(response: NextResponse): void {
 function jsonError(code: string, message: string, status: number): NextResponse {
   return NextResponse.json(
     { error: { code, message } },
-    { status, headers: { "cache-control": "no-store" } },
+    { status, headers: PRIVATE_NO_STORE_HEADERS },
   );
 }
 
@@ -99,6 +101,7 @@ async function handle(request: NextRequest): Promise<NextResponse> {
 
   const rejection = csrfRejection(request, publicWebOrigin());
   if (rejection) {
+    logCsrfRejection(request, rejection);
     return jsonError("CSRF_REJECTED", `Cross-site ${rejection} rejected.`, 403);
   }
 

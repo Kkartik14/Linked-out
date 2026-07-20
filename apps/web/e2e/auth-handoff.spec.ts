@@ -56,6 +56,7 @@ test.describe("handoff session (lo_sid, one-origin BFF)", () => {
     );
 
     expect(callback.status()).toBe(307);
+    expect(callback.headers()["cache-control"]).toBe("private, no-store, max-age=0");
     expect(callback.headers().location).toBe(`${WEB_ORIGIN}/auth/callback?returnTo=%2Fsaved`);
     const sid = (await context.cookies()).find(({ name }) => name === "lo_sid");
     expect(sid?.value).toMatch(/^[A-Za-z0-9_-]{43}$/);
@@ -107,9 +108,10 @@ test.describe("handoff session (lo_sid, one-origin BFF)", () => {
     expect(await resolveStatus(cookie)).toBe("authenticated");
 
     const first = await context.request.post(`${WEB_ORIGIN}/v1/auth/logout`, {
-      headers: { origin: WEB_ORIGIN },
+      headers: { origin: WEB_ORIGIN, "content-type": "application/json" },
     });
     expect(first.status()).toBe(200);
+    expect(first.headers()["cache-control"]).toBe("private, no-store, max-age=0");
 
     // Tombstoned server-side, and the browser cookie was cleared.
     expect(await resolveStatus(cookie)).toBe("unauthenticated");
@@ -118,7 +120,7 @@ test.describe("handoff session (lo_sid, one-origin BFF)", () => {
 
     // A repeat with an absent/stale cookie is still 200.
     const second = await context.request.post(`${WEB_ORIGIN}/v1/auth/logout`, {
-      headers: { origin: WEB_ORIGIN },
+      headers: { origin: WEB_ORIGIN, "content-type": "application/json" },
     });
     expect(second.status()).toBe(200);
   });
@@ -133,6 +135,7 @@ test.describe("handoff session (lo_sid, one-origin BFF)", () => {
       data: { title: "hijack", story: "cross-site write should be blocked" },
     });
     expect(res.status()).toBe(403);
+    expect(res.headers()["cache-control"]).toBe("private, no-store, max-age=0");
   });
 
   test("AUTH-05: many concurrent requests on one lo_sid all authenticate", async ({ context }) => {

@@ -1,6 +1,7 @@
 import { NextResponse, type NextRequest } from "next/server";
 
 import { isHandoffMode } from "@/lib/bff/mode";
+import { PRIVATE_NO_STORE } from "@/lib/bff/cache-policy";
 
 /**
  * The thin routing boundary (ADR 0001 §4.1; the Next 16 successor to `middleware.ts`).
@@ -35,7 +36,9 @@ export function proxy(request: NextRequest): NextResponse {
     const url = request.nextUrl.clone();
     url.pathname = "/login";
     url.search = `returnTo=${encodeURIComponent(pathname)}`;
-    return NextResponse.redirect(url);
+    const response = NextResponse.redirect(url);
+    response.headers.set("Cache-Control", PRIVATE_NO_STORE);
+    return response;
   }
 
   const response = NextResponse.next();
@@ -44,7 +47,7 @@ export function proxy(request: NextRequest): NextResponse {
   // is an explicit opt-in. `/v1/*` API responses are left to the route handler's own policy, so a
   // deliberately cacheable public read (e.g. GET /v1/meta/enums) is not forced to no-store here.
   if (!pathname.startsWith("/v1/")) {
-    response.headers.set("Cache-Control", "private, no-store, max-age=0");
+    response.headers.set("Cache-Control", PRIVATE_NO_STORE);
   }
   return response;
 }

@@ -41,10 +41,9 @@ describe("csrfRejection", () => {
     expect(csrfRejection(r, ORIGIN)).toBe("content-type");
   });
 
-  it("allows a bodyless unsafe request (no content type) from the approved origin", () => {
-    // A reaction PUT or a DELETE sends no body/content-type; the origin check is its guard.
-    expect(csrfRejection(req("DELETE", { origin: ORIGIN }), ORIGIN)).toBeNull();
-    expect(csrfRejection(req("PUT", { origin: ORIGIN }), ORIGIN)).toBeNull();
+  it("rejects an unsafe request without an approved content type", () => {
+    expect(csrfRejection(req("DELETE", { origin: ORIGIN }), ORIGIN)).toBe("content-type");
+    expect(csrfRejection(req("PUT", { origin: ORIGIN }), ORIGIN)).toBe("content-type");
   });
 });
 
@@ -54,8 +53,8 @@ describe("hasDisallowedContentType", () => {
     expect(hasDisallowedContentType(r)).toBe(false);
   });
 
-  it("is false when absent", () => {
-    expect(hasDisallowedContentType(req("DELETE"))).toBe(false);
+  it("is true when absent", () => {
+    expect(hasDisallowedContentType(req("DELETE"))).toBe(true);
   });
 });
 

@@ -19,21 +19,19 @@ export function isSafeMethod(method: string): boolean {
 
 /**
  * `application/json` is the only content type this app's browser mutations send (see the API
- * client). Requiring it for a *bodied* request forces a CORS preflight cross-site, which a simple
- * form-based CSRF cannot satisfy.
+ * client). Requiring it for every unsafe request forces a CORS preflight cross-site, which a
+ * simple form-based CSRF cannot satisfy.
  */
 const APPROVED_CONTENT_TYPES = new Set(["application/json"]);
 
 /**
- * True when a content type is present and is NOT one we accept — the form-submittable types
- * (`application/x-www-form-urlencoded`, `multipart/form-data`, `text/plain`) a cross-site CSRF
- * would use. A request with no content type is a bodyless mutation (e.g. a reaction `PUT` or a
- * `DELETE`); those carry no CSRF-able body, so the origin check alone guards them and requiring a
- * content type would wrongly reject them.
+ * True when the content type is missing or is not one we accept. Bodyless mutations carry the
+ * same ambient cookie authority as bodied ones, so the browser client deliberately sends JSON on
+ * every unsafe method and the edge fails closed when it is absent.
  */
 export function hasDisallowedContentType(request: Request): boolean {
   const contentType = request.headers.get("content-type");
-  if (!contentType) return false;
+  if (!contentType) return true;
   const essence = contentType.split(";")[0]?.trim().toLowerCase() ?? "";
   return !APPROVED_CONTENT_TYPES.has(essence);
 }

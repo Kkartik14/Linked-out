@@ -5,9 +5,11 @@ import {
   BROWSER_SESSION_COOKIE,
   browserSessionCookieOptions,
 } from "@/lib/bff/browser-session-cookie";
+import { PRIVATE_NO_STORE_HEADERS } from "@/lib/bff/cache-policy";
 import { revokeBffSession } from "@/lib/bff/lifecycle";
 import { isHandoffMode } from "@/lib/bff/mode";
 import { publicWebOrigin } from "@/lib/bff/public-origin";
+import { logCsrfRejection } from "@/lib/bff/security-rejection";
 
 /**
  * Tombstone-first BFF logout (ADR 0001 §4.5). A more specific route than the `/v1/[...path]`
@@ -25,15 +27,16 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
   if (!isHandoffMode()) {
     return NextResponse.json(
       { error: { code: "NOT_FOUND", message: "Not found." } },
-      { status: 404, headers: { "cache-control": "no-store" } },
+      { status: 404, headers: PRIVATE_NO_STORE_HEADERS },
     );
   }
 
   const rejection = csrfRejection(request, publicWebOrigin());
   if (rejection) {
+    logCsrfRejection(request, rejection);
     return NextResponse.json(
       { error: { code: "CSRF_REJECTED", message: `Cross-site ${rejection} rejected.` } },
-      { status: 403, headers: { "cache-control": "no-store" } },
+      { status: 403, headers: PRIVATE_NO_STORE_HEADERS },
     );
   }
 
@@ -46,14 +49,14 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
       // so the caller retries instead of believing it is signed out while the server row lives on.
       return NextResponse.json(
         { error: { code: "LOGOUT_UNAVAILABLE", message: "Could not complete sign-out." } },
-        { status: 503, headers: { "cache-control": "no-store" } },
+        { status: 503, headers: PRIVATE_NO_STORE_HEADERS },
       );
     }
   }
 
   const response = NextResponse.json(
     { ok: true },
-    { status: 200, headers: { "cache-control": "no-store" } },
+    { status: 200, headers: PRIVATE_NO_STORE_HEADERS },
   );
   response.cookies.set(BROWSER_SESSION_COOKIE, "", {
     ...browserSessionCookieOptions(),

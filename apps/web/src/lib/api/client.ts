@@ -93,7 +93,8 @@ export async function apiFetch<T>(path: string, init: ApiFetchInit = {}): Promis
   const forwardsCredentials = rest.credentials !== "omit";
   if (!forwardsCredentials) headers.delete("cookie");
   if (principal) headers.set(PRINCIPAL_BINDING_HEADER, principal);
-  if (rest.body && !headers.has("content-type")) {
+  const method = (rest.method ?? "GET").toUpperCase();
+  if (!["GET", "HEAD", "OPTIONS"].includes(method) && !headers.has("content-type")) {
     headers.set("content-type", "application/json");
   }
 
@@ -108,7 +109,7 @@ export async function apiFetch<T>(path: string, init: ApiFetchInit = {}): Promis
   if (res.status === 401) {
     const body = await safeJson(res);
     if (typeof window !== "undefined" && !skipRefresh && forwardsCredentials) {
-      if (IS_BFF_CLIENT) {
+      if (IS_BFF_CLIENT && (body as ErrorEnvelope | null)?.error?.code === "SESSION_REJECTED") {
         // One-origin (handoff): there is no token to refresh. An authenticated request that 401s
         // means the session was rejected or expired and the `/v1` edge already cleared `lo_sid` —
         // publish a single debounced expiry invalidation so every tab re-derives to a guest.
