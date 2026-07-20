@@ -97,6 +97,13 @@ test.describe("handoff session (lo_sid, one-origin BFF)", () => {
     }
   });
 
+  test("the public web tier exposes a cache-safe BFF liveness probe", async ({ context }) => {
+    const response = await context.request.get(`${WEB_ORIGIN}/health/bff`);
+    expect(response.status()).toBe(200);
+    expect(await response.json()).toEqual({ status: "ok", component: "bff" });
+    expect(response.headers()["cache-control"]).toBe("private, no-store, max-age=0");
+  });
+
   test("AUTH-01: a live lo_sid authenticates a protected render and a client API call", async ({
     context,
     page,
