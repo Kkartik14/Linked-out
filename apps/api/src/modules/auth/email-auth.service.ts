@@ -72,11 +72,9 @@ export class EmailAuthService {
   async verify(input: EmailOtpVerifyInput): Promise<EmailAuthHandoffResponse> {
     this.ensureEnabled();
     const digest = this.crypto.digest(input.email, 'SIGNUP', input.otp);
-    if (!(await this.matchesActiveChallenge(input.email, 'SIGNUP', digest))) {
-      await this.repository.recordFailure(input.email, 'SIGNUP', new Date());
-      throw AppErrors.invalidOtp();
-    }
-    const userId = await this.repository.completeSignup(input.email, digest, new Date());
+    // Attempt-count, digest compare, and account creation happen in one locked transaction so the
+    // five-attempt ceiling and single-use guarantee hold even under concurrent guesses.
+    const userId = await this.repository.verifyAndConsumeSignup(input.email, digest, new Date());
     if (!userId) throw AppErrors.invalidOtp();
     return this.issueHandoff(userId, input.returnTo);
   }
@@ -110,18 +108,14 @@ export class EmailAuthService {
   async resetPassword(input: ResetPasswordInput): Promise<{ ok: true }> {
     this.ensureEnabled();
     const digest = this.crypto.digest(input.email, 'PASSWORD_RESET', input.otp);
-    if (!(await this.matchesActiveChallenge(input.email, 'PASSWORD_RESET', digest))) {
-      await this.repository.recordFailure(input.email, 'PASSWORD_RESET', new Date());
-      throw AppErrors.invalidOtp();
-    }
+    const userId = await this.repository.consumeResetChallenge(input.email, digest, new Date());
+    if (!userId) throw AppErrors.invalidOtp();
+    // Hash only after a valid single-use OTP is consumed: wrong guesses stay cheap (no Argon2),
+    // and the Argon2 cost never runs while the per-subject advisory lock is held. The narrow gap
+    // between consuming the code and applying the hash fails closed — a crash leaves the password
+    // unchanged and forces a fresh reset.
     const passwordHash = await this.passwords.create(input.newPassword);
-    const reset = await this.repository.completePasswordReset(
-      input.email,
-      digest,
-      passwordHash,
-      new Date(),
-    );
-    if (!reset) throw AppErrors.invalidOtp();
+    await this.repository.applyNewPassword(userId, passwordHash, new Date());
     return { ok: true };
   }
 
@@ -162,21 +156,6 @@ export class EmailAuthService {
     if (!issued) return;
     const otp = this.crypto.decrypt(issued.email, issued.purpose, issued);
     await this.delivery.deliver({ email: issued.email, purpose: issued.purpose, otp, expiresAt: issued.expiresAt });
-  }
-
-  private async matchesActiveChallenge(
-    email: string,
-    purpose: EmailOtpPurpose,
-    digest: string,
-  ): Promise<boolean> {
-    const challenge = await this.repository.getChallenge(email, purpose);
-    return Boolean(
-      challenge &&
-        challenge.consumedAt === null &&
-        challenge.expiresAt > new Date() &&
-        challenge.failedAttempts < 5 &&
-        this.crypto.matches(challenge.codeDigest, digest),
-    );
   }
 
   private async issueHandoff(userId: string, returnTo: string): Promise<EmailAuthHandoffResponse> {

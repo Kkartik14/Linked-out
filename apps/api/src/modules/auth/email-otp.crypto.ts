@@ -41,12 +41,6 @@ export class EmailOtpCrypto {
       .digest('hex');
   }
 
-  matches(left: string, right: string): boolean {
-    const leftBytes = Buffer.from(left, 'hex');
-    const rightBytes = Buffer.from(right, 'hex');
-    return leftBytes.length === rightBytes.length && timingSafeEqual(leftBytes, rightBytes);
-  }
-
   encrypt(email: string, purpose: EmailOtpPurpose, otp: string): EncryptedOtp {
     const key = this.encryptionKey();
     const iv = randomBytes(IV_BYTES);
