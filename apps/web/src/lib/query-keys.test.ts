@@ -53,9 +53,20 @@ describe("public API feed and search keys", () => {
     );
   });
 
-  it("keys L search by query alone, since relevance is the only ranking", () => {
-    expect(queryKeys.search.ls("u1", "burnout")).toEqual(["search", "u1", "ls", "burnout"]);
-    expect(queryKeys.search.ls("u1", "burnout")).not.toEqual(queryKeys.search.ls("u1", "layoff"));
+  it("separates finite previews from infinite search pages", () => {
+    expect(queryKeys.search.infinite.ls("u1", "burnout")).toEqual([
+      "search",
+      "u1",
+      "infinite",
+      "ls",
+      "burnout",
+    ]);
+    expect(queryKeys.search.preview.ls("u1", "burnout")).not.toEqual(
+      queryKeys.search.infinite.ls("u1", "burnout"),
+    );
+    expect(queryKeys.search.infinite.ls("u1", "burnout")).not.toEqual(
+      queryKeys.search.infinite.ls("u1", "layoff"),
+    );
   });
 });
 

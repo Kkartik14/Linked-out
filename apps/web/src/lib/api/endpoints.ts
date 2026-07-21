@@ -219,10 +219,31 @@ export const removeLFromCollection = (
 
 // ── Search ───────────────────────────────────────────────────────────────────
 /** Public API search is always relevance-ranked and has no category filter. */
-export const searchLs = (q: string, cursor?: string, limit?: number) =>
-  apiFetch<Paginated<LCard>>(`/search${qs({ q, type: "ls", cursor, limit })}`);
-export const searchUsers = (q: string, cursor?: string, limit?: number) =>
-  apiFetch<Paginated<UserSummary>>(`/search${qs({ q, type: "users", cursor, limit })}`);
+type SearchFetchInit = Pick<ApiFetchInit, "signal">;
+
+function search<T>(
+  type: "ls" | "users",
+  q: string,
+  cursor?: string,
+  limit?: number,
+  init?: SearchFetchInit,
+): Promise<Paginated<T>> {
+  const path = `/search${qs({ q, type, cursor, limit })}`;
+  return init ? apiFetch<Paginated<T>>(path, init) : apiFetch<Paginated<T>>(path);
+}
+
+export const searchLs = (
+  q: string,
+  cursor?: string,
+  limit?: number,
+  init?: SearchFetchInit,
+) => search<LCard>("ls", q, cursor, limit, init);
+export const searchUsers = (
+  q: string,
+  cursor?: string,
+  limit?: number,
+  init?: SearchFetchInit,
+) => search<UserSummary>("users", q, cursor, limit, init);
 
 // ── Notifications ────────────────────────────────────────────────────────────
 export const getNotifications = (cursor?: string, limit?: number) =>

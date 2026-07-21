@@ -31,8 +31,14 @@ export const queryKeys = {
     detail: (p: string) => ["feed-sidebar", p] as const,
   },
   search: {
-    ls: (p: string, query: string) => ["search", p, "ls", query] as const,
-    users: (p: string, query: string) => ["search", p, "users", query] as const,
+    preview: {
+      ls: (p: string, query: string) => ["search", p, "preview", "ls", query] as const,
+      users: (p: string, query: string) => ["search", p, "preview", "users", query] as const,
+    },
+    infinite: {
+      ls: (p: string, query: string) => ["search", p, "infinite", "ls", query] as const,
+      users: (p: string, query: string) => ["search", p, "infinite", "users", query] as const,
+    },
   },
   users: {
     ls: (p: string, username: string, type: string) =>

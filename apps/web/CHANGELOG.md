@@ -14,6 +14,9 @@ This file covers `apps/web` only. Its executable API contract is
   preserve `/saved` through login.
 - Extracted the feed's three-column discovery frame and centre view so search can replace only the
   centre column while retaining both existing sidebars.
+- Replaced submit-only header search with a cancellable, grouped L/People preview from the first
+  character. The editable combobox supports arrow, Enter, Escape, pointer, and touch interaction;
+  mobile keeps a direct entry to the full search centre.
 
 ### One-origin BFF / session boundary (ADR 0001) — built behind `OAUTH_SESSION_MODE`
 

@@ -86,7 +86,7 @@ export function SearchClient({
         ) : type === "users" ? (
           <InfiniteList<UserSummary>
             key={`users:${q}`}
-            queryKey={queryKeys.search.users(principal, q)}
+            queryKey={queryKeys.search.infinite.users(principal, q)}
             queryFn={(cursor) => searchUsers(q, cursor)}
             initial={initialUsers}
             getItemKey={(u) => u.id}
@@ -98,7 +98,7 @@ export function SearchClient({
         ) : (
           <InfiniteList<LCardType>
             key={`ls:${q}`}
-            queryKey={queryKeys.search.ls(principal, q)}
+            queryKey={queryKeys.search.infinite.ls(principal, q)}
             queryFn={(cursor) => searchLs(q, cursor)}
             initial={initialLs}
             getItemKey={(l) => l.id}
