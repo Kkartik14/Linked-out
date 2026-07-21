@@ -88,7 +88,6 @@ describe('03 · POST /ls — create (contract §4.3)', () => {
       lsShared: 4,
       storiesShared: 1,
       lessonsShared: 1,
-      buildersHelped: 0,
       collectionsCreated: 0,
     });
   });

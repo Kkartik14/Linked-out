@@ -24,16 +24,10 @@ export function reputationDeltaForTypeChange(
   return delta;
 }
 
-export function planLDelete(authorId: string): LDeletePlan {
+export function planLDelete(): LDeletePlan {
   return {
     reputationByType: Object.fromEntries(
       lTypeSchema.options.map((type) => [type, reputationForType(type)]),
     ) as LDeletePlan['reputationByType'],
-    countedReactionReputation: {
-      reactionType: 'HELPFUL',
-      excludeUserId: authorId,
-      reputationField: 'buildersHelped',
-      pointsPerReaction: 1,
-    },
   };
 }

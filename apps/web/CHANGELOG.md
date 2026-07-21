@@ -7,6 +7,18 @@ This file covers `apps/web` only. Its executable API contract is
 
 ## [Unreleased]
 
+### Reputation
+
+- Removed the retired `Builders Helped` metric from profile and sidebar presentation. The profile
+  card now leads with `Ls Shared` without substituting another vanity metric.
+
+### Reactions
+
+- Expressive reactions now render as compact, count-bearing chips only after use. Empty rows show
+  an add control; four used types collapse to the first two plus a `+2` picker trigger. The fixed
+  catalog exposes selected state and remains multi-select, while Saved stays a separate bookmark.
+- Signed-out Save attempts now go straight to login with the intended L as a safe return path.
+
 ### One-origin BFF / session boundary (ADR 0001) — built behind `OAUTH_SESSION_MODE`
 
 The public web tier for the one-origin session boundary is now implemented and shipped **dark

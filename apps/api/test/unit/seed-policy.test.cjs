@@ -3,12 +3,12 @@
 const assert = require('node:assert/strict');
 const test = require('node:test');
 
+const seedPolicy = require('../../../../packages/db/prisma/seed-policy.cjs');
 const {
   COMMENT_POPULARITY_WEIGHT: SEED_COMMENT_POPULARITY_WEIGHT,
   REACTION_POPULARITY_WEIGHT: SEED_REACTION_POPULARITY_WEIGHT,
-  helpfulReactionWhere,
   popularityScoreFor,
-} = require('../../../../packages/db/prisma/seed-policy.cjs');
+} = seedPolicy;
 const {
   COMMENT_POPULARITY_WEIGHT,
   REACTION_POPULARITY_WEIGHT,
@@ -34,10 +34,6 @@ test('seed popularity reconstruction matches runtime per-type reaction weights',
   assert.equal(score, 2 * 2 + 3 * 3 + 5 * 2 + 7 + 11 * 0 + 13 * 2);
 });
 
-test('seed buildersHelped reconstruction excludes self-HELPFUL reactions', () => {
-  assert.deepEqual(helpfulReactionWhere('author-id'), {
-    type: 'HELPFUL',
-    userId: { not: 'author-id' },
-    l: { authorId: 'author-id' },
-  });
+test('seed policy has no retired Builders Helped reconstruction', () => {
+  assert.equal('helpfulReactionWhere' in seedPolicy, false);
 });

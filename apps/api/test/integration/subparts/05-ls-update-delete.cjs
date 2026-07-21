@@ -177,18 +177,6 @@ describe('05 · PATCH & DELETE /ls/:id (contract §4.3)', () => {
     assert.equal(body.reputation.storiesShared, 0);
   });
 
-  test('deleting an L withdraws the buildersHelped it earned from others', async () => {
-    const l = await h.createL(owner.id);
-    await h.put(`/ls/${l.id}/reactions/HELPFUL`, { cookie: stranger.cookie });
-
-    let profile = await h.get('/users/owner');
-    assert.equal(profile.body.reputation.buildersHelped, 1);
-
-    await h.del(`/ls/${l.id}`, { cookie: owner.cookie });
-    profile = await h.get('/users/owner');
-    assert.equal(profile.body.reputation.buildersHelped, 0);
-  });
-
   test('deleting an L cascades its reactions and comments', async () => {
     const l = await h.createL(owner.id);
     await h.put(`/ls/${l.id}/reactions/BEEN_THERE`, { cookie: stranger.cookie });

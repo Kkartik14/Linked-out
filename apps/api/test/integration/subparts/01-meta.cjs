@@ -54,8 +54,8 @@ describe('01 · meta & discovery (contract §4.12)', () => {
       'Character Development',
     );
     assert.equal(
-      body.reputation.find((r) => r.key === 'buildersHelped').label,
-      'Builders Helped',
+      body.reputation.some((r) => r.key === 'buildersHelped'),
+      false,
     );
   });
 

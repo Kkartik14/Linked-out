@@ -50,7 +50,6 @@ function userProfileRow(overrides = {}) {
     bio: null,
     storiesShared: 1,
     lessonsShared: 2,
-    buildersHelped: 3,
     lsShared: 4,
     collectionsCreated: 1,
     followerCount: 0,

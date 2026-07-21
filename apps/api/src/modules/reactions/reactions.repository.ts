@@ -69,13 +69,6 @@ export class ReactionsRepository {
             data: incrementCounters(plan.lCounters),
             select: { id: true },
           });
-          if (plan.reputation) {
-            await tx.user.update({
-              where: { id: plan.reputation.userId },
-              data: { buildersHelped: { increment: plan.reputation.buildersHelped } },
-              select: { id: true },
-            });
-          }
           if (plan.notification) {
             const record = plan.notification.record;
             await tx.notification.upsert({
@@ -116,13 +109,6 @@ export class ReactionsRepository {
               data: incrementCounters(plan.lCounters),
               select: { id: true },
             });
-            if (plan.reputation) {
-              await tx.user.update({
-                where: { id: plan.reputation.userId },
-                data: { buildersHelped: { increment: plan.reputation.buildersHelped } },
-                select: { id: true },
-              });
-            }
             if (plan.notification) {
               await tx.$executeRaw`
                 DELETE FROM "Notification"

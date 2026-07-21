@@ -28,7 +28,6 @@ export const mockUser: UserProfile = {
   reputation: {
     storiesShared: 0,
     lessonsShared: 0,
-    buildersHelped: 0,
     lsShared: 0,
     collectionsCreated: 0,
   },
@@ -48,15 +47,19 @@ const mockRouter: AppRouterInstance = {
 
 export function renderWithProviders(
   ui: React.ReactElement,
-  opts?: { session?: Session } & Omit<RenderOptions, "wrapper">,
+  opts?: {
+    session?: Session;
+    router?: Partial<AppRouterInstance>;
+  } & Omit<RenderOptions, "wrapper">,
 ) {
-  const { session, ...rest } = opts ?? {};
+  const { session, router, ...rest } = opts ?? {};
   const queryClient = new QueryClient({ defaultOptions: { queries: { retry: false } } });
   const value: Session = session ?? { status: "guest" };
+  const routerValue = { ...mockRouter, ...router };
 
   function Wrapper({ children }: { children: React.ReactNode }) {
     return (
-      <AppRouterContext.Provider value={mockRouter}>
+      <AppRouterContext.Provider value={routerValue}>
         <PathnameContext.Provider value="/">
           <SearchParamsContext.Provider value={new URLSearchParams()}>
             <QueryClientProvider client={queryClient}>

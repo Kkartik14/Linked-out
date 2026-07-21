@@ -1,5 +1,6 @@
 export * from './enums';
 export * from './common';
+export * from './reputation';
 export * from './auth';
 export * from './user';
 export * from './reaction';

@@ -7,6 +7,7 @@ import {
   journeyStatusSchema,
   notificationTypeSchema,
 } from './enums';
+import { reputationKeySchema } from './reputation';
 
 export const metaEnumsResponseSchema = z.object({
   reactionType: z.array(
@@ -22,7 +23,7 @@ export const metaEnumsResponseSchema = z.object({
     z.object({ value: visibilitySchema, label: z.string(), description: z.string() }),
   ),
   notificationType: z.array(z.object({ value: notificationTypeSchema, label: z.string() })),
-  reputation: z.array(z.object({ key: z.string(), label: z.string() })),
+  reputation: z.array(z.object({ key: reputationKeySchema, label: z.string() })),
 });
 export type MetaEnumsResponse = z.infer<typeof metaEnumsResponseSchema>;
 
