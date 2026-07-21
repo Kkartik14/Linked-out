@@ -148,6 +148,10 @@ function addProductionUrlIssues(
 export const envSchema = z
   .object({
     NODE_ENV: z.enum(['development', 'production', 'test']).default('development'),
+    // Vercel runs Preview deployments with NODE_ENV=production. Keep that deployment class
+    // explicit so core production hardening stays enabled while optional integrations whose
+    // callback/assets are intentionally production-only may remain disabled on arbitrary branches.
+    VERCEL_ENV: z.enum(['production', 'preview', 'development']).optional(),
     PORT: z.coerce.number().int().positive().default(4000),
     API_BASE_URL: requiredOrigin,
     WEB_URL: requiredOrigin,
@@ -231,20 +235,28 @@ export const envSchema = z
     }
     if (env.NODE_ENV !== 'production') return;
 
-    const requiredProductionFields = [
-      'GOOGLE_CLIENT_ID',
-      'GOOGLE_CLIENT_SECRET',
-      'GITHUB_CLIENT_ID',
-      'GITHUB_CLIENT_SECRET',
-      'R2_ACCESS_KEY_ID',
-      'R2_SECRET_ACCESS_KEY',
-      'R2_BUCKET',
-      'R2_PUBLIC_BASE_URL',
-      'R2_ENDPOINT',
-      'COOKIE_DOMAIN',
-      'INTERNAL_API_SECRET',
-      'BFF_CALLER_SECRET',
-    ] as const;
+    // Arbitrary branch previews cannot share the canonical OAuth callback hostname and should not
+    // receive production object-storage credentials by default. The core database/JWT/internal
+    // assertion requirements above still apply. A stable staging/custom environment may opt in by
+    // supplying these values, but ordinary previews are allowed to expose those features as
+    // unconfigured instead of failing application startup.
+    const requiredProductionFields =
+      env.VERCEL_ENV === 'preview'
+        ? ([] as const)
+        : ([
+            'GOOGLE_CLIENT_ID',
+            'GOOGLE_CLIENT_SECRET',
+            'GITHUB_CLIENT_ID',
+            'GITHUB_CLIENT_SECRET',
+            'R2_ACCESS_KEY_ID',
+            'R2_SECRET_ACCESS_KEY',
+            'R2_BUCKET',
+            'R2_PUBLIC_BASE_URL',
+            'R2_ENDPOINT',
+            'COOKIE_DOMAIN',
+            'INTERNAL_API_SECRET',
+            'BFF_CALLER_SECRET',
+          ] as const);
 
     for (const field of requiredProductionFields) {
       if (env[field].length === 0) {

@@ -7,7 +7,10 @@ import {
   browserSessionCookieOptions,
 } from "@/lib/bff/browser-session-cookie";
 import { PRIVATE_NO_STORE_HEADERS } from "@/lib/bff/cache-policy";
-import { internalApiOrigin } from "@/lib/bff/internal-client";
+import {
+  applyInternalApiProtection,
+  internalApiOrigin,
+} from "@/lib/bff/internal-client";
 import { isHandoffMode } from "@/lib/bff/mode";
 import { publicWebOrigin } from "@/lib/bff/public-origin";
 import { logCsrfRejection } from "@/lib/bff/security-rejection";
@@ -77,6 +80,7 @@ async function forwardToNest(
     headers.delete(header);
   }
   if (assertion) headers.set(INTERNAL_AUTH_HEADER, assertion);
+  applyInternalApiProtection(headers);
 
   const hasBody = request.method !== "GET" && request.method !== "HEAD";
   const upstream = await fetch(target, {

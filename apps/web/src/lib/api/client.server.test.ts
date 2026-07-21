@@ -27,6 +27,7 @@ describe("apiFetch during server rendering", () => {
   it("self-hops to the configured public origin and forwards only lo_sid", async () => {
     vi.stubEnv("OAUTH_SESSION_MODE", "handoff");
     vi.stubEnv("WEB_URL", "https://linkedout.example");
+    vi.stubEnv("VERCEL_AUTOMATION_BYPASS_SECRET", "frontend-preview-bypass");
     vi.mocked(headers).mockResolvedValueOnce(
       new Headers({ host: "attacker.example", "x-forwarded-proto": "http" }),
     );
@@ -47,6 +48,10 @@ describe("apiFetch during server rendering", () => {
 
     const [url, init] = vi.mocked(fetch).mock.calls[0]!;
     expect(String(url)).toBe("https://linkedout.example/v1/auth/me");
-    expect(new Headers(init?.headers).get("cookie")).toBe("lo_sid=opaque-session");
+    const requestHeaders = new Headers(init?.headers);
+    expect(requestHeaders.get("cookie")).toBe("lo_sid=opaque-session");
+    expect(requestHeaders.get("x-vercel-protection-bypass")).toBe(
+      "frontend-preview-bypass",
+    );
   });
 });
