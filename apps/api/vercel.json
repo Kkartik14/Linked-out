@@ -1,6 +1,7 @@
 {
   "$schema": "https://openapi.vercel.sh/vercel.json",
   "framework": "nestjs",
+  "relatedProjects": ["prj_s1TWrOHXQlnCloBUIjQePMrVXtVR"],
   "regions": ["sin1"],
   "installCommand": "pnpm --dir ../.. install --frozen-lockfile",
   "buildCommand": "pnpm --dir ../.. build"

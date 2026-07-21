@@ -32,6 +32,38 @@ const validProductionEnv = {
   R2_PUBLIC_BASE_URL: 'https://cdn.linkedout.example',
 };
 
+test('a Vercel preview keeps core production hardening but may omit production-only integrations', () => {
+  const result = envSchema.safeParse({
+    ...validProductionEnv,
+    VERCEL_ENV: 'preview',
+    OAUTH_SESSION_MODE: 'handoff',
+    COOKIE_DOMAIN: '',
+    GOOGLE_CLIENT_ID: '',
+    GOOGLE_CLIENT_SECRET: '',
+    GITHUB_CLIENT_ID: '',
+    GITHUB_CLIENT_SECRET: '',
+    R2_ACCESS_KEY_ID: '',
+    R2_SECRET_ACCESS_KEY: '',
+    R2_PUBLIC_BASE_URL: '',
+    R2_ENDPOINT: '',
+  });
+
+  assert.equal(result.success, true);
+  assert.equal(result.data.VERCEL_ENV, 'preview');
+});
+
+test('a Vercel preview still requires handoff assertion keys', () => {
+  const result = envSchema.safeParse({
+    ...validProductionEnv,
+    VERCEL_ENV: 'preview',
+    OAUTH_SESSION_MODE: 'handoff',
+    BFF_CALLER_SECRET: '',
+  });
+
+  assert.equal(result.success, false);
+  assert.ok(result.error.issues.some((issue) => issue.path.join('.') === 'BFF_CALLER_SECRET'));
+});
+
 test('missing production R2 URL returns the intended validation issue, never a TypeError', () => {
   let result;
   assert.doesNotThrow(() => {
