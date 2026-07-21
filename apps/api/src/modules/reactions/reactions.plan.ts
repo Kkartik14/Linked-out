@@ -13,11 +13,6 @@ export interface ReactionCounterDelta {
   popularityScore?: number;
 }
 
-export interface BuilderReputationDelta {
-  userId: string;
-  buildersHelped: number;
-}
-
 export interface FoldedNotificationRecord {
   type: NotificationType;
   recipientId: string;
@@ -42,14 +37,12 @@ export interface DeleteFoldedNotificationPlan {
 export interface ReactionAddPlan {
   reaction: { userId: string; lId: string; type: ReactionType };
   lCounters: ReactionCounterDelta;
-  reputation: BuilderReputationDelta | null;
   notification: UpsertFoldedNotificationPlan | null;
 }
 
 export interface ReactionRemovePlan {
   reaction: { userId: string; lId: string; type: ReactionType };
   lCounters: ReactionCounterDelta;
-  reputation: BuilderReputationDelta | null;
   notification: DeleteFoldedNotificationPlan | null;
 }
 
@@ -68,17 +61,6 @@ function reactionCounters(type: ReactionType, sign: 1 | -1): ReactionCounterDelt
     case 'SAVED':
       return { reactionCount: sign, savedCount: sign };
   }
-}
-
-function reputation(
-  actorId: string,
-  authorId: string,
-  type: ReactionType,
-  sign: 1 | -1,
-): BuilderReputationDelta | null {
-  return type === 'HELPFUL' && actorId !== authorId
-    ? { userId: authorId, buildersHelped: sign }
-    : null;
 }
 
 function notificationIdentity(
@@ -110,7 +92,6 @@ export function planReactionAdd(
   return {
     reaction: { userId: actorId, lId, type },
     lCounters: reactionCounters(type, 1),
-    reputation: reputation(actorId, authorId, type, 1),
     notification: notification ? { action: 'upsert_folded', record: notification } : null,
   };
 }
@@ -125,7 +106,6 @@ export function planReactionRemove(
   return {
     reaction: { userId: actorId, lId, type },
     lCounters: reactionCounters(type, -1),
-    reputation: reputation(actorId, authorId, type, -1),
     notification: notification
       ? {
           action: 'delete_fold_if_no_external_reaction',

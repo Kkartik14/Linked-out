@@ -361,6 +361,7 @@ describe("FeedSidebarLeft — viewer card", () => {
     );
     // product.md: reputation over vanity metrics.
     expect(within(region).getByText(/Ls Shared/)).toBeInTheDocument();
+    expect(within(region).queryByText(/Builders Helped/i)).not.toBeInTheDocument();
     expect(within(region).queryByText(/followers/i)).not.toBeInTheDocument();
   });
 

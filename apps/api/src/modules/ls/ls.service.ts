@@ -230,7 +230,7 @@ export class LsService {
   }
 
   async remove(user: AuthUser, id: string): Promise<{ ok: true }> {
-    const result = await this.repo.deleteOwnedL(id, user.id, planLDelete(user.id));
+    const result = await this.repo.deleteOwnedL(id, user.id, planLDelete());
     if (result.status === 'not_found') throw AppErrors.lNotFound();
     if (result.status === 'not_owner') throw AppErrors.notLOwner();
     return { ok: true };

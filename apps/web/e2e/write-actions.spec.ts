@@ -70,10 +70,8 @@ test.describe("write actions against the real API", () => {
   test("reacting persists, reconciles from the API response, and toggles off", async ({ page }) => {
     await page.goto(`/ls/${world.nadiaPublic.id}`);
 
-    const beenThere = page.getByRole("button", { name: /^Been There/ });
-    await expect(beenThere).toHaveAttribute("aria-pressed", "false");
-
-    await beenThere.click();
+    await page.getByRole("button", { name: "Add reaction" }).click();
+    await page.getByRole("menuitemcheckbox", { name: "Been There" }).click();
     await expect(page.getByRole("button", { name: /Been There, 1/ })).toHaveAttribute(
       "aria-pressed",
       "true",
@@ -83,24 +81,11 @@ test.describe("write actions against the real API", () => {
       .toBe(1);
 
     await page.getByRole("button", { name: /^Been There/ }).click();
-    await expect(page.getByRole("button", { name: /^Been There$/ })).toHaveAttribute(
-      "aria-pressed",
-      "false",
-    );
+    await expect(page.getByRole("button", { name: /^Been There/ })).toHaveCount(0);
+    await expect(page.getByRole("button", { name: "Add reaction" })).toBeVisible();
     await expect
       .poll(() => db().reaction.count({ where: { lId: world.nadiaPublic.id, type: "BEEN_THERE" } }))
       .toBe(0);
-  });
-
-  test("a HELPFUL reaction moves the author's buildersHelped reputation", async ({ page }) => {
-    await page.goto(`/ls/${world.nadiaPublic.id}`);
-
-    await page.getByRole("button", { name: /^Helpful/ }).click();
-    await expect(page.getByRole("button", { name: /Helpful, 1/ })).toBeVisible();
-
-    await expect
-      .poll(async () => (await db().user.findUnique({ where: { id: world.nadia.id } })).buildersHelped)
-      .toBe(1);
   });
 
   test("saving an L adds it to /saved", async ({ page }) => {

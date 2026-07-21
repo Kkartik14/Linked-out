@@ -20,17 +20,8 @@ function popularityScoreFor(reactions, commentCount) {
   return score;
 }
 
-function helpfulReactionWhere(authorId) {
-  return {
-    type: 'HELPFUL',
-    userId: { not: authorId },
-    l: { authorId },
-  };
-}
-
 module.exports = {
   COMMENT_POPULARITY_WEIGHT,
   REACTION_POPULARITY_WEIGHT,
-  helpfulReactionWhere,
   popularityScoreFor,
 };

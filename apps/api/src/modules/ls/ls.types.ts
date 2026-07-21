@@ -1,4 +1,4 @@
-import type { LType, ReactionType, Visibility } from '@linkedout/contracts';
+import type { LType, Visibility } from '@linkedout/contracts';
 
 /** Normalized business data for creating an L (optional/null semantics resolved). */
 export interface WriteLData {
@@ -19,7 +19,7 @@ export interface UpdateLData {
   resolvedAt: Date | null | undefined;
 }
 
-export type ReputationField = 'lsShared' | 'storiesShared' | 'lessonsShared' | 'buildersHelped';
+export type ReputationField = 'lsShared' | 'storiesShared' | 'lessonsShared';
 export type ReputationDelta = Partial<Record<ReputationField, number>>;
 
 /** Fully resolved business plan selected by the repository using the locked current type. */
@@ -32,12 +32,6 @@ export type LUpdatePlans = Record<LType, LUpdatePlan>;
 
 export interface LDeletePlan {
   reputationByType: Record<LType, ReputationDelta>;
-  countedReactionReputation: {
-    reactionType: ReactionType;
-    excludeUserId: string;
-    reputationField: ReputationField;
-    pointsPerReaction: number;
-  };
 }
 
 export type FeedPageCursor =

@@ -123,30 +123,6 @@ describe('07 · reactions (contract §4.5)', () => {
     assert.equal(after.popularityScore, before.popularityScore);
   });
 
-  test("a HELPFUL from another builder increments the author's buildersHelped", async () => {
-    await h.put(`/ls/${l.id}/reactions/HELPFUL`, { cookie: reactor.cookie });
-    let profile = await h.get('/users/author');
-    assert.equal(profile.body.reputation.buildersHelped, 1);
-
-    await h.del(`/ls/${l.id}/reactions/HELPFUL`, { cookie: reactor.cookie });
-    profile = await h.get('/users/author');
-    assert.equal(profile.body.reputation.buildersHelped, 0);
-  });
-
-  test('self-HELPFUL never inflates buildersHelped', async () => {
-    await h.put(`/ls/${l.id}/reactions/HELPFUL`, { cookie: author.cookie });
-    const profile = await h.get('/users/author');
-    assert.equal(profile.body.reputation.buildersHelped, 0, 'you cannot help yourself');
-  });
-
-  test('non-HELPFUL reactions do not touch buildersHelped', async () => {
-    for (const type of ['BEEN_THERE', 'RESPECT', 'PAIN', 'SAVED']) {
-      await h.put(`/ls/${l.id}/reactions/${type}`, { cookie: reactor.cookie });
-    }
-    const profile = await h.get('/users/author');
-    assert.equal(profile.body.reputation.buildersHelped, 0);
-  });
-
   test('requires authentication', async () => {
     h.expectError(await h.put(`/ls/${l.id}/reactions/HELPFUL`), 401, 'UNAUTHENTICATED');
     h.expectError(await h.del(`/ls/${l.id}/reactions/HELPFUL`), 401, 'UNAUTHENTICATED');

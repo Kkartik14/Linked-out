@@ -28,7 +28,6 @@ export const mockUser: UserProfile = {
   reputation: {
     storiesShared: 0,
     lessonsShared: 0,
-    buildersHelped: 0,
     lsShared: 0,
     collectionsCreated: 0,
   },

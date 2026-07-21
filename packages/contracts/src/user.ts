@@ -7,6 +7,7 @@ import {
   hasAtLeastOneField,
 } from './common';
 import { journeyStatusSchema } from './enums';
+import { reputationSchema } from './reputation';
 
 /** Compact author object embedded in cards. */
 export const userSummarySchema = z.object({
@@ -17,15 +18,6 @@ export const userSummarySchema = z.object({
   status: journeyStatusSchema.nullable(),
 }).strict();
 export type UserSummary = z.infer<typeof userSummarySchema>;
-
-export const reputationSchema = z.object({
-  storiesShared: z.number().int(),
-  lessonsShared: z.number().int(),
-  buildersHelped: z.number().int(),
-  lsShared: z.number().int(),
-  collectionsCreated: z.number().int(),
-}).strict();
-export type Reputation = z.infer<typeof reputationSchema>;
 
 /** Full public profile (GET /users/:username). */
 export const userProfileSchema = z.object({

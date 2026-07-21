@@ -21,7 +21,6 @@ export function toUserProfile(
     reputation: {
       storiesShared: user.storiesShared,
       lessonsShared: user.lessonsShared,
-      buildersHelped: user.buildersHelped,
       lsShared: user.lsShared,
       collectionsCreated: user.collectionsCreated,
     },
