@@ -12,6 +12,10 @@ const migration = readFileSync(
   ),
   'utf8',
 );
+const schemaVerifier = readFileSync(
+  resolve(__dirname, '../../../../scripts/verify-migrated-schema.cjs'),
+  'utf8',
+);
 
 test('L prefix search preserves source lexemes, weights title above story, and is GIN indexed', () => {
   assert.match(migration, /setweight\(to_tsvector\('simple',[\s\S]*"title"[\s\S]*'A'\)/);
@@ -20,4 +24,14 @@ test('L prefix search preserves source lexemes, weights title above story, and i
     migration,
     /CREATE INDEX "L_search_prefix_idx" ON "L" USING GIN \("searchPrefixVector"\)/,
   );
+});
+
+test('schema parity registers every SQL-only prefix-search object', () => {
+  assert.match(schemaVerifier, /'DROP INDEX "L_search_prefix_idx";'/);
+  assert.match(schemaVerifier, /'L_search_prefix_idx'/);
+  assert.match(
+    schemaVerifier,
+    /generatedColumns: \['searchPrefixVector', 'searchVector'\]/,
+  );
+  assert.match(schemaVerifier, /attname = ANY\(\$1\)[\s\S]*attgenerated = 's'/);
 });
