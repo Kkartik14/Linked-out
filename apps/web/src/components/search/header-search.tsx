@@ -168,6 +168,7 @@ export function HeaderSearch() {
           aria-controls={listboxId}
           aria-activedescendant={activeOption ? `${listboxId}-option-${activeIndex}` : undefined}
           value={rawQuery}
+          maxLength={100}
           onChange={(event) => {
             setRawQuery(event.target.value);
             setActiveIndex(-1);

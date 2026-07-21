@@ -10,19 +10,21 @@ export function FeedCentre({
   sort,
   canUseFollowingFeed,
   headingId = "feed-heading",
+  headingAs: Heading = "h1",
 }: {
-  initial: Paginated<LCard>;
+  initial?: Paginated<LCard>;
   scope: FeedScope;
   sort: FeedSort;
   canUseFollowingFeed: boolean;
   headingId?: string;
+  headingAs?: "h1" | "h2";
 }) {
   return (
     <>
       <div className="mb-5">
-        <h1 id={headingId} className="text-2xl font-semibold tracking-tight">
+        <Heading id={headingId} className="text-2xl font-semibold tracking-tight">
           The Feed
-        </h1>
+        </Heading>
         <p className="text-muted-foreground text-sm">
           Honest career stories — the Ls, and what they taught.
         </p>

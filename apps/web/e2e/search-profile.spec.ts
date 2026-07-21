@@ -13,41 +13,91 @@ test.afterAll(async () => {
 });
 
 test.describe("search", () => {
-  test("finds Ls through the real Postgres full-text index", async ({ page }) => {
+  test("searches Ls live from the first character through the real Postgres index", async ({
+    page,
+  }) => {
     await page.goto("/search");
 
-    await expect(page.getByText(/Search for a story/)).toBeVisible();
-    const search = page.locator("#main-content").getByRole("searchbox", { name: "Search" });
-    await search.fill("google");
-    await search.press("Enter");
+    const search = page
+      .locator("#main-content")
+      .getByRole("searchbox", { name: "Search Ls and people" });
+    await search.fill("r");
 
-    await expect(page).toHaveURL(/q=google/);
-    await expect(page.getByText(world.google.title)).toBeVisible();
+    await expect(page).toHaveURL(/q=r/);
+    await expect(
+      page.getByRole("region", { name: "Search", exact: true }).getByText(world.google.title),
+    ).toBeVisible();
+  });
+
+  test("an empty search keeps the feed and both desktop discovery rails", async ({ page }) => {
+    await page.setViewportSize({ width: 1440, height: 900 });
+    await page.goto("/search");
+
+    const centre = page.getByRole("region", { name: "Search", exact: true });
+    await expect(centre.getByRole("heading", { name: "The Feed" })).toBeVisible();
+    await expect(centre.getByText(world.google.title)).toBeVisible();
+    await expect(
+      page.getByRole("complementary", { name: "Profile and discovery" }),
+    ).toBeVisible();
+    await expect(
+      page.getByRole("complementary", { name: "Top Ls and L of the day" }),
+    ).toBeVisible();
+  });
+
+  test("clearing a deep-linked query restores the feed without leaving search", async ({ page }) => {
+    await page.goto("/search?q=burned");
+    const centre = page.getByRole("region", { name: "Search", exact: true });
+
+    await centre.getByRole("searchbox", { name: "Search Ls and people" }).clear();
+
+    await expect(page).toHaveURL(/\/search$/);
+    await expect(centre.getByRole("heading", { name: "The Feed" })).toBeVisible();
+    await expect(centre.getByText(world.google.title)).toBeVisible();
+  });
+
+  test("the header opens a grouped L preview without removing header search", async ({ page }) => {
+    await page.goto("/");
+
+    const search = page.getByRole("combobox", { name: "Search Ls and people" });
+    await search.fill("g");
+
+    await expect(page.getByRole("group", { name: "Ls" })).toBeVisible();
+    await expect(page.getByRole("group", { name: "People" })).toBeVisible();
+    await expect(page.getByRole("option", { name: new RegExp(world.google.title) })).toBeVisible();
   });
 
   test("search never surfaces a PRIVATE L to a stranger", async ({ page }) => {
     await page.goto("/search?q=leadership");
-    await expect(page.getByText(world.privateL.title)).toHaveCount(0);
+    await expect(
+      page.getByRole("region", { name: "Search", exact: true }).getByText(world.privateL.title),
+    ).toHaveCount(0);
   });
 
   test("search shows an anonymous L without leaking its author", async ({ page }) => {
     await page.goto("/search?q=burned");
 
-    await expect(page.getByText(world.anonymous.title)).toBeVisible();
-    await expect(page.getByText("Anonymous builder")).toBeVisible();
+    const centre = page.getByRole("region", { name: "Search", exact: true });
+    await expect(centre.getByText(world.anonymous.title)).toBeVisible();
+    await expect(centre.getByText("Anonymous builder")).toBeVisible();
   });
 
   test("an unmatched query renders an empty state, not an error", async ({ page }) => {
     await page.goto("/search?q=zzzznothingmatches");
-    await expect(page.getByText(world.google.title)).toHaveCount(0);
+    await expect(
+      page.getByRole("region", { name: "Search", exact: true }).getByText(world.google.title),
+    ).toHaveCount(0);
   });
 
   test("search can switch to people results", async ({ page }) => {
     await page.goto("/search?q=kartik&type=users");
 
-    await expect(page.getByRole("tab", { name: "People" })).toHaveAttribute("aria-selected", "true");
-    await expect(page.getByText("Kartik Gupta")).toBeVisible();
-    await expect(page.getByText("@kartik")).toBeVisible();
+    const centre = page.getByRole("region", { name: "Search", exact: true });
+    await expect(centre.getByRole("tab", { name: "People" })).toHaveAttribute(
+      "aria-selected",
+      "true",
+    );
+    await expect(centre.getByText("Kartik Gupta")).toBeVisible();
+    await expect(centre.getByText("@kartik")).toBeVisible();
   });
 });
 

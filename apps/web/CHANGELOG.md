@@ -17,6 +17,9 @@ This file covers `apps/web` only. Its executable API contract is
 - Replaced submit-only header search with a cancellable, grouped L/People preview from the first
   character. The editable combobox supports arrow, Enter, Escape, pointer, and touch interaction;
   mobile keeps a direct entry to the full search centre.
+- Rebuilt `/search` as a live, URL-synchronized centre inside the shared discovery frame. L and
+  People tabs cancel superseded requests, an empty query restores the normal feed in-place, and
+  deliberate navigation entry can focus the full search without competing with the header input.
 
 ### One-origin BFF / session boundary (ADR 0001) — built behind `OAUTH_SESSION_MODE`
 
