@@ -422,6 +422,45 @@ describe("FeedSidebarLeft — viewer card", () => {
   });
 });
 
+describe("FeedSidebarLeft — static navigation", () => {
+  it("places Search and Saved between the viewer card and People to Follow", () => {
+    renderWithProviders(<FeedSidebarLeft initial={guestSidebar()} />, { session: signedOut });
+
+    const rail = screen.getByRole("complementary", { name: /profile and discovery/i });
+    const regions = within(rail).getAllByRole("region");
+    expect(regions[0]).toHaveAccessibleName("Join LinkedOut");
+    expect(regions[1]).toHaveAccessibleName("Explore");
+    expect(regions[2]).toHaveAccessibleName(/people to follow/i);
+    expect(within(rail).getByRole("link", { name: "Search" })).toHaveAttribute(
+      "href",
+      "/search?focus=1",
+    );
+  });
+
+  it("sends guests and rejected sessions to login before Saved", () => {
+    for (const session of [signedOut, { status: "rejected" } as const]) {
+      const { unmount } = renderWithProviders(<FeedSidebarLeft initial={guestSidebar()} />, {
+        session,
+      });
+      expect(screen.getByRole("link", { name: "Saved" })).toHaveAttribute(
+        "href",
+        "/login?returnTo=%2Fsaved",
+      );
+      unmount();
+    }
+  });
+
+  it("keeps Saved direct for authenticated and temporarily unavailable sessions", () => {
+    for (const session of [loggedIn, { status: "unavailable" } as const]) {
+      const { unmount } = renderWithProviders(<FeedSidebarLeft initial={memberSidebar()} />, {
+        session,
+      });
+      expect(screen.getByRole("link", { name: "Saved" })).toHaveAttribute("href", "/saved");
+      unmount();
+    }
+  });
+});
+
 describe("FeedSidebarLeft — people to follow", () => {
   it("renders each suggestion's reason text verbatim, on its own row", () => {
     const sidebar = memberSidebar();
@@ -594,7 +633,7 @@ describe("rails are hidden on narrow viewports", () => {
   it("keeps `hidden` on the left rail after class merging", () => {
     renderWithProviders(<FeedSidebarLeft initial={guestSidebar()} />, { session: signedOut });
 
-    const rail = screen.getByRole("complementary", { name: /your profile/i });
+    const rail = screen.getByRole("complementary", { name: /profile and discovery/i });
     expect(rail).toHaveClass("hidden");
     expect(rail).toHaveClass("lg:flex");
   });
@@ -622,12 +661,15 @@ describe("sidebar failure is independent of the feed", () => {
     await waitFor(() => expect(container).toBeEmptyDOMElement());
   });
 
-  it("renders nothing at all when the left rail's aggregate is unavailable", async () => {
+  it("keeps static navigation when the left rail's aggregate is unavailable", async () => {
     vi.mocked(getFeedSidebar).mockRejectedValue(new Error("500"));
-    const { container } = renderWithProviders(<FeedSidebarLeft initial={undefined} />, {
+    renderWithProviders(<FeedSidebarLeft initial={undefined} />, {
       session: signedOut,
     });
 
-    await waitFor(() => expect(container).toBeEmptyDOMElement());
+    await waitFor(() => expect(screen.queryByText(/loading your profile/i)).not.toBeInTheDocument());
+    expect(screen.getByRole("navigation", { name: "Explore" })).toBeInTheDocument();
+    expect(screen.queryByRole("region", { name: "Join LinkedOut" })).not.toBeInTheDocument();
+    expect(screen.queryByRole("region", { name: "People to Follow" })).not.toBeInTheDocument();
   });
 });

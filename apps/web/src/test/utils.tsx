@@ -50,9 +50,11 @@ export function renderWithProviders(
   opts?: {
     session?: Session;
     router?: Partial<AppRouterInstance>;
+    pathname?: string;
+    searchParams?: URLSearchParams;
   } & Omit<RenderOptions, "wrapper">,
 ) {
-  const { session, router, ...rest } = opts ?? {};
+  const { session, router, pathname = "/", searchParams, ...rest } = opts ?? {};
   const queryClient = new QueryClient({ defaultOptions: { queries: { retry: false } } });
   const value: Session = session ?? { status: "guest" };
   const routerValue = { ...mockRouter, ...router };
@@ -60,8 +62,8 @@ export function renderWithProviders(
   function Wrapper({ children }: { children: React.ReactNode }) {
     return (
       <AppRouterContext.Provider value={routerValue}>
-        <PathnameContext.Provider value="/">
-          <SearchParamsContext.Provider value={new URLSearchParams()}>
+        <PathnameContext.Provider value={pathname}>
+          <SearchParamsContext.Provider value={searchParams ?? new URLSearchParams()}>
             <QueryClientProvider client={queryClient}>
               <SessionProvider session={value}>
                 <MetaProvider meta={DEFAULT_META}>

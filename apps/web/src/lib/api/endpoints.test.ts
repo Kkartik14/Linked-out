@@ -117,6 +117,19 @@ describe("API endpoint helpers", () => {
     );
   });
 
+  it("forwards cancellation to live search requests", () => {
+    const controller = new AbortController();
+    void searchLs("r", undefined, 1, { signal: controller.signal });
+    void searchUsers("r", undefined, 3, { signal: controller.signal });
+
+    expect(apiFetch).toHaveBeenNthCalledWith(1, "/search?q=r&type=ls&limit=1", {
+      signal: controller.signal,
+    });
+    expect(apiFetch).toHaveBeenNthCalledWith(2, "/search?q=r&type=users&limit=3", {
+      signal: controller.signal,
+    });
+  });
+
   it("forwards the cursor for comment and reply pagination", () => {
     // A dropped cursor here still returns page 1, so only an assertion on the URL catches
     // it — every page past the first would silently repeat the first.

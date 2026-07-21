@@ -23,24 +23,28 @@ function refuse(message) {
 
 /**
  * The statements `migrate diff` always emits for objects Prisma's datamodel cannot represent.
- * `L_search_idx` is a GIN index over a generated tsvector column, and `searchVector` is a
- * generated column Prisma models as a plain field with a default — so Prisma "corrects" both on
- * every diff. These two lines are the entire legitimate residue: anything else in the diff is a
- * real disagreement between schema.prisma and the migrations.
+ * The L search indexes are GIN indexes over generated tsvector columns, which Prisma cannot
+ * represent. Prisma models those columns as plain fields with defaults, so every diff tries to
+ * drop the indexes and defaults. These lines are the entire legitimate residue: anything else in
+ * the diff is a real disagreement between schema.prisma and the migrations.
  */
 const EXPECTED_DIFF_RESIDUE = [
   'DROP INDEX "L_search_idx";',
-  'ALTER TABLE "L" ALTER COLUMN "searchVector" DROP DEFAULT;',
+  'DROP INDEX "L_search_prefix_idx";',
+  'ALTER TABLE "L" ALTER COLUMN "searchVector" DROP DEFAULT,',
+  'ALTER COLUMN "searchPrefixVector" DROP DEFAULT;',
 ];
 
 /** SQL-only objects that no `migrate diff` can see. Each is load-bearing; see the migration. */
 const SQL_ONLY = {
-  // L_search_idx / User_search_trgm_idx back search; Comment_lId_id_top_level_idx backs comment
-  // pagination; Reaction_sidebar_active_* is the partial+INCLUDE index the sidebar ranking
-  // query depends on — without it that query degrades to a heap scan.
+  generatedColumns: ['searchPrefixVector', 'searchVector'],
+  // L_search_* / User_search_trgm_idx back search; Comment_lId_id_top_level_idx backs comment
+  // pagination; Reaction_sidebar_active_* is the partial+INCLUDE index the sidebar ranking query
+  // depends on — without it that query degrades to a heap scan.
   indexes: [
     'Comment_lId_id_top_level_idx',
     'L_search_idx',
+    'L_search_prefix_idx',
     'Reaction_sidebar_active_createdAt_lId_userId_idx',
     'User_search_trgm_idx',
   ],
@@ -107,21 +111,23 @@ async function sqlOnlyObjects(db) {
   const [objects] = await db.$queryRawUnsafe(
     `
       SELECT
-        EXISTS (
-          SELECT 1 FROM pg_attribute
-          WHERE attrelid = '"L"'::regclass AND attname = 'searchVector' AND attgenerated = 's'
-        ) AS generated_search,
+        (SELECT array_agg(attname::text ORDER BY attname)
+           FROM pg_attribute
+          WHERE attrelid = '"L"'::regclass
+            AND attname = ANY($1)
+            AND attgenerated = 's') AS "generatedColumns",
         (SELECT array_agg(indexname::text ORDER BY indexname)
-           FROM pg_indexes WHERE schemaname = 'public' AND indexname = ANY($1)) AS indexes,
+           FROM pg_indexes WHERE schemaname = 'public' AND indexname = ANY($2)) AS indexes,
         (SELECT array_agg(conname::text ORDER BY conname)
-           FROM pg_constraint WHERE contype = 'c' AND conname = ANY($2)) AS checks,
+           FROM pg_constraint WHERE contype = 'c' AND conname = ANY($3)) AS checks,
         (SELECT array_agg(proname::text ORDER BY proname)
-           FROM pg_proc WHERE proname = ANY($3)) AS functions,
+           FROM pg_proc WHERE proname = ANY($4)) AS functions,
         (SELECT array_agg(tgname::text ORDER BY tgname)
-           FROM pg_trigger WHERE NOT tgisinternal AND tgname = ANY($4)) AS triggers,
+           FROM pg_trigger WHERE NOT tgisinternal AND tgname = ANY($5)) AS triggers,
         (SELECT array_agg(extname::text ORDER BY extname)
-           FROM pg_extension WHERE extname = ANY($5)) AS extensions
+           FROM pg_extension WHERE extname = ANY($6)) AS extensions
     `,
+    SQL_ONLY.generatedColumns,
     SQL_ONLY.indexes,
     SQL_ONLY.checks,
     SQL_ONLY.functions,
@@ -131,7 +137,6 @@ async function sqlOnlyObjects(db) {
 
   // Compared by name, not by count: a count check passes when one object is dropped and an
   // unrelated one is added, and it cannot say which is missing.
-  assert.ok(objects.generated_search, 'L.searchVector must be a stored generated column');
   for (const [kind, expected] of Object.entries(SQL_ONLY)) {
     assert.deepEqual(
       objects[kind] ?? [],

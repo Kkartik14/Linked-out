@@ -36,6 +36,9 @@ and their CI/test boundaries. Newest first.
 
 ### Added
 
+- Added indexed, weighted prefix search for Ls from the first character. Completed terms retain
+  English stemming, the actively typed final token uses source-preserving lexemes, and existing
+  privacy checks, title-over-story ranking, and deterministic keyset pagination remain intact.
 - Added separate `/v1/health/private-api`, `/v1/health/database`, and
   `/v1/health/session-authority` operational probes, published in generated OpenAPI as internal
   operations so monitors can distinguish process, database, and session-store failures.

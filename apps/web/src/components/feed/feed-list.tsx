@@ -26,7 +26,7 @@ export function FeedList({
   scope,
   sort,
 }: {
-  initial: Paginated<LCardType>;
+  initial?: Paginated<LCardType>;
   scope: FeedScope;
   sort: FeedSort;
 }) {

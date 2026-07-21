@@ -7,6 +7,7 @@ import {
   L_AUTHOR_INCLUDE,
   type LWithAuthor,
 } from '../../common/read-models/l-read-model';
+import { lSearchTerms } from './search-query';
 
 export interface SearchLRow {
   id: string;
@@ -35,25 +36,43 @@ function escapeLikePattern(value: string): string {
 export class SearchRepository {
   constructor(private readonly prisma: PrismaService) {}
 
-  /** Full-text search over visible Ls, ranked title > story via tsvector weights. */
+  /**
+   * Prefix search over visible Ls. Completed terms use English stemming while the final
+   * token uses a source-preserving vector, so results remain live through every character.
+   */
   async searchLRows(
     q: string,
     viewerId: string | undefined,
     limit: number,
     cursor: SearchLCursor | null,
   ): Promise<SearchLRow[]> {
+    const terms = lSearchTerms(q);
+    if (!terms) return [];
+
     const viewer = viewerId ? Prisma.sql`${viewerId}` : Prisma.sql`NULL`;
     const cursorClause = cursor
       ? Prisma.sql`WHERE (rank_score, "id") < (${cursor.rank}, ${cursor.id})`
       : Prisma.empty;
     const rows = await this.prisma.db.$queryRaw<Array<{ id: string; rank_score: number }>>`
       WITH query AS (
-        SELECT websearch_to_tsquery('english', ${q}) AS value
+        SELECT plainto_tsquery('english', ${terms.completed}) AS completed,
+               to_tsquery('simple', quote_literal(${terms.prefix}) || ':*') AS prefix
       ),
       ranked AS (
-        SELECT "id", ts_rank("searchVector", query.value)::double precision AS rank_score
+        SELECT "id",
+               (
+                 CASE
+                   WHEN numnode(query.completed) = 0 THEN 0
+                   ELSE ts_rank("searchVector", query.completed)
+                 END
+                 + ts_rank("searchPrefixVector", query.prefix)
+               )::double precision AS rank_score
         FROM "L", query
-        WHERE "searchVector" @@ query.value
+        WHERE "searchPrefixVector" @@ query.prefix
+          AND (
+            numnode(query.completed) = 0
+            OR "searchVector" @@ query.completed
+          )
           AND (
             "visibility" = 'PUBLIC'
             OR (${viewer} IS NOT NULL AND "authorId" = ${viewer})

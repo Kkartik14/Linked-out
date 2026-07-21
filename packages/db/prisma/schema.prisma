@@ -219,8 +219,10 @@ model L {
   // Lifetime weighted engagement. It has no decay/window, so it is popularity, not trending.
   popularityScore Float @default(0)
 
-  // FTS vector — the GENERATED-ALWAYS tsvector + GIN index are created in a raw migration.
-  searchVector Unsupported("tsvector")?
+  // FTS vectors — GENERATED-ALWAYS tsvectors + GIN indexes are created in raw migrations.
+  // English stemming serves completed terms; simple lexemes preserve unfinished prefixes.
+  searchVector       Unsupported("tsvector")?
+  searchPrefixVector Unsupported("tsvector")?
 
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt

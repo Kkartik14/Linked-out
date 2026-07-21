@@ -19,6 +19,20 @@ This file covers `apps/web` only. Its executable API contract is
   catalog exposes selected state and remains multi-select, while Saved stays a separate bookmark.
 - Signed-out Save attempts now go straight to login with the intended L as a safe return path.
 
+### Search and discovery
+
+- Added persistent Search and Saved actions between the viewer card and People to Follow. The
+  actions remain available when the personalized sidebar request fails, and guest Saved visits
+  preserve `/saved` through login.
+- Extracted the feed's three-column discovery frame and centre view so search can replace only the
+  centre column while retaining both existing sidebars.
+- Replaced submit-only header search with a cancellable, grouped L/People preview from the first
+  character. The editable combobox supports arrow, Enter, Escape, pointer, and touch interaction;
+  mobile keeps a direct entry to the full search centre.
+- Rebuilt `/search` as a live, URL-synchronized centre inside the shared discovery frame. L and
+  People tabs cancel superseded requests, an empty query restores the normal feed in-place, and
+  deliberate navigation entry can focus the full search without competing with the header input.
+
 ### One-origin BFF / session boundary (ADR 0001) — built behind `OAUTH_SESSION_MODE`
 
 The public web tier for the one-origin session boundary is now implemented and shipped **dark

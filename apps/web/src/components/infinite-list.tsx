@@ -25,7 +25,7 @@ export function InfiniteList<T>({
   loadingLabel = "Loading…",
 }: {
   queryKey: QueryKey;
-  queryFn: (cursor: string | undefined) => Promise<Paginated<T>>;
+  queryFn: (cursor: string | undefined, signal: AbortSignal) => Promise<Paginated<T>>;
   initial?: Paginated<T>;
   renderItem: (item: T) => React.ReactNode;
   getItemKey: (item: T) => string;
@@ -44,7 +44,7 @@ export function InfiniteList<T>({
 }) {
   const query = useInfiniteQuery({
     queryKey,
-    queryFn: ({ pageParam }) => queryFn(pageParam),
+    queryFn: ({ pageParam, signal }) => queryFn(pageParam, signal),
     initialPageParam: undefined as string | undefined,
     getNextPageParam: (last) => last.nextCursor ?? undefined,
     ...(initial ? { initialData: { pages: [initial], pageParams: [undefined] } } : {}),
