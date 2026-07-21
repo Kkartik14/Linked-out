@@ -119,6 +119,16 @@ test.describe("feed & L detail", () => {
     );
   });
 
+  test("a signed-out Save attempt returns to the intended L after login", async ({ page }) => {
+    await page.goto(`/ls/${world.nadiaPublic.id}`);
+
+    await page.getByRole("button", { name: "Save", exact: true }).click();
+
+    await expect(page).toHaveURL(
+      new RegExp(`/login\\?returnTo=%2Fls%2F${world.nadiaPublic.id}$`),
+    );
+  });
+
   // These drive the real GET /feed/sidebar against the real ranking, over the interactions
   // seeded in backend.cjs. They assert the rules the contract makes — ordering, anonymity,
   // attribution, the daily exclusion — not a particular score.

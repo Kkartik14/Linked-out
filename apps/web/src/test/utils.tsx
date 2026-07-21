@@ -47,16 +47,21 @@ const mockRouter: AppRouterInstance = {
 
 export function renderWithProviders(
   ui: React.ReactElement,
-  opts?: { session?: Session } & Omit<RenderOptions, "wrapper">,
+  opts?: {
+    session?: Session;
+    pathname?: string;
+    router?: Partial<AppRouterInstance>;
+  } & Omit<RenderOptions, "wrapper">,
 ) {
-  const { session, ...rest } = opts ?? {};
+  const { session, pathname = "/", router, ...rest } = opts ?? {};
   const queryClient = new QueryClient({ defaultOptions: { queries: { retry: false } } });
   const value: Session = session ?? { status: "guest" };
+  const routerValue = { ...mockRouter, ...router };
 
   function Wrapper({ children }: { children: React.ReactNode }) {
     return (
-      <AppRouterContext.Provider value={mockRouter}>
-        <PathnameContext.Provider value="/">
+      <AppRouterContext.Provider value={routerValue}>
+        <PathnameContext.Provider value={pathname}>
           <SearchParamsContext.Provider value={new URLSearchParams()}>
             <QueryClientProvider client={queryClient}>
               <SessionProvider session={value}>

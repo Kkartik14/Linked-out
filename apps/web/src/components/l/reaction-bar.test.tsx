@@ -30,6 +30,137 @@ beforeEach(() => {
 });
 
 describe("ReactionBar", () => {
+  it("shows only the add control when no expressive reaction has been used", () => {
+    renderWithProviders(
+      <ReactionBar
+        lId="l1"
+        reactions={{ total: 0, beenThere: 0, helpful: 0, respect: 0, pain: 0, saved: 0 }}
+        viewerReactions={[]}
+        commentCount={0}
+        commentHref="#comments"
+      />,
+      { session: loggedIn },
+    );
+
+    expect(screen.getByRole("button", { name: "Add reaction" })).toHaveTextContent("+");
+    expect(screen.queryByRole("button", { name: /been there/i })).not.toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: /helpful/i })).not.toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "Save" })).toBeInTheDocument();
+  });
+
+  it.each([
+    {
+      label: "one",
+      reactions: { total: 1, beenThere: 1, helpful: 0, respect: 0, pain: 0, saved: 0 },
+      visible: [/been there/i],
+    },
+    {
+      label: "three",
+      reactions: { total: 13, beenThere: 3, helpful: 2, respect: 1, pain: 0, saved: 7 },
+      visible: [/been there/i, /helpful/i, /respect/i],
+    },
+  ])("shows every used chip when $label reaction type is used", ({ reactions, visible }) => {
+    renderWithProviders(
+      <ReactionBar
+        lId="l1"
+        reactions={reactions}
+        viewerReactions={[]}
+        commentCount={0}
+        commentHref="#comments"
+      />,
+      { session: loggedIn },
+    );
+
+    for (const name of visible) {
+      expect(screen.getByRole("button", { name })).toBeInTheDocument();
+    }
+    expect(screen.queryByRole("button", { name: /pain/i })).not.toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "Add reaction" })).toBeInTheDocument();
+  });
+
+  it("shows two chips plus an overflow picker when all four reactions are used", async () => {
+    const user = userEvent.setup();
+    renderWithProviders(
+      <ReactionBar
+        lId="l1"
+        reactions={{ total: 10, beenThere: 4, helpful: 3, respect: 2, pain: 1, saved: 0 }}
+        viewerReactions={["BEEN_THERE", "RESPECT"]}
+        commentCount={0}
+        commentHref="#comments"
+      />,
+      { session: loggedIn },
+    );
+
+    expect(screen.getByRole("button", { name: /been there/i })).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: /helpful/i })).toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: /respect/i })).not.toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: /pain/i })).not.toBeInTheDocument();
+
+    const overflow = screen.getByRole("button", { name: "2 more reactions" });
+    expect(overflow).toHaveTextContent("+2");
+    await user.click(overflow);
+
+    expect(screen.getByRole("menuitemcheckbox", { name: /been there/i })).toHaveAttribute(
+      "aria-checked",
+      "true",
+    );
+    expect(screen.getByRole("menuitemcheckbox", { name: /helpful/i })).toHaveAttribute(
+      "aria-checked",
+      "false",
+    );
+    expect(screen.getByRole("menuitemcheckbox", { name: /respect/i })).toHaveAttribute(
+      "aria-checked",
+      "true",
+    );
+    expect(screen.getByRole("menuitemcheckbox", { name: /pain/i })).toHaveAttribute(
+      "aria-checked",
+      "false",
+    );
+  });
+
+  it("adds an unused fixed reaction from the picker without replacing existing selections", async () => {
+    const user = userEvent.setup();
+    renderWithProviders(
+      <ReactionBar
+        lId="l1"
+        reactions={{ total: 3, beenThere: 3, helpful: 0, respect: 0, pain: 0, saved: 0 }}
+        viewerReactions={["BEEN_THERE"]}
+        commentCount={0}
+        commentHref="#comments"
+      />,
+      { session: loggedIn },
+    );
+
+    expect(screen.getByRole("button", { name: /been there/i })).toHaveAttribute(
+      "aria-pressed",
+      "true",
+    );
+    await user.click(screen.getByRole("button", { name: "Add reaction" }));
+    await user.click(screen.getByRole("menuitemcheckbox", { name: /helpful/i }));
+
+    expect(addReaction).toHaveBeenCalledWith(mockUser.id, "l1", "HELPFUL");
+    expect(screen.queryByRole("menu")).not.toBeInTheDocument();
+  });
+
+  it("sends a signed-out Save attempt to login with the current L as return destination", async () => {
+    const user = userEvent.setup();
+    const push = vi.fn();
+    renderWithProviders(
+      <ReactionBar
+        lId="l1"
+        reactions={{ total: 0, beenThere: 0, helpful: 0, respect: 0, pain: 0, saved: 0 }}
+        viewerReactions={[]}
+        commentCount={0}
+        commentHref="#comments"
+      />,
+      { pathname: "/ls/l1", router: { push } },
+    );
+
+    await user.click(screen.getByRole("button", { name: "Save" }));
+
+    expect(push).toHaveBeenCalledWith("/login?returnTo=%2Fls%2Fl1");
+  });
+
   it("serializes near-simultaneous mutations from duplicate mounted views", async () => {
     let finishFirst!: (value: Awaited<ReturnType<typeof addReaction>>) => void;
     const firstResponse = new Promise<Awaited<ReturnType<typeof addReaction>>>((resolve) => {
