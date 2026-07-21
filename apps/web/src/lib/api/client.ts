@@ -15,6 +15,7 @@ import { ApiError } from "./errors";
  * handoff deployment sets. It selects debounced expiry invalidation over legacy token refresh.
  */
 const IS_BFF_CLIENT = API_BASE_URL.startsWith("/");
+const VERCEL_PROTECTION_BYPASS_HEADER = "x-vercel-protection-bypass";
 
 export interface ApiFetchInit extends RequestInit {
   /** Internal: prevents an infinite refresh loop on repeated 401s. */
@@ -157,6 +158,13 @@ async function sendRequest(
       const sid = (await cookies()).get(BROWSER_SESSION_COOKIE)?.value;
       if (sid) headers.set("cookie", `${BROWSER_SESSION_COOKIE}=${sid}`);
     }
+    // Preview Server Components self-hop through this project's protected `/v1` route. The
+    // viewer's Vercel Authentication cookie is scoped to the exact URL they opened and cannot be
+    // relied on when this deployment uses its branch alias. Use Vercel's project-scoped automation
+    // credential for only this server-side hop; the route handler strips it before calling Nest.
+    headers.delete(VERCEL_PROTECTION_BYPASS_HEADER);
+    const protectionBypass = process.env.VERCEL_AUTOMATION_BYPASS_SECRET;
+    if (protectionBypass) headers.set(VERCEL_PROTECTION_BYPASS_HEADER, protectionBypass);
     return fetch(`${publicWebOrigin()}/v1${path}`, {
       ...rest,
       headers,

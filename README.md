@@ -103,10 +103,13 @@ Vercel injects `VERCEL_RELATED_PROJECTS`, `VERCEL_BRANCH_URL`, and `VERCEL_ENV`,
 production origins below remain fallbacks. Related Projects applies to Git-triggered deployments,
 not ad-hoc CLI deployments.
 
-If API previews use Vercel Deployment Protection, copy the API project's Protection Bypass for
-Automation secret into the web project's Preview-only `INTERNAL_API_BYPASS_SECRET`. The BFF adds it
-only on its private upstream hop and strips any client-supplied header. Leave the variable unset
-when API previews are public.
+Protected previews require two project-scoped automation credentials. Enable Protection Bypass for
+Automation on the web project so Vercel injects `VERCEL_AUTOMATION_BYPASS_SECRET`; Server Components
+use it only when self-hopping through the protected web `/v1` route. Copy a separate API project
+bypass into the web project's Preview-only `INTERNAL_API_BYPASS_SECRET`; the BFF uses it only on its
+private upstream hop. Both boundaries strip client-supplied bypass headers before applying their
+server-only value. Leave the corresponding credential unset when that project's previews are
+public.
 
 Arbitrary preview hostnames are normally not registered OAuth callbacks. Use a stable staging
 branch/domain for real Google/GitHub login testing; ordinary branch previews still pair correctly
