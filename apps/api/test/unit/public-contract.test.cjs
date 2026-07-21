@@ -93,6 +93,27 @@ test('root package does not export removed category or tag-discovery contracts',
   assert.equal('lCategory' in meta, false);
 });
 
+test('public reputation contract retires Builders Helped completely', () => {
+  const reputation = {
+    storiesShared: 2,
+    lessonsShared: 3,
+    lsShared: 8,
+    collectionsCreated: 1,
+  };
+
+  assert.deepEqual(contracts.reputationSchema.parse(reputation), reputation);
+  assert.equal(
+    contracts.reputationSchema.safeParse({ ...reputation, buildersHelped: 5 }).success,
+    false,
+    'retired reputation keys must not be silently accepted',
+  );
+  assert.equal(
+    contracts.REPUTATION_META.some((entry) => entry.key === 'buildersHelped'),
+    false,
+    'retired reputation copy must not remain in metadata',
+  );
+});
+
 test('OAuth failure copy is contract-valid and server-owned', () => {
   for (const failure of Object.values(contracts.OAUTH_FAILURES)) {
     assert.deepEqual(contracts.oauthFailureSchema.parse(failure), failure);

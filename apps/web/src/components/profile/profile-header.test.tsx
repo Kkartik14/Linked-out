@@ -39,6 +39,13 @@ beforeEach(() => {
 });
 
 describe("ProfileHeader follow state", () => {
+  it("does not present the retired Builders Helped metric", () => {
+    renderWithProviders(<ProfileHeader profile={profile} />, { session: loggedIn });
+
+    expect(screen.getByText(/Ls Shared/i)).toBeInTheDocument();
+    expect(screen.queryByText(/Builders Helped/i)).not.toBeInTheDocument();
+  });
+
   it("uses the fresh RSC profile without a mount refetch and still honors invalidation", async () => {
     const refreshed = {
       ...profile,

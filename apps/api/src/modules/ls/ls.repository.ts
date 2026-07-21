@@ -303,20 +303,7 @@ export class LsRepository {
             if (!existing) return { status: 'not_found' };
             if (existing.authorId !== authorId) return { status: 'not_owner' };
 
-            const countedReactions = await tx.reaction.count({
-              where: {
-                lId: id,
-                type: plan.countedReactionReputation.reactionType,
-                userId: { not: plan.countedReactionReputation.excludeUserId },
-              },
-            });
-            const reputation = { ...plan.reputationByType[existing.type] };
-            if (countedReactions > 0) {
-              const effect = plan.countedReactionReputation;
-              reputation[effect.reputationField] =
-                (reputation[effect.reputationField] ?? 0) +
-                countedReactions * effect.pointsPerReaction;
-            }
+            const reputation = plan.reputationByType[existing.type];
 
             await tx.l.delete({ where: { id }, select: { id: true } });
             if (Object.keys(reputation).length > 0) {
@@ -344,9 +331,6 @@ function incrementReputation(
 ): Prisma.UserUpdateInput {
   const update: Prisma.UserUpdateInput = {};
   if (delta.lsShared !== undefined) update.lsShared = { increment: sign * delta.lsShared };
-  if (delta.buildersHelped !== undefined) {
-    update.buildersHelped = { increment: sign * delta.buildersHelped };
-  }
   if (delta.storiesShared !== undefined) {
     update.storiesShared = { increment: sign * delta.storiesShared };
   }

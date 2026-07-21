@@ -7,6 +7,9 @@ and their CI/test boundaries. Newest first.
 
 ### Changed
 
+- Retired the `Builders Helped` reputation metric from the public contract, metadata, write
+  plans, profile/sidebar queries, seed reconstruction, and database schema. `HELPFUL` remains a
+  fixed reaction with its existing popularity weight and notification behavior.
 - Split browser-session policy/orchestration from its Prisma persistence adapter. Opaque-token
   generation, collision retries, and timeout semantics now depend on a typed persistence seam;
   Prisma CRUD, row locking, transactions, and raw SQL remain localized in the adapter.

@@ -7,7 +7,7 @@
  * Run: ALLOW_DB_SEED=1 SEED_DB_EXPECTED_SESSION_USER=<role> pnpm --filter @linkedout/db seed
  */
 const { createPrismaClient } = require('../dist');
-const { helpfulReactionWhere, popularityScoreFor } = require('./seed-policy.cjs');
+const { popularityScoreFor } = require('./seed-policy.cjs');
 
 const prisma = createPrismaClient();
 
@@ -149,7 +149,6 @@ async function recomputeCounters() {
       storiesShared,
       lessonsShared,
       collectionsCreated,
-      helpful,
       followerCount,
       followingCount,
     ] = await Promise.all([
@@ -157,7 +156,6 @@ async function recomputeCounters() {
       prisma.l.count({ where: { authorId: id, type: 'STORY' } }),
       prisma.l.count({ where: { authorId: id, type: 'LESSON' } }),
       prisma.collection.count({ where: { ownerId: id } }),
-      prisma.reaction.count({ where: helpfulReactionWhere(id) }),
       prisma.follow.count({ where: { followingId: id } }),
       prisma.follow.count({ where: { followerId: id } }),
     ]);
@@ -168,7 +166,6 @@ async function recomputeCounters() {
         storiesShared,
         lessonsShared,
         collectionsCreated,
-        buildersHelped: helpful,
         followerCount,
         followingCount,
       },

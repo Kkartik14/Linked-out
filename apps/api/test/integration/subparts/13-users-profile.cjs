@@ -34,10 +34,10 @@ describe('13 · users & profiles (contract §4.2)', () => {
     assert.deepEqual(res.body.reputation, {
       storiesShared: 0,
       lessonsShared: 0,
-      buildersHelped: 0,
       lsShared: 0,
       collectionsCreated: 0,
     });
+    assert.equal('buildersHelped' in res.body.reputation, false);
   });
 
   test('an unknown username is 404 USER_NOT_FOUND', async () => {

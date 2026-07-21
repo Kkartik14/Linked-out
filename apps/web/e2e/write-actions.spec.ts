@@ -92,17 +92,6 @@ test.describe("write actions against the real API", () => {
       .toBe(0);
   });
 
-  test("a HELPFUL reaction moves the author's buildersHelped reputation", async ({ page }) => {
-    await page.goto(`/ls/${world.nadiaPublic.id}`);
-
-    await page.getByRole("button", { name: /^Helpful/ }).click();
-    await expect(page.getByRole("button", { name: /Helpful, 1/ })).toBeVisible();
-
-    await expect
-      .poll(async () => (await db().user.findUnique({ where: { id: world.nadia.id } })).buildersHelped)
-      .toBe(1);
-  });
-
   test("saving an L adds it to /saved", async ({ page }) => {
     await page.goto(`/ls/${world.nadiaPublic.id}`);
 

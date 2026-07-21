@@ -14,13 +14,8 @@ import { Button } from "@/components/ui/button";
 import { SidebarSection } from "@/components/feed/sidebar/sidebar-section";
 import { compactNumber } from "@/lib/format";
 
-/**
- * The two reputation figures this box leads with.
- *
- * product.md is explicit that the product does not emphasise followers — it surfaces
- * usefulness instead. These are the two that answer "has my writing helped anyone".
- */
-const HEADLINE_REPUTATION: readonly (keyof Reputation)[] = ["lsShared", "buildersHelped"];
+/** The compact profile card leads with contribution rather than follower counts. */
+const HEADLINE_REPUTATION: readonly (keyof Reputation)[] = ["lsShared"];
 
 /** `{n} {label}`, composed from raw counts plus /meta/enums labels (contract §3). */
 function reputationStats(meta: MetaEnumsResponse, reputation: Reputation) {
@@ -78,7 +73,7 @@ function SignedInCard({ profile }: { profile: UserProfile }) {
       </div>
 
       {stats.length > 0 ? (
-        <dl className="divide-border/60 grid grid-cols-2 divide-x border-t">
+        <dl className="grid grid-cols-1 border-t">
           {stats.map((stat) => (
             <div key={stat.key} className="px-3 py-2.5 text-center">
               <dt className="text-muted-foreground text-[11px] leading-tight">{stat.label}</dt>

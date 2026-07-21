@@ -187,7 +187,7 @@ describe('20 · counter integrity under concurrency', () => {
     assert.equal(row.popularityScore, 0, 'comment popularity follows the same exact delta');
   });
 
-  test('concurrent HELPFUL reactions produce an exact buildersHelped', async () => {
+  test('concurrent HELPFUL reactions produce exact L counters', async () => {
     const users = await makeUsers(10);
     await concurrentHttp(
       users.map((u) => h.put(`/ls/${l.id}/reactions/HELPFUL`, { cookie: u.cookie })),
@@ -195,8 +195,9 @@ describe('20 · counter integrity under concurrency', () => {
       'add HELPFUL reaction',
     );
 
-    const profile = await h.ctx.prisma.user.findUnique({ where: { id: author.id } });
-    assert.equal(profile.buildersHelped, 10);
+    const reacted = await h.ctx.prisma.l.findUniqueOrThrow({ where: { id: l.id } });
+    assert.equal(reacted.reactionCount, 10);
+    assert.equal(reacted.helpfulCount, 10);
   });
 
   test('concurrent follows of one target produce exact follower counts', async () => {

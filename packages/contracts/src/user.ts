@@ -21,7 +21,6 @@ export type UserSummary = z.infer<typeof userSummarySchema>;
 export const reputationSchema = z.object({
   storiesShared: z.number().int(),
   lessonsShared: z.number().int(),
-  buildersHelped: z.number().int(),
   lsShared: z.number().int(),
   collectionsCreated: z.number().int(),
 }).strict();

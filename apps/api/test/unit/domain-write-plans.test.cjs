@@ -17,11 +17,10 @@ const ACTOR_ID = '01ARZ3NDEKTSV4RRFFQ69G5FAV';
 const AUTHOR_ID = '01BRZ3NDEKTSV4RRFFQ69G5FAV';
 const L_ID = '01CRZ3NDEKTSV4RRFFQ69G5FAV';
 
-test('HELPFUL reaction plans declare counters, reputation, and folded notification behavior', () => {
+test('HELPFUL reaction plans preserve counters, popularity, and folded notification behavior', () => {
   assert.deepEqual(planReactionAdd(ACTOR_ID, L_ID, 'HELPFUL', AUTHOR_ID), {
     reaction: { userId: ACTOR_ID, lId: L_ID, type: 'HELPFUL' },
     lCounters: { reactionCount: 1, helpfulCount: 1, popularityScore: 3 },
-    reputation: { userId: AUTHOR_ID, buildersHelped: 1 },
     notification: {
       action: 'upsert_folded',
       record: {
@@ -37,7 +36,6 @@ test('HELPFUL reaction plans declare counters, reputation, and folded notificati
   assert.deepEqual(planReactionRemove(ACTOR_ID, L_ID, 'HELPFUL', AUTHOR_ID), {
     reaction: { userId: ACTOR_ID, lId: L_ID, type: 'HELPFUL' },
     lCounters: { reactionCount: -1, helpfulCount: -1, popularityScore: -3 },
-    reputation: { userId: AUTHOR_ID, buildersHelped: -1 },
     notification: {
       action: 'delete_fold_if_no_external_reaction',
       dedupeKey: `${AUTHOR_ID}:${L_ID}:HELPED`,
@@ -48,14 +46,12 @@ test('HELPFUL reaction plans declare counters, reputation, and folded notificati
   });
 });
 
-test('SAVED and self-reaction plans cannot affect popularity, reputation, or notifications', () => {
+test('SAVED and self-reaction plans cannot affect popularity or notifications', () => {
   const saved = planReactionAdd(ACTOR_ID, L_ID, 'SAVED', AUTHOR_ID);
   assert.deepEqual(saved.lCounters, { reactionCount: 1, savedCount: 1 });
-  assert.equal(saved.reputation, null);
   assert.equal(saved.notification, null);
 
   const selfHelpful = planReactionAdd(ACTOR_ID, L_ID, 'HELPFUL', ACTOR_ID);
-  assert.equal(selfHelpful.reputation, null);
   assert.equal(selfHelpful.notification, null);
 });
 
@@ -115,8 +111,8 @@ test('reply notifications preserve the L author and add the parent commenter wit
   );
 });
 
-test('L deletion declares type and reaction-derived reputation effects before persistence', () => {
-  assert.deepEqual(planLDelete(AUTHOR_ID), {
+test('L deletion declares only type-derived reputation effects before persistence', () => {
+  assert.deepEqual(planLDelete(), {
     reputationByType: {
       L: { lsShared: 1 },
       WIN: { lsShared: 1 },
@@ -126,12 +122,6 @@ test('L deletion declares type and reaction-derived reputation effects before pe
       CHECKPOINT: { lsShared: 1 },
       LESSON: { lsShared: 1, lessonsShared: 1 },
       BATTLE: { lsShared: 1 },
-    },
-    countedReactionReputation: {
-      reactionType: 'HELPFUL',
-      excludeUserId: AUTHOR_ID,
-      reputationField: 'buildersHelped',
-      pointsPerReaction: 1,
     },
   });
 });
