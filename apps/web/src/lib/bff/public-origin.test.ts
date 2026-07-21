@@ -12,6 +12,20 @@ describe("publicWebOrigin", () => {
     expect(publicWebOrigin()).toBe("https://linkedout.example");
   });
 
+  it("uses the current branch URL for a Vercel preview", () => {
+    vi.stubEnv("VERCEL_ENV", "preview");
+    vi.stubEnv("VERCEL_BRANCH_URL", "linked-out-fe-git-feature-team.vercel.app");
+    vi.stubEnv("WEB_URL", "https://linked-out-fe.vercel.app");
+    expect(publicWebOrigin()).toBe("https://linked-out-fe-git-feature-team.vercel.app");
+  });
+
+  it("falls back to the commit URL when a branch URL is unavailable", () => {
+    vi.stubEnv("VERCEL_ENV", "preview");
+    vi.stubEnv("VERCEL_URL", "linked-out-fe-commit-team.vercel.app");
+    vi.stubEnv("WEB_URL", "https://linked-out-fe.vercel.app");
+    expect(publicWebOrigin()).toBe("https://linked-out-fe-commit-team.vercel.app");
+  });
+
   it.each([
     "https://user:secret@linkedout.example",
     "https://linkedout.example/app",

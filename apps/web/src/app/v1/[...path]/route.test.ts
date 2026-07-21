@@ -5,6 +5,8 @@ vi.mock("server-only", () => ({}));
 vi.mock("@/lib/bff/session-resolver", () => ({ resolveBffSession: vi.fn() }));
 vi.mock("@/lib/bff/internal-client", () => ({
   internalApiOrigin: () => "http://nest.internal",
+  applyInternalApiProtection: (headers: Headers) =>
+    headers.delete("x-vercel-protection-bypass"),
 }));
 vi.mock("@/lib/bff/public-origin", () => ({
   publicWebOrigin: () => "http://localhost:3100",
@@ -80,6 +82,7 @@ describe("BFF /v1 catch-all handler", () => {
           "x-forwarded-for": "6.6.6.6",
           forwarded: "for=6.6.6.6",
           "x-real-ip": "6.6.6.6",
+          "x-vercel-protection-bypass": "browser-controlled",
         },
       }),
     );
@@ -87,6 +90,7 @@ describe("BFF /v1 catch-all handler", () => {
     expect(sent.get("x-forwarded-for")).toBeNull();
     expect(sent.get("forwarded")).toBeNull();
     expect(sent.get("x-real-ip")).toBeNull();
+    expect(sent.get("x-vercel-protection-bypass")).toBeNull();
     expect(sent.get("x-internal-auth")).toBe("api-assertion"); // the minted one is injected
     expect(sent.has("cookie")).toBe(false); // browser cookies never reach Nest
   });

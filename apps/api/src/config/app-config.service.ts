@@ -1,5 +1,6 @@
 import { Injectable } from '@nestjs/common';
 
+import { deploymentEnvironment } from './deployment-env';
 import { envSchema, type Env } from './env';
 
 export interface OAuthProviderConfig {
@@ -24,7 +25,7 @@ export class AppConfigService {
   private readonly env: Env;
 
   constructor() {
-    this.env = envSchema.parse(process.env);
+    this.env = envSchema.parse(deploymentEnvironment());
   }
 
   get nodeEnv(): Env['NODE_ENV'] {

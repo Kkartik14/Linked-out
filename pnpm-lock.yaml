@@ -56,6 +56,9 @@ importers:
       '@nestjs/platform-express':
         specifier: ^11.0.5
         version: 11.1.27(@nestjs/common@11.1.27(reflect-metadata@0.2.2)(rxjs@7.8.2))(@nestjs/core@11.1.27)
+      '@vercel/related-projects':
+        specifier: 1.1.0
+        version: 1.1.0
       cookie-parser:
         specifier: ^1.4.7
         version: 1.4.7
@@ -790,6 +793,9 @@ packages:
   '@typescript-eslint/visitor-keys@8.63.0':
     resolution: {integrity: sha512-UexrHGnGTpbuQHct2ExOc2ZcFbGUS9FOesCxxqdBGcpI1BxYu/LZ6U8Aq6/72XtF/qRBk9nhuGHFJIXXMhPMdw==}
     engines: {node: ^18.18.0 || ^20.9.0 || >=21.1.0}
+
+  '@vercel/related-projects@1.1.0':
+    resolution: {integrity: sha512-4YjXj8rL9UVX444vaKuSmXgZD0ABOEgQNd6BR75vACaeAcuwU8powNyKDoAM9JIPfVhx7/zHCum5z+7lx2Mp9g==}
 
   '@webassemblyjs/ast@1.14.1':
     resolution: {integrity: sha512-nuBEDgQfm1ccRp/8bCQrx1frohyufl4JlbMMZ4P1wpeOfDhF6FQkxZJ1b/e+PLwr6X1Nhw6OLme5usuBWYBvuQ==}
@@ -3064,6 +3070,10 @@ snapshots:
     dependencies:
       '@typescript-eslint/types': 8.63.0
       eslint-visitor-keys: 5.0.1
+
+  '@vercel/related-projects@1.1.0':
+    optionalDependencies:
+      ajv: 6.15.0
 
   '@webassemblyjs/ast@1.14.1':
     dependencies:
