@@ -190,6 +190,20 @@ export function buildOpenApiDocument(): OpenApiDocument {
       '/auth/me': { get: { security: optionalAuth } },
       '/auth/refresh': { post: { security: [{ refreshCookie: [] }] } },
       '/auth/logout': { post: { security: [] } },
+      '/auth/email/signup': { post: { security: [] } },
+      '/auth/email/verify': { post: { security: [] } },
+      '/auth/email/login': { post: { security: [] } },
+      '/auth/email/resend': { post: { security: [] } },
+      '/auth/email/password/forgot': { post: { security: [] } },
+      '/auth/email/password/reset': { post: { security: [] } },
+      '/auth/email/otp/inspect': {
+        post: {
+          security: [{ otpInspectionSecret: [] }],
+          tags: ['internal-auth'],
+          'x-internal': true,
+          description: 'Temporary stub-only OTP inspection. Remove when email delivery is live.',
+        },
+      },
       '/auth/oauth/handoff/exchange': {
         post: {
           security: [{ bffCallerAssertion: [] }],
@@ -302,6 +316,11 @@ export function buildOpenApiDocument(): OpenApiDocument {
         accessCookie: { type: 'apiKey', in: 'cookie', name: 'lo_access' },
         refreshCookie: { type: 'apiKey', in: 'cookie', name: 'lo_refresh' },
         bffCallerAssertion: { type: 'apiKey', in: 'header', name: 'X-Internal-Auth' },
+        otpInspectionSecret: {
+          type: 'apiKey',
+          in: 'header',
+          name: 'X-LinkedOut-OTP-Inspection',
+        },
       },
       schemas,
     },

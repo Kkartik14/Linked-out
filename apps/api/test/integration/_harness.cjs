@@ -38,6 +38,9 @@ const ACCESS_SECRET = 'test-access-secret-0123456789abcdefghij';
 const REFRESH_SECRET = 'test-refresh-secret-0123456789abcdefghij';
 const INTERNAL_API_SECRET = 'test-internal-secret-0123456789abcdefgh';
 const BFF_CALLER_SECRET = 'test-bff-caller-secret-0123456789abcdef';
+const EMAIL_OTP_PEPPER = 'test-email-otp-pepper-0123456789abcdef';
+const EMAIL_OTP_ENCRYPTION_KEY = 'dGVzdC1lbWFpbC1vdHAtZW5jcnlwdGlvbi1rZXkhISE';
+const EMAIL_OTP_INSPECTION_SECRET = 'test-email-otp-inspection-0123456789';
 
 const PORT = Number(process.env.TEST_API_PORT ?? 4010);
 const NO_UPLOADS_PORT = PORT + 1;
@@ -267,6 +270,9 @@ const TABLES = [
   'BrowserSession',
   'Session',
   'Account',
+  'EmailOtpOutbox',
+  'EmailOtpChallenge',
+  'PasswordCredential',
   'VerificationToken',
   'User',
   'RateLimitBucket',
@@ -357,6 +363,10 @@ function baseEnv(port, extra) {
     JWT_REFRESH_SECRET: REFRESH_SECRET,
     INTERNAL_API_SECRET,
     BFF_CALLER_SECRET,
+    EMAIL_DELIVERY_MODE: 'stub',
+    EMAIL_OTP_PEPPER,
+    EMAIL_OTP_ENCRYPTION_KEY,
+    EMAIL_OTP_INSPECTION_SECRET,
     COOKIE_DOMAIN: '',
     GOOGLE_CLIENT_ID: 'test-google-client-id',
     GOOGLE_CLIENT_SECRET: 'test-google-client-secret',
@@ -470,6 +480,7 @@ module.exports = {
   REFRESH_SECRET,
   INTERNAL_API_SECRET,
   BFF_CALLER_SECRET,
+  EMAIL_OTP_INSPECTION_SECRET,
   WEB_URL,
   R2_PUBLIC_BASE_URL: R2_PUBLIC_BASE_URL(),
 };

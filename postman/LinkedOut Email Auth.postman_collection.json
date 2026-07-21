@@ -1,0 +1,130 @@
+{
+  "info": {
+    "_postman_id": "a13c5f8a-8662-4c21-ae63-f551113e1a11",
+    "name": "LinkedOut — Email Auth 1.1.3",
+    "description": "Backend workflow for signup verification, password login, resend, forgot/reset, and the temporary protected stub OTP inspector. Run requests in collection order. No real secret is committed.",
+    "schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json"
+  },
+  "variable": [
+    { "key": "email", "value": "kartik.postman@example.com" },
+    { "key": "password", "value": "correct horse battery staple" },
+    { "key": "newPassword", "value": "different horse battery staple" },
+    { "key": "signupOtp", "value": "" },
+    { "key": "resetOtp", "value": "" },
+    { "key": "handoffCode", "value": "" }
+  ],
+  "item": [
+    {
+      "name": "1 · Signup and email verification",
+      "item": [
+        {
+          "name": "Request signup OTP",
+          "request": {
+            "method": "POST",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "body": { "mode": "raw", "raw": "{\n  \"email\": \"{{email}}\",\n  \"password\": \"{{password}}\"\n}" },
+            "url": "{{baseUrl}}/auth/email/signup",
+            "description": "Creates or reuses the active 10-minute signup challenge. The public response is deliberately generic."
+          },
+          "event": [{ "listen": "test", "script": { "exec": ["pm.test('accepted', () => pm.response.to.have.status(202));", "pm.test('ten-minute window', () => pm.expect(pm.response.json().expiresInSeconds).to.eql(600));"] } }]
+        },
+        {
+          "name": "Inspect signup OTP (stub only)",
+          "request": {
+            "method": "POST",
+            "header": [
+              { "key": "Content-Type", "value": "application/json" },
+              { "key": "X-LinkedOut-OTP-Inspection", "value": "{{otpInspectionSecret}}", "type": "text" }
+            ],
+            "body": { "mode": "raw", "raw": "{\n  \"email\": \"{{email}}\",\n  \"purpose\": \"SIGNUP\"\n}" },
+            "url": "{{baseUrl}}/auth/email/otp/inspect",
+            "description": "Temporary admin-grade endpoint. Available only in EMAIL_DELIVERY_MODE=stub; never commit the inspection secret."
+          },
+          "event": [{ "listen": "test", "script": { "exec": ["pm.test('inspected', () => pm.response.to.have.status(200));", "const body = pm.response.json();", "pm.expect(body.otp).to.match(/^\\d{8}$/);", "pm.collectionVariables.set('signupOtp', body.otp);"] } }]
+        },
+        {
+          "name": "Verify email",
+          "request": {
+            "method": "POST",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "body": { "mode": "raw", "raw": "{\n  \"email\": \"{{email}}\",\n  \"otp\": \"{{signupOtp}}\",\n  \"returnTo\": \"/feed\"\n}" },
+            "url": "{{baseUrl}}/auth/email/verify",
+            "description": "Atomically consumes the OTP, creates the verified user and Argon2id credential, then returns the existing one-time browser-session handoff."
+          },
+          "event": [{ "listen": "test", "script": { "exec": ["pm.test('verified', () => pm.response.to.have.status(200));", "const body = pm.response.json();", "pm.expect(body.code).to.match(/^[A-Za-z0-9_-]{43}$/);", "pm.collectionVariables.set('handoffCode', body.code);"] } }]
+        }
+      ]
+    },
+    {
+      "name": "2 · Normal password login",
+      "item": [
+        {
+          "name": "Login",
+          "request": {
+            "method": "POST",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "body": { "mode": "raw", "raw": "{\n  \"email\": \"{{email}}\",\n  \"password\": \"{{password}}\",\n  \"returnTo\": \"/feed\"\n}" },
+            "url": "{{baseUrl}}/auth/email/login"
+          },
+          "event": [{ "listen": "test", "script": { "exec": ["pm.test('logged in', () => pm.response.to.have.status(200));", "pm.collectionVariables.set('handoffCode', pm.response.json().code);"] } }]
+        }
+      ]
+    },
+    {
+      "name": "3 · Forgot and reset password",
+      "item": [
+        {
+          "name": "Request reset OTP",
+          "request": {
+            "method": "POST",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "body": { "mode": "raw", "raw": "{\n  \"email\": \"{{email}}\"\n}" },
+            "url": "{{baseUrl}}/auth/email/password/forgot",
+            "description": "Returns the same 202 body whether or not the account exists."
+          },
+          "event": [{ "listen": "test", "script": { "exec": ["pm.test('accepted', () => pm.response.to.have.status(202));"] } }]
+        },
+        {
+          "name": "Inspect reset OTP (stub only)",
+          "request": {
+            "method": "POST",
+            "header": [
+              { "key": "Content-Type", "value": "application/json" },
+              { "key": "X-LinkedOut-OTP-Inspection", "value": "{{otpInspectionSecret}}", "type": "text" }
+            ],
+            "body": { "mode": "raw", "raw": "{\n  \"email\": \"{{email}}\",\n  \"purpose\": \"PASSWORD_RESET\"\n}" },
+            "url": "{{baseUrl}}/auth/email/otp/inspect"
+          },
+          "event": [{ "listen": "test", "script": { "exec": ["pm.test('inspected', () => pm.response.to.have.status(200));", "pm.collectionVariables.set('resetOtp', pm.response.json().otp);"] } }]
+        },
+        {
+          "name": "Reset password",
+          "request": {
+            "method": "POST",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "body": { "mode": "raw", "raw": "{\n  \"email\": \"{{email}}\",\n  \"otp\": \"{{resetOtp}}\",\n  \"newPassword\": \"{{newPassword}}\"\n}" },
+            "url": "{{baseUrl}}/auth/email/password/reset",
+            "description": "Changes the Argon2id hash, consumes the OTP, and revokes browser plus legacy refresh sessions in one transaction. It does not auto-login."
+          },
+          "event": [{ "listen": "test", "script": { "exec": ["pm.test('password reset', () => pm.response.to.have.status(200));", "pm.expect(pm.response.json()).to.eql({ ok: true });"] } }]
+        }
+      ]
+    },
+    {
+      "name": "4 · Resend current OTP",
+      "item": [
+        {
+          "name": "Resend active signup OTP",
+          "request": {
+            "method": "POST",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "body": { "mode": "raw", "raw": "{\n  \"email\": \"{{email}}\",\n  \"purpose\": \"SIGNUP\"\n}" },
+            "url": "{{baseUrl}}/auth/email/resend",
+            "description": "Per the product decision, an unexpired challenge keeps the same OTP and expiry. After expiry, a new OTP is created."
+          },
+          "event": [{ "listen": "test", "script": { "exec": ["pm.test('accepted', () => pm.response.to.have.status(202));"] } }]
+        }
+      ]
+    }
+  ]
+}

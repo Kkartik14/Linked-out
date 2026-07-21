@@ -32,6 +32,9 @@ export type {
   Session,
   BrowserSession,
   OAuthHandoff,
+  PasswordCredential,
+  EmailOtpChallenge,
+  EmailOtpOutbox,
   VerificationToken,
   AvatarDeletionClaim,
   L,
@@ -42,3 +45,4 @@ export type {
   CollectionL,
   Notification,
 } from '../generated/client';
+export { EmailOtpPurpose } from '../generated/client';

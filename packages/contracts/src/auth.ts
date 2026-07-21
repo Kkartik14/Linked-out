@@ -30,6 +30,86 @@ export const authMeResponseSchema = z.object({
 });
 export type AuthMeResponse = z.infer<typeof authMeResponseSchema>;
 
+export const EMAIL_OTP_INSPECTION_HEADER = 'X-LinkedOut-OTP-Inspection';
+export const emailOtpPurposeSchema = z.enum(['SIGNUP', 'PASSWORD_RESET']);
+export type EmailOtpPurpose = z.infer<typeof emailOtpPurposeSchema>;
+
+export const emailAddressSchema = z
+  .string()
+  .trim()
+  .toLowerCase()
+  .pipe(z.email().max(254));
+
+// NIST SP 800-63B's current minimum for a password used as a single factor is 15 characters.
+// Composition rules are deliberately absent; long passphrases and password-manager output work.
+export const passwordSchema = z.string().min(15).max(128);
+export const emailOtpSchema = z.string().regex(/^\d{8}$/, 'otp must contain exactly 8 digits');
+
+export const emailSignupInputSchema = z
+  .object({ email: emailAddressSchema, password: passwordSchema })
+  .strict();
+export type EmailSignupInput = z.infer<typeof emailSignupInputSchema>;
+
+export const emailOtpRequestAcceptedSchema = z
+  .object({ accepted: z.literal(true), expiresInSeconds: z.literal(600) })
+  .strict();
+export type EmailOtpRequestAccepted = z.infer<typeof emailOtpRequestAcceptedSchema>;
+
+export const emailOtpVerifyInputSchema = z
+  .object({
+    email: emailAddressSchema,
+    otp: emailOtpSchema,
+    returnTo: returnToSchema.default('/'),
+  })
+  .strict();
+export type EmailOtpVerifyInput = z.infer<typeof emailOtpVerifyInputSchema>;
+
+export const emailLoginInputSchema = z
+  .object({
+    email: emailAddressSchema,
+    password: z.string().min(1).max(128),
+    returnTo: returnToSchema.default('/'),
+  })
+  .strict();
+export type EmailLoginInput = z.infer<typeof emailLoginInputSchema>;
+
+export const emailAuthHandoffResponseSchema = z
+  .object({
+    code: z.string().regex(/^[A-Za-z0-9_-]{43}$/),
+    expiresAt: isoTimestampSchema,
+    returnTo: returnToSchema,
+  })
+  .strict();
+export type EmailAuthHandoffResponse = z.infer<typeof emailAuthHandoffResponseSchema>;
+
+export const emailOtpResendInputSchema = z
+  .object({ email: emailAddressSchema, purpose: emailOtpPurposeSchema })
+  .strict();
+export type EmailOtpResendInput = z.infer<typeof emailOtpResendInputSchema>;
+
+export const forgotPasswordInputSchema = z.object({ email: emailAddressSchema }).strict();
+export type ForgotPasswordInput = z.infer<typeof forgotPasswordInputSchema>;
+
+export const resetPasswordInputSchema = z
+  .object({ email: emailAddressSchema, otp: emailOtpSchema, newPassword: passwordSchema })
+  .strict();
+export type ResetPasswordInput = z.infer<typeof resetPasswordInputSchema>;
+
+export const emailOtpInspectInputSchema = z
+  .object({ email: emailAddressSchema, purpose: emailOtpPurposeSchema })
+  .strict();
+export type EmailOtpInspectInput = z.infer<typeof emailOtpInspectInputSchema>;
+
+export const emailOtpInspectResponseSchema = z
+  .object({
+    email: emailAddressSchema,
+    purpose: emailOtpPurposeSchema,
+    otp: emailOtpSchema,
+    expiresAt: isoTimestampSchema,
+  })
+  .strict();
+export type EmailOtpInspectResponse = z.infer<typeof emailOtpInspectResponseSchema>;
+
 /** `returnTo` must be a relative path (leading slash) — no open redirects. */
 export const oauthStartQuerySchema = z
   .object({

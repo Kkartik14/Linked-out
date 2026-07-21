@@ -18,6 +18,8 @@ const MODELS_WITHOUT_ULID: ReadonlySet<string> = new Set([
   'AvatarDeletionClaim',
   'CollectionL',
   'DailyLSelection',
+  'EmailOtpOutbox',
+  'PasswordCredential',
   'RateLimitBucket',
   'VerificationToken',
 ]);

@@ -66,6 +66,11 @@ const optionalInternalSecret = z.string().default('').refine(
   { message: 'Must contain at least 32 bytes.' },
 );
 
+const otpEncryptionKey = z.string().default('').refine(
+  (value) => value.length === 0 || Buffer.from(value, 'base64url').byteLength === 32,
+  { message: 'Must be a base64url-encoded 32-byte key.' },
+);
+
 function normalizeHostname(hostname: string): string {
   let normalized = hostname.toLowerCase();
   while (normalized.endsWith('.')) normalized = normalized.slice(0, -1);
@@ -168,6 +173,11 @@ export const envSchema = z
     OAUTH_SESSION_MODE: z.enum(['legacy', 'handoff']).default('legacy'),
     COOKIE_DOMAIN: z.string().default(''),
 
+    EMAIL_DELIVERY_MODE: z.enum(['disabled', 'stub']).default('disabled'),
+    EMAIL_OTP_PEPPER: optionalInternalSecret,
+    EMAIL_OTP_ENCRYPTION_KEY: otpEncryptionKey,
+    EMAIL_OTP_INSPECTION_SECRET: optionalInternalSecret,
+
     GOOGLE_CLIENT_ID: z.string().default(''),
     GOOGLE_CLIENT_SECRET: z.string().default(''),
     GITHUB_CLIENT_ID: z.string().default(''),
@@ -181,6 +191,21 @@ export const envSchema = z
     R2_ENDPOINT: optionalUrl,
   })
   .superRefine((env, ctx) => {
+    if (env.EMAIL_DELIVERY_MODE === 'stub') {
+      for (const field of [
+        'EMAIL_OTP_PEPPER',
+        'EMAIL_OTP_ENCRYPTION_KEY',
+        'EMAIL_OTP_INSPECTION_SECRET',
+      ] as const) {
+        if (env[field].length === 0) {
+          ctx.addIssue({
+            code: 'custom',
+            path: [field],
+            message: `${field} is required when EMAIL_DELIVERY_MODE is stub.`,
+          });
+        }
+      }
+    }
     if (env.OAUTH_SESSION_MODE === 'handoff') {
       for (const field of ['INTERNAL_API_SECRET', 'BFF_CALLER_SECRET'] as const) {
         if (env[field].length === 0) {
@@ -231,6 +256,30 @@ export const envSchema = z
         code: 'custom',
         path: ['BFF_CALLER_SECRET'],
         message: 'BFF_CALLER_SECRET must be distinct from INTERNAL_API_SECRET.',
+      });
+    }
+    const authSecrets = [
+      ['EMAIL_OTP_PEPPER', env.EMAIL_OTP_PEPPER],
+      ['EMAIL_OTP_INSPECTION_SECRET', env.EMAIL_OTP_INSPECTION_SECRET],
+    ] as const;
+    for (const [field, secret] of authSecrets) {
+      if (
+        secret.length > 0 &&
+        [env.JWT_ACCESS_SECRET, env.JWT_REFRESH_SECRET, env.INTERNAL_API_SECRET, env.BFF_CALLER_SECRET]
+          .filter((candidate) => candidate.length > 0)
+          .includes(secret)
+      ) {
+        ctx.addIssue({ code: 'custom', path: [field], message: `${field} must be a distinct secret.` });
+      }
+    }
+    if (
+      env.EMAIL_OTP_PEPPER.length > 0 &&
+      env.EMAIL_OTP_PEPPER === env.EMAIL_OTP_INSPECTION_SECRET
+    ) {
+      ctx.addIssue({
+        code: 'custom',
+        path: ['EMAIL_OTP_INSPECTION_SECRET'],
+        message: 'EMAIL_OTP_INSPECTION_SECRET must be distinct from EMAIL_OTP_PEPPER.',
       });
     }
     if (env.NODE_ENV !== 'production') return;

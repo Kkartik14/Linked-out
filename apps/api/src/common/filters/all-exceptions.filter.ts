@@ -47,6 +47,9 @@ export class AllExceptionsFilter implements ExceptionFilter {
     if (exception instanceof AppException) {
       const body = exception.getResponse();
       if (isAppExceptionBody(body)) {
+        if (exception.retryAfterSeconds !== undefined) {
+          res.setHeader('Retry-After', String(exception.retryAfterSeconds));
+        }
         if (exception.telemetryClassification === 'security-rejection') {
           // Never include headers, cookies, query strings, bodies, or exception text here: each
           // may contain a browser credential, OAuth code, or internal assertion.
