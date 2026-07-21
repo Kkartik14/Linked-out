@@ -50,6 +50,38 @@ describe('12 · search (contract §4.10)', () => {
     assert.deepEqual(returned, [byTitle.id, byStory.id].sort());
   });
 
+  test('matches an unfinished final token from its first character', async () => {
+    const running = await h.createL(author.id, {
+      title: 'Running a careful migration',
+      story: 'The rollout remained uneventful.',
+    });
+    await h.createL(author.id, { title: 'A careful roadmap' });
+
+    for (const q of ['r', 'ru']) {
+      const page = h.expectShape(await h.get(`/search?q=${encodeURIComponent(q)}`), lsSchema);
+      assert.ok(page.data.some((l) => l.id === running.id), `q=${q}`);
+    }
+
+    for (const q of ['runn', 'running m', 'running migr']) {
+      const page = h.expectShape(await h.get(`/search?q=${encodeURIComponent(q)}`), lsSchema);
+      assert.deepEqual(page.data.map((l) => l.id), [running.id], `q=${q}`);
+    }
+  });
+
+  test('prefix search keeps title matches above story-only matches', async () => {
+    const storyOnly = await h.createL(author.id, {
+      title: 'A quiet week',
+      story: 'We carefully migrated the production database.',
+    });
+    const titleMatch = await h.createL(author.id, {
+      title: 'Migration playbook',
+      story: 'Nothing else to say.',
+    });
+
+    const res = await h.get('/search?q=migr');
+    assert.deepEqual(res.body.data.map((l) => l.id), [titleMatch.id, storyOnly.id]);
+  });
+
   test('ranks title matches above story-only matches', async () => {
     const storyOnly = await h.createL(author.id, {
       title: 'A quiet week',
@@ -208,11 +240,12 @@ describe('12 · search (contract §4.10)', () => {
     }
   });
 
-  test('a stopword-only query returns an empty page rather than everything', async () => {
-    await h.createL(author.id, { title: 'the story' });
+  test('a stopword prefix searches source text instead of broadening to everything', async () => {
+    const expected = await h.createL(author.id, { title: 'the story' });
+    await h.createL(author.id, { title: 'unrelated words', story: 'A plain account.' });
     const res = await h.get('/search?q=the');
     h.expectShape(res, lsSchema);
-    assert.deepEqual(res.body.data, []);
+    assert.deepEqual(res.body.data.map((l) => l.id), [expected.id]);
   });
 
   test('search results carry viewer context', async () => {
