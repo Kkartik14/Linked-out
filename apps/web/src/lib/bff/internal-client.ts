@@ -3,6 +3,9 @@ import "server-only";
 import { BffCallerAssertionSigner, INTERNAL_AUTH_HEADER } from "@linkedout/internal-auth";
 
 import { validatedHttpOrigin } from "./origin-validation";
+import { relatedApiOrigin } from "./related-api-origin";
+
+const VERCEL_PROTECTION_BYPASS_HEADER = "x-vercel-protection-bypass";
 
 /**
  * The shared BFF → private-Nest client (ADR 0001 §4.2).
@@ -26,6 +29,7 @@ function assertServer(): void {
 interface InternalClientConfig {
   signer: BffCallerAssertionSigner;
   apiBaseUrl: string;
+  protectionBypassSecret: string | null;
 }
 
 let config: InternalClientConfig | null = null;
@@ -39,14 +43,18 @@ function getConfig(): InternalClientConfig {
   if (config) return config;
 
   const secret = process.env.BFF_CALLER_SECRET;
-  const configuredBaseUrl = process.env.INTERNAL_API_BASE_URL;
+  const configuredBaseUrl = relatedApiOrigin();
   if (!secret) throw new Error("BFF_CALLER_SECRET is required to call the private session API.");
   if (!configuredBaseUrl) {
     throw new Error("INTERNAL_API_BASE_URL is required to call the private session API.");
   }
 
   const apiBaseUrl = validatedHttpOrigin(configuredBaseUrl, "INTERNAL_API_BASE_URL");
-  config = { signer: new BffCallerAssertionSigner(secret), apiBaseUrl };
+  config = {
+    signer: new BffCallerAssertionSigner(secret),
+    apiBaseUrl,
+    protectionBypassSecret: process.env.INTERNAL_API_BYPASS_SECRET || null,
+  };
   return config;
 }
 
@@ -68,6 +76,17 @@ export function bffCallerSigner(): BffCallerAssertionSigner {
 export function internalApiOrigin(): string {
   assertServer();
   return getConfig().apiBaseUrl;
+}
+
+/**
+ * Replace any browser-supplied Vercel bypass credential with the server-only API project secret.
+ * Empty in deployments whose API previews are public.
+ */
+export function applyInternalApiProtection(headers: Headers): void {
+  assertServer();
+  headers.delete(VERCEL_PROTECTION_BYPASS_HEADER);
+  const secret = getConfig().protectionBypassSecret;
+  if (secret) headers.set(VERCEL_PROTECTION_BYPASS_HEADER, secret);
 }
 
 /** A slow private hop must not hold a render open indefinitely; fail closed instead. */
@@ -92,12 +111,15 @@ export async function postInternal<T>(
   assertServer();
   const { apiBaseUrl } = getConfig();
 
+  const headers = new Headers({
+    "content-type": "application/json",
+    [INTERNAL_AUTH_HEADER]: assertion,
+  });
+  applyInternalApiProtection(headers);
+
   const response = await fetch(`${apiBaseUrl}${path}`, {
     method: "POST",
-    headers: {
-      "content-type": "application/json",
-      [INTERNAL_AUTH_HEADER]: assertion,
-    },
+    headers,
     body: JSON.stringify(body),
     cache: "no-store",
     signal: AbortSignal.timeout(timeoutMs),

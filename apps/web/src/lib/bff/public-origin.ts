@@ -11,7 +11,11 @@ export function publicWebOrigin(): string {
     throw new Error("The public web origin is server-only.");
   }
 
-  const configured = process.env.WEB_URL;
+  const previewHost =
+    process.env.VERCEL_ENV === "preview"
+      ? process.env.VERCEL_BRANCH_URL ?? process.env.VERCEL_URL
+      : undefined;
+  const configured = previewHost ? `https://${previewHost}` : process.env.WEB_URL;
   if (!configured) throw new Error("WEB_URL is required in handoff mode.");
   return validatedHttpOrigin(configured, "WEB_URL");
 }
