@@ -1,4 +1,5 @@
 import { z } from 'zod';
+import type { ReputationKey } from './reputation';
 
 // ─── Enum schemas (string values mirror the Prisma enums in @linkedout/db) ─────
 
@@ -71,7 +72,7 @@ export interface NotificationTypeMeta {
   label: string;
 }
 export interface ReputationMeta {
-  key: 'storiesShared' | 'lessonsShared' | 'lsShared' | 'collectionsCreated';
+  key: ReputationKey;
   label: string;
 }
 

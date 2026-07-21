@@ -112,6 +112,18 @@ test('public reputation contract retires Builders Helped completely', () => {
     false,
     'retired reputation copy must not remain in metadata',
   );
+  assert.equal(
+    contracts.metaEnumsResponseSchema.safeParse({
+      reactionType: [],
+      journeyStatus: [],
+      lType: [],
+      visibility: [],
+      notificationType: [],
+      reputation: [{ key: 'buildersHelped', label: 'Builders Helped' }],
+    }).success,
+    false,
+    'retired reputation keys must be rejected on the metadata wire too',
+  );
 });
 
 test('OAuth failure copy is contract-valid and server-owned', () => {
