@@ -12,6 +12,7 @@ import { ViewerCard } from "@/components/feed/sidebar/viewer-card";
 import { PeopleToFollow } from "@/components/feed/sidebar/people-to-follow";
 import { TopLs } from "@/components/feed/sidebar/top-ls";
 import { LOfTheDay } from "@/components/feed/sidebar/l-of-the-day";
+import { SidebarNavigation } from "@/components/feed/sidebar/sidebar-navigation";
 
 /**
  * The feed's discovery rails, from one optional-auth aggregate (public contract §2).
@@ -72,18 +73,22 @@ function RailSkeleton({ blocks, label }: { blocks: number[]; label: string }) {
 export function FeedSidebarLeft({ initial }: { initial?: FeedSidebarResponse }) {
   const { data, isError } = useFeedSidebar(initial);
 
-  // This request fails independently of the centre feed: hide the rail, keep the page.
-  if (isError && !data) return null;
-
   return (
-    <aside aria-label="Your profile and suggested builders" className={cn("hidden lg:flex", RAIL)}>
+    <aside aria-label="Profile and discovery" className={cn("hidden lg:flex", RAIL)}>
       {data ? (
         <>
           <ViewerCard viewer={data.viewer} />
+          <SidebarNavigation />
           <PeopleToFollow items={data.peopleToFollow.items} viewer={data.viewer} />
         </>
+      ) : isError ? (
+        <SidebarNavigation />
       ) : (
-        <RailSkeleton blocks={[210, 260]} label="Loading your profile and suggested builders…" />
+        <>
+          <RailSkeleton blocks={[210]} label="Loading your profile…" />
+          <SidebarNavigation />
+          <RailSkeleton blocks={[260]} label="Loading suggested builders…" />
+        </>
       )}
     </aside>
   );
