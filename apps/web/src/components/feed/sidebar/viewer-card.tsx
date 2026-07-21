@@ -1,29 +1,13 @@
 "use client";
 
 import Link from "next/link";
-import type {
-  FeedSidebarViewer,
-  MetaEnumsResponse,
-  Reputation,
-  UserProfile,
-} from "@linkedout/contracts";
+import type { FeedSidebarViewer, UserProfile } from "@linkedout/contracts";
 
 import { statusOption, useMeta } from "@/components/meta-provider";
 import { UserAvatar } from "@/components/user-avatar";
 import { Button } from "@/components/ui/button";
 import { SidebarSection } from "@/components/feed/sidebar/sidebar-section";
 import { compactNumber } from "@/lib/format";
-
-/** The compact profile card leads with contribution rather than follower counts. */
-const HEADLINE_REPUTATION: readonly (keyof Reputation)[] = ["lsShared"];
-
-/** `{n} {label}`, composed from raw counts plus /meta/enums labels (contract §3). */
-function reputationStats(meta: MetaEnumsResponse, reputation: Reputation) {
-  return HEADLINE_REPUTATION.flatMap((key) => {
-    const label = meta.reputation.find((entry) => entry.key === key)?.label;
-    return label ? [{ key, label, value: reputation[key] }] : [];
-  });
-}
 
 function Prompt({
   title,
@@ -51,7 +35,7 @@ function Prompt({
 function SignedInCard({ profile }: { profile: UserProfile }) {
   const meta = useMeta();
   const status = statusOption(meta, profile.status);
-  const stats = reputationStats(meta, profile.reputation);
+  const lsSharedLabel = meta.reputation.find((entry) => entry.key === "lsShared")?.label;
 
   return (
     <SidebarSection label="Your profile">
@@ -72,14 +56,14 @@ function SignedInCard({ profile }: { profile: UserProfile }) {
         ) : null}
       </div>
 
-      {stats.length > 0 ? (
+      {lsSharedLabel ? (
         <dl className="grid grid-cols-1 border-t">
-          {stats.map((stat) => (
-            <div key={stat.key} className="px-3 py-2.5 text-center">
-              <dt className="text-muted-foreground text-[11px] leading-tight">{stat.label}</dt>
-              <dd className="text-sm font-semibold tabular-nums">{compactNumber(stat.value)}</dd>
-            </div>
-          ))}
+          <div className="px-3 py-2.5 text-center">
+            <dt className="text-muted-foreground text-[11px] leading-tight">{lsSharedLabel}</dt>
+            <dd className="text-sm font-semibold tabular-nums">
+              {compactNumber(profile.reputation.lsShared)}
+            </dd>
+          </div>
         </dl>
       ) : null}
 

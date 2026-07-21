@@ -2,7 +2,7 @@
 
 import { useEffect, useMemo, useRef } from "react";
 import Link from "next/link";
-import { usePathname, useRouter } from "next/navigation";
+import { useRouter } from "next/navigation";
 import { Bookmark, MessageCircle } from "lucide-react";
 import { useIsMutating, useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { toast } from "sonner";
@@ -11,7 +11,7 @@ import type { ReactionResult, ReactionsSummary, ReactionType } from "@linkedout/
 import { addReaction, removeReaction, errorMessage } from "@/lib/api";
 import { queryKeys } from "@/lib/query-keys";
 import { assertComposedPrincipal, useComposedPrincipal, usePrincipal, useViewer } from "@/components/session-provider";
-import { reactionOption, useMeta } from "@/components/meta-provider";
+import { useMeta } from "@/components/meta-provider";
 import {
   DropdownMenu,
   DropdownMenuCheckboxItem,
@@ -20,7 +20,6 @@ import {
 } from "@/components/ui/dropdown-menu";
 import { cn } from "@/lib/utils";
 
-const EXPRESSIVE: ReactionType[] = ["BEEN_THERE", "HELPFUL", "RESPECT", "PAIN"];
 const COUNT_KEY: Record<ReactionType, keyof ReactionsSummary> = {
   BEEN_THERE: "beenThere",
   HELPFUL: "helpful",
@@ -70,7 +69,6 @@ export function ReactionBar({
   const composedAs = useComposedPrincipal();
   const meta = useMeta();
   const router = useRouter();
-  const pathname = usePathname();
   const queryClient = useQueryClient();
 
   const serverSnapshot = JSON.stringify([
@@ -164,7 +162,7 @@ export function ReactionBar({
   function toggle(type: ReactionType) {
     if (!user) {
       if (type === "SAVED") {
-        const returnTo = pathname === "/saved" ? pathname : `/ls/${lId}`;
+        const returnTo = `/ls/${lId}`;
         router.push(`/login?returnTo=${encodeURIComponent(returnTo)}`);
         return;
       }
@@ -179,32 +177,34 @@ export function ReactionBar({
   }
 
   const savedActive = mine.has("SAVED");
-  const usedExpressive = EXPRESSIVE.filter((type) => summary[COUNT_KEY[type]] > 0);
+  const expressiveOptions = meta.reactionType.filter((option) => option.value !== "SAVED");
+  const usedExpressive = expressiveOptions.filter(
+    (option) => summary[COUNT_KEY[option.value]] > 0,
+  );
   const visibleExpressive =
     usedExpressive.length > 3 ? usedExpressive.slice(0, 2) : usedExpressive;
   const hiddenExpressiveCount = usedExpressive.length - visibleExpressive.length;
 
   return (
     <div className="flex items-center gap-0.5">
-      {visibleExpressive.map((type) => {
-        const option = reactionOption(meta, type);
-        const count = summary[COUNT_KEY[type]];
-        const active = mine.has(type);
+      {visibleExpressive.map((option) => {
+        const count = summary[COUNT_KEY[option.value]];
+        const active = mine.has(option.value);
         return (
           <button
-            key={type}
+            key={option.value}
             type="button"
-            onClick={() => toggle(type)}
+            onClick={() => toggle(option.value)}
             disabled={isPending}
             aria-pressed={active}
-            aria-label={`${option?.label ?? type}${count ? `, ${count}` : ""}`}
+            aria-label={`${option.label}, ${count}`}
             className={cn(
               "border-border bg-muted/40 hover:bg-accent inline-flex items-center gap-1 rounded-full border px-2 py-1 text-sm transition-colors",
               active && "border-primary/40 bg-accent text-foreground font-medium",
             )}
           >
             <span aria-hidden className="text-base leading-none">
-              {option?.emoji}
+              {option.emoji}
             </span>
             {count > 0 ? (
               <span className="text-muted-foreground text-xs tabular-nums">{count}</span>
@@ -229,22 +229,19 @@ export function ReactionBar({
           </button>
         </DropdownMenuTrigger>
         <DropdownMenuContent align="start" aria-label="Reactions" className="min-w-44">
-          {EXPRESSIVE.map((type) => {
-            const option = reactionOption(meta, type);
-            return (
-              <DropdownMenuCheckboxItem
-                key={type}
-                checked={mine.has(type)}
-                disabled={isPending}
-                onCheckedChange={() => toggle(type)}
-              >
-                <span aria-hidden className="text-base leading-none">
-                  {option?.emoji}
-                </span>
-                <span>{option?.label ?? type}</span>
-              </DropdownMenuCheckboxItem>
-            );
-          })}
+          {expressiveOptions.map((option) => (
+            <DropdownMenuCheckboxItem
+              key={option.value}
+              checked={mine.has(option.value)}
+              disabled={isPending}
+              onCheckedChange={() => toggle(option.value)}
+            >
+              <span aria-hidden className="text-base leading-none">
+                {option.emoji}
+              </span>
+              <span>{option.label}</span>
+            </DropdownMenuCheckboxItem>
+          ))}
         </DropdownMenuContent>
       </DropdownMenu>
 

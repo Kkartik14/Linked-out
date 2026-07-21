@@ -49,11 +49,10 @@ export function renderWithProviders(
   ui: React.ReactElement,
   opts?: {
     session?: Session;
-    pathname?: string;
     router?: Partial<AppRouterInstance>;
   } & Omit<RenderOptions, "wrapper">,
 ) {
-  const { session, pathname = "/", router, ...rest } = opts ?? {};
+  const { session, router, ...rest } = opts ?? {};
   const queryClient = new QueryClient({ defaultOptions: { queries: { retry: false } } });
   const value: Session = session ?? { status: "guest" };
   const routerValue = { ...mockRouter, ...router };
@@ -61,7 +60,7 @@ export function renderWithProviders(
   function Wrapper({ children }: { children: React.ReactNode }) {
     return (
       <AppRouterContext.Provider value={routerValue}>
-        <PathnameContext.Provider value={pathname}>
+        <PathnameContext.Provider value="/">
           <SearchParamsContext.Provider value={new URLSearchParams()}>
             <QueryClientProvider client={queryClient}>
               <SessionProvider session={value}>

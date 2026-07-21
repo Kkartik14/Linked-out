@@ -1,6 +1,8 @@
+import type { ComponentProps } from "react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { act, fireEvent, screen, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
+import type { ReactionsSummary } from "@linkedout/contracts";
 
 import { mockUser, renderWithProviders } from "@/test/utils";
 import type { Session } from "@/components/session-provider";
@@ -21,9 +23,39 @@ vi.mock("@/lib/api", async (importOriginal) => {
 });
 
 import { ReactionBar } from "@/components/l/reaction-bar";
-import { addReaction } from "@/lib/api";
+import { addReaction, removeReaction } from "@/lib/api";
 
 const loggedIn: Session = { status: "authenticated", user: mockUser, needsOnboarding: false };
+const EMPTY_REACTIONS: ReactionsSummary = {
+  total: 0,
+  beenThere: 0,
+  helpful: 0,
+  respect: 0,
+  pain: 0,
+  saved: 0,
+};
+const DEFAULT_PROPS: ComponentProps<typeof ReactionBar> = {
+  lId: "l1",
+  reactions: EMPTY_REACTIONS,
+  viewerReactions: [],
+  commentCount: 0,
+  commentHref: "#comments",
+};
+
+function reactionSummary(overrides: Partial<ReactionsSummary> = {}): ReactionsSummary {
+  return { ...EMPTY_REACTIONS, ...overrides };
+}
+
+function reactionBar(props: Partial<ComponentProps<typeof ReactionBar>> = {}) {
+  return <ReactionBar {...DEFAULT_PROPS} {...props} />;
+}
+
+function renderReactionBar(
+  props: Partial<ComponentProps<typeof ReactionBar>> = {},
+  options: NonNullable<Parameters<typeof renderWithProviders>[1]> = {},
+) {
+  return renderWithProviders(reactionBar(props), { session: loggedIn, ...options });
+}
 
 beforeEach(() => {
   vi.clearAllMocks();
@@ -31,16 +63,7 @@ beforeEach(() => {
 
 describe("ReactionBar", () => {
   it("shows only the add control when no expressive reaction has been used", () => {
-    renderWithProviders(
-      <ReactionBar
-        lId="l1"
-        reactions={{ total: 0, beenThere: 0, helpful: 0, respect: 0, pain: 0, saved: 0 }}
-        viewerReactions={[]}
-        commentCount={0}
-        commentHref="#comments"
-      />,
-      { session: loggedIn },
-    );
+    renderReactionBar();
 
     expect(screen.getByRole("button", { name: "Add reaction" })).toHaveTextContent("+");
     expect(screen.queryByRole("button", { name: /been there/i })).not.toBeInTheDocument();
@@ -51,25 +74,21 @@ describe("ReactionBar", () => {
   it.each([
     {
       label: "one",
-      reactions: { total: 1, beenThere: 1, helpful: 0, respect: 0, pain: 0, saved: 0 },
+      reactions: reactionSummary({ total: 1, beenThere: 1 }),
       visible: [/been there/i],
     },
     {
+      label: "two",
+      reactions: reactionSummary({ total: 5, beenThere: 3, helpful: 2 }),
+      visible: [/been there/i, /helpful/i],
+    },
+    {
       label: "three",
-      reactions: { total: 13, beenThere: 3, helpful: 2, respect: 1, pain: 0, saved: 7 },
+      reactions: reactionSummary({ total: 13, beenThere: 3, helpful: 2, respect: 1, saved: 7 }),
       visible: [/been there/i, /helpful/i, /respect/i],
     },
   ])("shows every used chip when $label reaction type is used", ({ reactions, visible }) => {
-    renderWithProviders(
-      <ReactionBar
-        lId="l1"
-        reactions={reactions}
-        viewerReactions={[]}
-        commentCount={0}
-        commentHref="#comments"
-      />,
-      { session: loggedIn },
-    );
+    renderReactionBar({ reactions });
 
     for (const name of visible) {
       expect(screen.getByRole("button", { name })).toBeInTheDocument();
@@ -80,16 +99,16 @@ describe("ReactionBar", () => {
 
   it("shows two chips plus an overflow picker when all four reactions are used", async () => {
     const user = userEvent.setup();
-    renderWithProviders(
-      <ReactionBar
-        lId="l1"
-        reactions={{ total: 10, beenThere: 4, helpful: 3, respect: 2, pain: 1, saved: 0 }}
-        viewerReactions={["BEEN_THERE", "RESPECT"]}
-        commentCount={0}
-        commentHref="#comments"
-      />,
-      { session: loggedIn },
-    );
+    renderReactionBar({
+      reactions: reactionSummary({
+        total: 10,
+        beenThere: 4,
+        helpful: 3,
+        respect: 2,
+        pain: 1,
+      }),
+      viewerReactions: ["BEEN_THERE", "RESPECT"],
+    });
 
     expect(screen.getByRole("button", { name: /been there/i })).toBeInTheDocument();
     expect(screen.getByRole("button", { name: /helpful/i })).toBeInTheDocument();
@@ -116,20 +135,21 @@ describe("ReactionBar", () => {
       "aria-checked",
       "false",
     );
+
+    await user.click(screen.getByRole("menuitemcheckbox", { name: /respect/i }));
+    expect(removeReaction).toHaveBeenCalledWith(mockUser.id, "l1", "RESPECT");
   });
 
   it("adds an unused fixed reaction from the picker without replacing existing selections", async () => {
     const user = userEvent.setup();
-    renderWithProviders(
-      <ReactionBar
-        lId="l1"
-        reactions={{ total: 3, beenThere: 3, helpful: 0, respect: 0, pain: 0, saved: 0 }}
-        viewerReactions={["BEEN_THERE"]}
-        commentCount={0}
-        commentHref="#comments"
-      />,
-      { session: loggedIn },
-    );
+    vi.mocked(addReaction).mockResolvedValueOnce({
+      reactions: { total: 4, beenThere: 3, helpful: 1, respect: 0, pain: 0, saved: 0 },
+      viewer: { reactions: ["BEEN_THERE", "HELPFUL"] },
+    });
+    renderReactionBar({
+      reactions: reactionSummary({ total: 3, beenThere: 3 }),
+      viewerReactions: ["BEEN_THERE"],
+    });
 
     expect(screen.getByRole("button", { name: /been there/i })).toHaveAttribute(
       "aria-pressed",
@@ -140,21 +160,22 @@ describe("ReactionBar", () => {
 
     expect(addReaction).toHaveBeenCalledWith(mockUser.id, "l1", "HELPFUL");
     expect(screen.queryByRole("menu")).not.toBeInTheDocument();
+    await waitFor(() => {
+      expect(screen.getByRole("button", { name: /been there/i })).toHaveAttribute(
+        "aria-pressed",
+        "true",
+      );
+      expect(screen.getByRole("button", { name: /helpful/i })).toHaveAttribute(
+        "aria-pressed",
+        "true",
+      );
+    });
   });
 
   it("sends a signed-out Save attempt to login with the current L as return destination", async () => {
     const user = userEvent.setup();
     const push = vi.fn();
-    renderWithProviders(
-      <ReactionBar
-        lId="l1"
-        reactions={{ total: 0, beenThere: 0, helpful: 0, respect: 0, pain: 0, saved: 0 }}
-        viewerReactions={[]}
-        commentCount={0}
-        commentHref="#comments"
-      />,
-      { pathname: "/ls/l1", router: { push } },
-    );
+    renderReactionBar({}, { session: undefined, router: { push } });
 
     await user.click(screen.getByRole("button", { name: "Save" }));
 
@@ -169,26 +190,20 @@ describe("ReactionBar", () => {
     vi.mocked(addReaction)
       .mockImplementationOnce(() => firstResponse)
       .mockResolvedValueOnce({
-        reactions: { total: 4, beenThere: 4, helpful: 2, respect: 0, pain: 0, saved: 1 },
+        reactions: reactionSummary({ total: 4, beenThere: 4, helpful: 2, saved: 1 }),
         viewer: { reactions: ["BEEN_THERE"] },
       });
 
     renderWithProviders(
       <>
-        <ReactionBar
-          lId="l1"
-          reactions={{ total: 3, beenThere: 3, helpful: 2, respect: 0, pain: 0, saved: 1 }}
-          viewerReactions={[]}
-          commentCount={0}
-          commentHref="#first"
-        />
-        <ReactionBar
-          lId="l1"
-          reactions={{ total: 3, beenThere: 3, helpful: 2, respect: 0, pain: 0, saved: 1 }}
-          viewerReactions={[]}
-          commentCount={0}
-          commentHref="#second"
-        />
+        {reactionBar({
+          reactions: reactionSummary({ total: 3, beenThere: 3, helpful: 2, saved: 1 }),
+          commentHref: "#first",
+        })}
+        {reactionBar({
+          reactions: reactionSummary({ total: 3, beenThere: 3, helpful: 2, saved: 1 }),
+          commentHref: "#second",
+        })}
       </>,
       { session: loggedIn },
     );
@@ -201,42 +216,24 @@ describe("ReactionBar", () => {
 
     await waitFor(() => expect(addReaction).toHaveBeenCalledTimes(1));
     finishFirst({
-      reactions: { total: 4, beenThere: 4, helpful: 2, respect: 0, pain: 0, saved: 1 },
+      reactions: reactionSummary({ total: 4, beenThere: 4, helpful: 2, saved: 1 }),
       viewer: { reactions: ["BEEN_THERE"] },
     });
     await waitFor(() => expect(addReaction).toHaveBeenCalledTimes(2));
   });
 
   it("reconciles a newer server snapshot for the same L after navigation", async () => {
-    const first = {
-      total: 3,
-      beenThere: 3,
-      helpful: 0,
-      respect: 0,
-      pain: 0,
-      saved: 0,
-    };
+    const first = reactionSummary({ total: 3, beenThere: 3 });
     const newer = { ...first, total: 8, beenThere: 8 };
-    const view = renderWithProviders(
-      <ReactionBar
-        lId="l1"
-        reactions={first}
-        viewerReactions={[]}
-        commentCount={0}
-        commentHref="#first"
-      />,
-      { session: loggedIn },
-    );
+    const view = renderReactionBar({ reactions: first, commentHref: "#first" });
     expect(screen.getByRole("button", { name: /been there/i })).toHaveTextContent("3");
 
     view.rerender(
-      <ReactionBar
-        lId="l1"
-        reactions={newer}
-        viewerReactions={["BEEN_THERE"]}
-        commentCount={0}
-        commentHref="#second"
-      />,
+      reactionBar({
+        reactions: newer,
+        viewerReactions: ["BEEN_THERE"],
+        commentHref: "#second",
+      }),
     );
 
     await waitFor(() => {
@@ -249,14 +246,7 @@ describe("ReactionBar", () => {
   });
 
   it("does not let a late sibling's stale server props revert the shared cache", async () => {
-    const stale = {
-      total: 3,
-      beenThere: 3,
-      helpful: 0,
-      respect: 0,
-      pain: 0,
-      saved: 0,
-    };
+    const stale = reactionSummary({ total: 3, beenThere: 3 });
     const newer = { ...stale, total: 8, beenThere: 8 };
 
     function Views({
@@ -316,20 +306,14 @@ describe("ReactionBar", () => {
     const user = userEvent.setup();
     renderWithProviders(
       <>
-        <ReactionBar
-          lId="l1"
-          reactions={{ total: 3, beenThere: 3, helpful: 2, respect: 0, pain: 0, saved: 1 }}
-          viewerReactions={[]}
-          commentCount={0}
-          commentHref="#first"
-        />
-        <ReactionBar
-          lId="l1"
-          reactions={{ total: 3, beenThere: 3, helpful: 2, respect: 0, pain: 0, saved: 1 }}
-          viewerReactions={[]}
-          commentCount={0}
-          commentHref="#second"
-        />
+        {reactionBar({
+          reactions: reactionSummary({ total: 3, beenThere: 3, helpful: 2, saved: 1 }),
+          commentHref: "#first",
+        })}
+        {reactionBar({
+          reactions: reactionSummary({ total: 3, beenThere: 3, helpful: 2, saved: 1 }),
+          commentHref: "#second",
+        })}
       </>,
       { session: loggedIn },
     );
