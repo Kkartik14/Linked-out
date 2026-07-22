@@ -30,7 +30,6 @@ export interface World {
   anonymous: SeededL;
   privateL: SeededL;
   comment: { id: string };
-  collection: { id: string; title: string };
 }
 
 /** Wipes and re-seeds the real Postgres. Call in `beforeEach`. */
@@ -53,7 +52,7 @@ interface TestModel {
 }
 
 type TestDb = Record<
-  "user" | "l" | "reaction" | "comment" | "follow" | "collection" | "collectionL" | "notification",
+  "user" | "l" | "reaction" | "comment" | "follow" | "notification",
   TestModel
 >;
 

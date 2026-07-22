@@ -17,7 +17,6 @@ const MIGRATION = readdirSync(MIGRATIONS_ROOT)
 test('keyset index declarations match equality predicates and complete ordering', () => {
   assert.match(SCHEMA, /@@index\(\[authorId, id\(sort: Desc\)\]\)/);
   assert.match(SCHEMA, /@@index\(\[userId, type, id\(sort: Desc\)\]\)/);
-  assert.match(SCHEMA, /@@index\(\[ownerId, id\(sort: Desc\)\]\)/);
   assert.match(SCHEMA, /@@index\(\[recipientId, createdAt\(sort: Desc\), id\(sort: Desc\)\]\)/);
 
   assert.match(
@@ -30,10 +29,6 @@ test('keyset index declarations match equality predicates and complete ordering'
   );
   assert.match(
     MIGRATION,
-    /CREATE INDEX CONCURRENTLY "Collection_ownerId_id_idx"\s+ON "Collection"\("ownerId", "id" DESC\)/,
-  );
-  assert.match(
-    MIGRATION,
     /CREATE INDEX CONCURRENTLY "Notification_recipientId_createdAt_id_idx"\s+ON "Notification"\("recipientId", "createdAt" DESC, "id" DESC\)/,
   );
 });
@@ -41,7 +36,6 @@ test('keyset index declarations match equality predicates and complete ordering'
 test('new composites replace redundant prefix indexes', () => {
   const replacements = [
     ['Reaction_userId_type_id_idx', 'Reaction_userId_type_idx'],
-    ['Collection_ownerId_id_idx', 'Collection_ownerId_idx'],
     ['Notification_recipientId_createdAt_id_idx', 'Notification_recipientId_createdAt_idx'],
   ];
   for (const [replacement, previous] of replacements) {
@@ -53,6 +47,5 @@ test('new composites replace redundant prefix indexes', () => {
     );
   }
   assert.doesNotMatch(SCHEMA, /@@index\(\[userId, type\]\)/);
-  assert.doesNotMatch(SCHEMA, /@@index\(\[ownerId\]\)/);
   assert.doesNotMatch(SCHEMA, /@@index\(\[recipientId, createdAt\(sort: Desc\)\]\)/);
 });

@@ -136,8 +136,6 @@ async function createHandoff(user, returnTo = '/') {
 
 const TABLES = [
   'Notification',
-  'CollectionL',
-  'Collection',
   'Follow',
   'Comment',
   'Reaction',
@@ -286,14 +284,6 @@ async function seedWorld() {
   });
   await db().l.update({ where: { id: google.id }, data: { commentCount: 1 } });
 
-  const collection = await db().collection.create({
-    data: { ownerId: kartik.id, title: 'Google Interview Journey', slug: 'google-interview-journey' },
-  });
-  await db().collectionL.create({
-    data: { collectionId: collection.id, lId: google.id, position: 0 },
-  });
-  await db().user.update({ where: { id: kartik.id }, data: { collectionsCreated: 1 } });
-
   // ─── Interactions that make the discovery rails rank real content ───────────
   //
   // GET /feed/sidebar counts *distinct non-author actors* per L. Without these the
@@ -328,7 +318,7 @@ async function seedWorld() {
     data: { userId: kartik.id, lId: anonymous.id, type: 'HELPFUL' },
   });
 
-  return { kartik, nadia, newcomer, google, startup, nadiaPublic, anonymous, privateL, comment, collection };
+  return { kartik, nadia, newcomer, google, startup, nadiaPublic, anonymous, privateL, comment };
 }
 
 module.exports = {

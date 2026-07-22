@@ -29,7 +29,6 @@ export const mockUser: UserProfile = {
     storiesShared: 0,
     lessonsShared: 0,
     lsShared: 0,
-    collectionsCreated: 0,
   },
   counts: { followers: 0, following: 0 },
   viewer: { isFollowing: false, isSelf: true },

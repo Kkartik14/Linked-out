@@ -1,7 +1,7 @@
 /**
  * Deterministic dev seed. Wipes app data, then creates a small realistic world:
  * 3 users, a spread of Ls (types/visibility/anonymity), reactions, threaded
- * comments, follows and a collection — then recomputes every denormalized counter so the
+ * comments and follows — then recomputes every denormalized counter so the
  * seeded state is exactly what the services would have produced.
  *
  * Run: ALLOW_DB_SEED=1 SEED_DB_EXPECTED_SESSION_USER=<role> pnpm --filter @linkedout/db seed
@@ -40,8 +40,6 @@ async function wipe(tx) {
   await tx.notification.deleteMany();
   await tx.reaction.deleteMany();
   await tx.comment.deleteMany();
-  await tx.collectionL.deleteMany();
-  await tx.collection.deleteMany();
   await tx.follow.deleteMany();
   await tx.dailyLSelection.deleteMany();
   await tx.l.deleteMany();
@@ -114,15 +112,8 @@ async function main() {
     { followerId: kartik.id, followingId: nadia.id },
   ] });
 
-  // Collection.
-  const col = await prisma.collection.create({ data: { ownerId: kartik.id, title: 'Google Interview Journey', slug: 'google-interview-journey' } });
-  await prisma.collectionL.createMany({ data: [
-    { collectionId: col.id, lId: google.id, position: 0 },
-    { collectionId: col.id, lId: layoff.id, position: 1 },
-  ] });
-
   await recomputeCounters();
-  console.log('Seed complete: 3 users, 6 Ls, reactions, comments, follows, 1 collection.');
+  console.log('Seed complete: 3 users, 6 Ls, reactions, comments and follows.');
   console.log('Users: kartik, nadia, rahul');
 }
 
@@ -151,14 +142,12 @@ async function recomputeCounters() {
       lsShared,
       storiesShared,
       lessonsShared,
-      collectionsCreated,
       followerCount,
       followingCount,
     ] = await Promise.all([
       prisma.l.count({ where: { authorId: id } }),
       prisma.l.count({ where: { authorId: id, type: 'STORY' } }),
       prisma.l.count({ where: { authorId: id, type: 'LESSON' } }),
-      prisma.collection.count({ where: { ownerId: id } }),
       prisma.follow.count({ where: { followingId: id } }),
       prisma.follow.count({ where: { followerId: id } }),
     ]);
@@ -168,7 +157,6 @@ async function recomputeCounters() {
         lsShared,
         storiesShared,
         lessonsShared,
-        collectionsCreated,
         followerCount,
         followingCount,
       },

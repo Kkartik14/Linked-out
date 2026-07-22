@@ -49,7 +49,6 @@ describe('27 · production-shaped keyset query plans', () => {
     const expected = new Map([
       ['L_authorId_id_idx', 'CREATE INDEX "L_authorId_id_idx" ON public."L" USING btree ("authorId", id DESC)'],
       ['Reaction_userId_type_id_idx', 'CREATE INDEX "Reaction_userId_type_id_idx" ON public."Reaction" USING btree ("userId", type, id DESC)'],
-      ['Collection_ownerId_id_idx', 'CREATE INDEX "Collection_ownerId_id_idx" ON public."Collection" USING btree ("ownerId", id DESC)'],
       ['Notification_recipientId_createdAt_id_idx', 'CREATE INDEX "Notification_recipientId_createdAt_id_idx" ON public."Notification" USING btree ("recipientId", "createdAt" DESC, id DESC)'],
     ]);
     const rows = await h.ctx.prisma.$queryRawUnsafe(`
@@ -104,20 +103,6 @@ describe('27 · production-shaped keyset query plans', () => {
         candidateName: 'Reaction_userId_type_id_idx',
         query:
           "SELECT id FROM probe_reaction WHERE \"userId\"='user-0' AND type='SAVED' ORDER BY id DESC LIMIT 21",
-      },
-      {
-        name: 'collections by owner',
-        table: 'probe_collection',
-        createTable:
-          'CREATE TEMP TABLE probe_collection ("ownerId" text NOT NULL, id text NOT NULL) ON COMMIT DROP',
-        seed:
-          "INSERT INTO probe_collection SELECT 'owner-'||(g%100), lpad(g::text,12,'0') FROM generate_series(1,100000) g",
-        existingIndex: 'CREATE INDEX probe_collection_existing ON probe_collection ("ownerId")',
-        candidateIndex:
-          'CREATE INDEX "Collection_ownerId_id_idx" ON probe_collection ("ownerId", id DESC)',
-        candidateName: 'Collection_ownerId_id_idx',
-        query:
-          "SELECT id FROM probe_collection WHERE \"ownerId\"='owner-0' ORDER BY id DESC LIMIT 21",
       },
       {
         name: 'notifications by recipient',

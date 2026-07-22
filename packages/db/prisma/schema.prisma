@@ -78,10 +78,9 @@ model User {
   status          JourneyStatus?
 
   // Denormalized reputation counters. Updated in the same tx as the triggering write.
-  storiesShared      Int @default(0)
-  lessonsShared      Int @default(0)
-  lsShared           Int @default(0)
-  collectionsCreated Int @default(0)
+  storiesShared Int @default(0)
+  lessonsShared Int @default(0)
+  lsShared      Int @default(0)
 
   // Denormalized social-graph degree. PostgreSQL Follow triggers maintain both
   // sides in the same transaction as each inserted/deleted edge.
@@ -91,18 +90,17 @@ model User {
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 
-  ls              L[]
-  reactions       Reaction[]
-  comments        Comment[]
-  collections     Collection[]
-  following       Follow[]         @relation("follower")
-  followers       Follow[]         @relation("following")
-  notifications   Notification[]   @relation("recipient")
-  actorEvents     Notification[]   @relation("actor")
-  accounts        Account[]
-  sessions        Session[]
-  browserSessions BrowserSession[]
-  oauthHandoffs   OAuthHandoff[]
+  ls                 L[]
+  reactions          Reaction[]
+  comments           Comment[]
+  following          Follow[]            @relation("follower")
+  followers          Follow[]            @relation("following")
+  notifications      Notification[]      @relation("recipient")
+  actorEvents        Notification[]      @relation("actor")
+  accounts           Account[]
+  sessions           Session[]
+  browserSessions    BrowserSession[]
+  oauthHandoffs      OAuthHandoff[]
   passwordCredential PasswordCredential?
 
   @@index([status])
@@ -249,7 +247,7 @@ model L {
 
   title String
   story String
-  type  LType @default(L)
+  type  LType  @default(L)
 
   visibility  Visibility @default(PUBLIC)
   isAnonymous Boolean    @default(false)
@@ -278,7 +276,6 @@ model L {
 
   reactions       Reaction[]
   comments        Comment[]
-  collectionLs    CollectionL[]
   notifications   Notification[]
   dailySelections DailyLSelection[]
 
@@ -286,7 +283,6 @@ model L {
   @@index([visibility, id(sort: Desc)])
   @@index([visibility, popularityScore(sort: Desc), id(sort: Desc)])
   @@index([visibility, helpfulCount(sort: Desc), id(sort: Desc)])
-  @@index([authorId, createdAt(sort: Desc)])
   @@index([authorId, id(sort: Desc)])
   @@index([authorId, type])
 }
@@ -362,34 +358,6 @@ model Follow {
   // ORDER BY id DESC` — so `id` must be in the index or Postgres cannot serve the ORDER BY.
   @@index([followingId, id(sort: Desc)])
   @@index([followerId, id(sort: Desc)])
-}
-
-// ─── Collections ──────────────────────────────────────────────────────────────
-
-model Collection {
-  id        String   @id @default(cuid()) // ULID (overridden by the client extension; default is a type-level fallback)
-  owner     User     @relation(fields: [ownerId], references: [id], onDelete: Cascade)
-  ownerId   String
-  title     String
-  slug      String
-  createdAt DateTime @default(now())
-
-  ls CollectionL[]
-
-  @@unique([ownerId, slug])
-  @@index([ownerId, id(sort: Desc)])
-}
-
-model CollectionL {
-  collection   Collection @relation(fields: [collectionId], references: [id], onDelete: Cascade)
-  collectionId String
-  l            L          @relation(fields: [lId], references: [id], onDelete: Cascade)
-  lId          String
-  position     Int        @default(0)
-
-  @@id([collectionId, lId])
-  @@index([collectionId, position, lId])
-  @@index([lId])
 }
 
 // ─── Notifications ────────────────────────────────────────────────────────────
