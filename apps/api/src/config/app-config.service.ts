@@ -19,6 +19,13 @@ export interface R2Config {
   configured: boolean;
 }
 
+export interface EmailOtpConfig {
+  deliveryMode: Env['EMAIL_DELIVERY_MODE'];
+  pepper: string | undefined;
+  encryptionKey: string | undefined;
+  inspectionSecret: string | undefined;
+}
+
 /** Typed, validated access to the environment. No `process.env` reads elsewhere. */
 @Injectable()
 export class AppConfigService {
@@ -87,6 +94,15 @@ export class AppConfigService {
   /** Empty in dev (host-only cookie on localhost); e.g. ".linkedout.app" in prod. */
   get cookieDomain(): string | undefined {
     return this.env.COOKIE_DOMAIN.length > 0 ? this.env.COOKIE_DOMAIN : undefined;
+  }
+
+  get emailOtp(): EmailOtpConfig {
+    return {
+      deliveryMode: this.env.EMAIL_DELIVERY_MODE,
+      pepper: this.env.EMAIL_OTP_PEPPER || undefined,
+      encryptionKey: this.env.EMAIL_OTP_ENCRYPTION_KEY || undefined,
+      inspectionSecret: this.env.EMAIL_OTP_INSPECTION_SECRET || undefined,
+    };
   }
 
   get google(): OAuthProviderConfig {

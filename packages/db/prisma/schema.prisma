@@ -57,6 +57,11 @@ enum NotificationType {
   COMMENT
 }
 
+enum EmailOtpPurpose {
+  SIGNUP
+  PASSWORD_RESET
+}
+
 // ─── User + Auth ──────────────────────────────────────────────────────────────
 
 model User {
@@ -98,8 +103,52 @@ model User {
   sessions        Session[]
   browserSessions BrowserSession[]
   oauthHandoffs   OAuthHandoff[]
+  passwordCredential PasswordCredential?
 
   @@index([status])
+}
+
+// Password authentication stays separate from the social/profile User row. The encoded
+// Argon2id value contains its own salt and cost parameters and is never reversible.
+model PasswordCredential {
+  userId       String   @id
+  passwordHash String
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+}
+
+// Exactly one row exists per canonical email + workflow. Active requests reuse the same
+// challenge until its ten-minute expiry; row locking makes issue/consume race-safe.
+model EmailOtpChallenge {
+  id             String          @id @default(cuid()) // ULID assigned by the client extension
+  email          String
+  purpose        EmailOtpPurpose
+  codeDigest     String          @db.Char(64)
+  failedAttempts Int             @default(0)
+  deliveryCount  Int             @default(1)
+  createdAt      DateTime        @default(now())
+  expiresAt      DateTime
+  consumedAt     DateTime?
+
+  outbox EmailOtpOutbox?
+
+  @@unique([email, purpose])
+  @@index([expiresAt, id])
+  @@index([consumedAt, id])
+}
+
+// Stub delivery needs the usable code, but stores only AES-256-GCM ciphertext. This table is
+// absent from the verification path and can be removed when a real provider is connected.
+model EmailOtpOutbox {
+  challengeId String   @id
+  ciphertext  String
+  iv          String
+  authTag     String
+  createdAt   DateTime @default(now())
+
+  challenge EmailOtpChallenge @relation(fields: [challengeId], references: [id], onDelete: Cascade)
 }
 
 model Account {

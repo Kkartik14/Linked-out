@@ -7,6 +7,8 @@ export const APP_ERROR_CODES = [
   'UNAUTHENTICATED',
   'TOKEN_EXPIRED',
   'INVALID_HANDOFF',
+  'INVALID_OTP',
+  'INVALID_CREDENTIALS',
   'PRINCIPAL_MISMATCH',
   'FORBIDDEN',
   'NOT_L_OWNER',
@@ -34,15 +36,18 @@ export interface AppExceptionBody {
 
 export interface AppExceptionOptions {
   telemetryClassification?: 'security-rejection';
+  retryAfterSeconds?: number;
 }
 
 /** Carries a stable machine `code` (+ optional field details) rendered by the global filter. */
 export class AppException extends HttpException {
   readonly telemetryClassification: AppExceptionOptions['telemetryClassification'];
+  readonly retryAfterSeconds: number | undefined;
 
   constructor(status: number, body: AppExceptionBody, options: AppExceptionOptions = {}) {
     super(body, status);
     this.telemetryClassification = options.telemetryClassification;
+    this.retryAfterSeconds = options.retryAfterSeconds;
   }
 }
 
@@ -99,6 +104,18 @@ export const AppErrors = {
       },
       { telemetryClassification: 'security-rejection' },
     ),
+  invalidOtp: (): AppException =>
+    new AppException(
+      400,
+      { code: 'INVALID_OTP', message: 'The verification code is invalid or expired.' },
+      { telemetryClassification: 'security-rejection' },
+    ),
+  invalidCredentials: (): AppException =>
+    new AppException(
+      401,
+      { code: 'INVALID_CREDENTIALS', message: 'The email or password is incorrect.' },
+      { telemetryClassification: 'security-rejection' },
+    ),
   principalMismatch: (): AppException =>
     new AppException(
       409,
@@ -142,8 +159,12 @@ export const AppErrors = {
     }),
   alreadyFollowing: (): AppException =>
     new AppException(409, { code: 'ALREADY_FOLLOWING', message: 'You already follow this user.' }),
-  rateLimited: (): AppException =>
-    new AppException(429, { code: 'RATE_LIMITED', message: 'Too many requests. Try again soon.' }),
+  rateLimited: (retryAfterSeconds?: number): AppException =>
+    new AppException(
+      429,
+      { code: 'RATE_LIMITED', message: 'Too many requests. Try again soon.' },
+      { retryAfterSeconds },
+    ),
   providerNotConfigured: (provider: string): AppException =>
     new AppException(503, {
       code: 'PROVIDER_NOT_CONFIGURED',

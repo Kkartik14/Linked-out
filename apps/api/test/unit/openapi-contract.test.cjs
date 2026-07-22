@@ -42,6 +42,7 @@ const KNOWN_GUARDS = new Set([
   'BffCallerGuard',
   'JwtAuthGuard',
   'OptionalAuthGuard',
+  'EmailOtpInspectionGuard',
 ]);
 const DIRECT_COOKIE_SECURITY = new Map([
   ['post /auth/refresh', [{ refreshCookie: [] }]],
@@ -101,6 +102,7 @@ function guardNames(Controller, handler) {
 
 function expectedSecurity(guards) {
   if (guards.has('BffCallerGuard')) return [{ bffCallerAssertion: [] }];
+  if (guards.has('EmailOtpInspectionGuard')) return [{ otpInspectionSecret: [] }];
   if (guards.has('JwtAuthGuard')) return [{ accessCookie: [] }];
   if (guards.has('OptionalAuthGuard')) return [{}, { accessCookie: [] }];
   return [];

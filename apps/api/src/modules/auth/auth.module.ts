@@ -14,6 +14,7 @@ import { ApiAssertionSigner } from '@linkedout/internal-auth';
 
 import { PrismaService } from '../../prisma/prisma.service';
 import { AuthController } from './auth.controller';
+import { EmailAuthController } from './email-auth.controller';
 import { BffCallerGuard } from './bff-caller.guard';
 import { API_ASSERTION_SIGNER, BffSessionService } from './bff-session.service';
 import { AccessPrincipalResolver } from './access-principal.resolver';
@@ -26,6 +27,13 @@ import { NestRequestAuthentication } from './nest-request-authentication';
 import { JwtStrategy } from './strategies/jwt.strategy';
 import { GoogleStrategy } from './strategies/google.strategy';
 import { GithubStrategy } from './strategies/github.strategy';
+import { EmailAuthRepository } from './email-auth.repository';
+import { EmailOtpCrypto } from './email-otp.crypto';
+import { PasswordHasher } from './password-hasher';
+import { EmailAuthRateLimiter } from './email-auth-rate-limiter';
+import { EmailAuthService } from './email-auth.service';
+import { EMAIL_OTP_DELIVERY, StubEmailOtpDelivery } from './email-otp.delivery';
+import { EmailOtpInspectionGuard } from './email-otp-inspection.guard';
 
 // Register each OAuth strategy only when its credentials exist. Passport registers a
 // strategy as a side effect of construction, so skipping construction leaves the provider
@@ -47,11 +55,19 @@ const githubStrategyProvider: Provider = {
 @Global()
 @Module({
   imports: [PassportModule, TokenModule, UsersModule],
-  controllers: [AuthController],
+  controllers: [AuthController, EmailAuthController],
   providers: [
     AuthRepository,
     OAuthHandoffRepository,
     OAuthHandoffService,
+    EmailAuthRepository,
+    EmailOtpCrypto,
+    PasswordHasher,
+    EmailAuthRateLimiter,
+    EmailAuthService,
+    EmailOtpInspectionGuard,
+    StubEmailOtpDelivery,
+    { provide: EMAIL_OTP_DELIVERY, useExisting: StubEmailOtpDelivery },
     // Policy depends on a persistence seam; only the Prisma adapter sees the database client.
     {
       provide: BrowserSessionAuthority,

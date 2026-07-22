@@ -12,6 +12,7 @@ export type ExpiredEntity =
   | 'sessions'
   | 'browserSessions'
   | 'oauthHandoffs'
+  | 'emailOtpChallenges'
   | 'verificationTokens'
   | 'rateLimitBuckets';
 export type AvatarCleanupMode = 'dry-run' | 'apply' | 'skip';
@@ -177,6 +178,7 @@ export class CleanupJob {
       sessions: await this.cleanupExpiredEntity('sessions', options),
       browserSessions: await this.cleanupExpiredEntity('browserSessions', options),
       oauthHandoffs: await this.cleanupExpiredEntity('oauthHandoffs', options),
+      emailOtpChallenges: await this.cleanupExpiredEntity('emailOtpChallenges', options),
       verificationTokens: await this.cleanupExpiredEntity('verificationTokens', options),
       rateLimitBuckets: await this.cleanupExpiredEntity('rateLimitBuckets', options),
     };

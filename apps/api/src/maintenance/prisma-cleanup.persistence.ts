@@ -52,6 +52,20 @@ export class PrismaCleanupPersistence implements CleanupPersistence {
           USING doomed
           WHERE target."id" = doomed."id"
         `;
+      case 'emailOtpChallenges':
+        return this.db.$executeRaw`
+          WITH doomed AS (
+            SELECT "id"
+            FROM "EmailOtpChallenge"
+            WHERE "expiresAt" <= ${cutoff}
+            ORDER BY "expiresAt", "id"
+            LIMIT ${limit}
+            FOR UPDATE SKIP LOCKED
+          )
+          DELETE FROM "EmailOtpChallenge" AS target
+          USING doomed
+          WHERE target."id" = doomed."id"
+        `;
       case 'verificationTokens':
         return this.db.$executeRaw`
           WITH doomed AS (

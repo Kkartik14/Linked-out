@@ -36,6 +36,17 @@ and their CI/test boundaries. Newest first.
 
 ### Added
 
+- Added first-party email/password authentication with an emailed 8-digit one-time code
+  (`/v1/auth/email/{signup,verify,login,resend,password/forgot,password/reset}`). Codes are HMAC
+  digested (never stored in plaintext), valid for 10 minutes, single-use, and exhausted after five
+  wrong entries — the attempt check, constant-time compare, and consumption run in one row-locked
+  transaction so those limits hold under concurrent requests. Passwords are Argon2id; login,
+  signup, and forgot-password responses are non-enumerating; a password reset revokes every
+  session. Verification and login reuse the existing OAuth session handoff (no second session
+  type). Delivery is behind a replaceable seam with a config-gated, secret-protected stub inspector.
+  The account password is authored at `verify`, by the holder of the emailed code — never collected
+  at signup — which closes the account pre-hijacking window (Sudhodanan & Paverd, USENIX Security
+  2022): there is no pre-verification credential for a third party to seed or overwrite.
 - Added indexed, weighted prefix search for Ls from the first character. Completed terms retain
   English stemming, the actively typed final token uses source-preserving lexemes, and existing
   privacy checks, title-over-story ranking, and deterministic keyset pagination remain intact.

@@ -60,6 +60,7 @@ assert.deepEqual(subparts, [
   'subparts/25-principal-binding.cjs',
   'subparts/26-session-resolve.cjs',
   'subparts/27-keyset-query-plans.cjs',
+  'subparts/28-email-auth.cjs',
 ]);
 
 for (const subpart of subparts) {

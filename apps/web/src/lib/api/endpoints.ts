@@ -7,10 +7,15 @@ import type {
   CollectionDetail,
   Comment,
   CreateCommentInput,
+  EmailAuthHandoffResponse,
+  EmailOtpRequestAccepted,
+  EmailOtpResendInput,
+  EmailSignupInput,
   FeedQuery as ContractFeedQuery,
   FeedSidebarResponse,
   FeedSort as ContractFeedSort,
   FollowResult,
+  ForgotPasswordInput,
   JourneyNode,
   LCard,
   LDetail,
@@ -18,6 +23,7 @@ import type {
   MetaEnumsResponse,
   Notification,
   Paginated,
+  ResetPasswordInput,
   UpdateUserInput,
   ReactionResult,
   ReactionType,
@@ -26,6 +32,8 @@ import type {
 } from "@linkedout/contracts";
 import {
   createLInputSchema,
+  emailLoginInputSchema,
+  emailOtpVerifyInputSchema,
   isSafeReturnTo,
   updateLInputSchema,
 } from "@linkedout/contracts";
@@ -44,6 +52,14 @@ import { apiFetch, type ApiFetchInit } from "./client";
  */
 type CreateLBody = z.input<typeof createLInputSchema>;
 type UpdateLBody = z.input<typeof updateLInputSchema>;
+
+/**
+ * Verify/login bodies are the schema INPUT type: `returnTo` carries a `.default('/')`, so on the
+ * output side it is required, but a caller may legitimately omit it and let the server apply the
+ * default — the same reasoning as {@link CreateLBody}.
+ */
+type EmailVerifyBody = z.input<typeof emailOtpVerifyInputSchema>;
+type EmailLoginBody = z.input<typeof emailLoginInputSchema>;
 
 type QueryValue = string | number | boolean | undefined | null;
 type OkResponse = { ok: true };
@@ -93,6 +109,35 @@ export function oauthLoginUrl(provider: "google" | "github", returnTo = "/"): st
   }
   return `${API_BASE_URL}/auth/${provider}?returnTo=${encodeURIComponent(returnTo)}`;
 }
+
+// ── Email + password auth ──────────────────────────────────────────────────────
+/**
+ * The email-auth surface (backend feature 1.1.3). These are **guest** POSTs — no session, no
+ * `X-LinkedOut-Principal` — so they go through `apiFetch` directly rather than {@link mutate};
+ * the API treats them as anonymous unsafe requests. Responses are deliberately generic
+ * (enumeration-safe `202`s); `verify`/`login` alone return a one-time session handoff, which the
+ * caller completes through the existing OAuth handoff exchange (see `@/lib/email-auth`).
+ */
+export const emailSignup = (body: EmailSignupInput) =>
+  apiFetch<EmailOtpRequestAccepted>("/auth/email/signup", { method: "POST", ...json(body) });
+
+export const emailVerify = (body: EmailVerifyBody) =>
+  apiFetch<EmailAuthHandoffResponse>("/auth/email/verify", { method: "POST", ...json(body) });
+
+export const emailLogin = (body: EmailLoginBody) =>
+  apiFetch<EmailAuthHandoffResponse>("/auth/email/login", { method: "POST", ...json(body) });
+
+export const emailResendOtp = (body: EmailOtpResendInput) =>
+  apiFetch<EmailOtpRequestAccepted>("/auth/email/resend", { method: "POST", ...json(body) });
+
+export const emailForgotPassword = (body: ForgotPasswordInput) =>
+  apiFetch<EmailOtpRequestAccepted>("/auth/email/password/forgot", {
+    method: "POST",
+    ...json(body),
+  });
+
+export const emailResetPassword = (body: ResetPasswordInput) =>
+  apiFetch<OkResponse>("/auth/email/password/reset", { method: "POST", ...json(body) });
 
 // ── Meta & discovery ─────────────────────────────────────────────────────────
 export const getMeta = () =>

@@ -7,6 +7,23 @@ This file covers `apps/web` only. Its executable API contract is
 
 ## [Unreleased]
 
+### Authentication
+
+- Added email/password sign-in alongside Google and GitHub (backend feature 1.1.3). New `/signup`
+  (credentials → 8-digit OTP verification) and `/forgot-password` (request → reset → confirm)
+  screens, and an email/password form on `/login`. Verify and login complete through the existing
+  OAuth handoff route, so there is no second session type.
+- Successful verify/login reuse `/auth/callback/handoff`; the one-time code sets the `lo_sid`
+  session cookie server-side and redirects to the server-bound `returnTo` — no token is ever held
+  in client storage.
+- Screens follow the backend's account-enumeration-safe behaviour: signup and forgot-password
+  always advance on the generic `202`, and login shows one message for any rejected credential.
+  Password reset ends by routing back to login, since the backend revokes every session and does
+  not auto-sign-in.
+- Added an accessible segmented OTP field (keyboard entry, paste, backspace, arrow navigation, one
+  emitted value with no gaps), a password field with a reveal toggle, and a shared `AuthShell`.
+  Password minimum surfaced as 15 characters per the contract (NIST length-over-composition).
+
 ### Reputation
 
 - Removed the retired `Builders Helped` metric from profile and sidebar presentation. The profile
