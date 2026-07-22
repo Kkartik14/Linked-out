@@ -18,9 +18,20 @@ vi.mock("@/lib/api", async (importOriginal) => {
   };
 });
 
+vi.mock("next/navigation", async (importOriginal) => {
+  const actual = await importOriginal<typeof import("next/navigation")>();
+  return {
+    ...actual,
+    redirect: vi.fn((url: string) => {
+      throw new Error(`REDIRECT:${url}`);
+    }),
+  };
+});
+
 import SavedPage from "@/app/saved/page";
 import { getFeedSidebar } from "@/lib/api";
 import { getSession } from "@/lib/session";
+import { redirect } from "next/navigation";
 
 const SESSION = { status: "authenticated", user: mockUser, needsOnboarding: false } as const;
 const GENERATED_AT_MS = Date.now();
@@ -52,6 +63,10 @@ describe("SavedPage", () => {
   it("renders Saved inside the shared two-rail discovery shell", async () => {
     renderWithProviders(await SavedPage(), { session: SESSION, pathname: "/saved" });
 
+    // The server result must seed the shell. Merely rendering two empty/skeleton asides would
+    // satisfy landmark-only assertions while discarding the aggregate this page just fetched.
+    expect(getFeedSidebar).toHaveBeenCalledTimes(1);
+    expect(screen.getByRole("region", { name: "Your profile" })).toBeInTheDocument();
     expect(screen.getByRole("heading", { name: "Saved" })).toBeInTheDocument();
     expect(screen.getByRole("complementary", { name: /profile and discovery/i })).toBeInTheDocument();
     expect(screen.getByRole("complementary", { name: /top ls and l of the day/i })).toBeInTheDocument();
@@ -80,7 +95,8 @@ describe("SavedPage", () => {
   it("authorizes the viewer before requesting viewer-dependent rails", async () => {
     vi.mocked(getSession).mockResolvedValue({ status: "guest" });
 
-    await expect(SavedPage()).rejects.toThrow();
+    await expect(SavedPage()).rejects.toThrow("REDIRECT:/login?returnTo=%2Fsaved");
+    expect(redirect).toHaveBeenCalledWith("/login?returnTo=%2Fsaved");
     expect(getFeedSidebar).not.toHaveBeenCalled();
   });
 });

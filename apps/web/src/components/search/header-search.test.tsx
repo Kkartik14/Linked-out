@@ -8,6 +8,8 @@ import { Header } from "@/components/layout/header";
 import { searchLs, searchUsers } from "@/lib/api";
 import { mockUser, renderWithProviders } from "@/test/utils";
 
+const loggedIn = { status: "authenticated", user: mockUser, needsOnboarding: false } as const;
+
 vi.mock("@/lib/api", async (importOriginal) => {
   const actual = await importOriginal<typeof import("@/lib/api")>();
   return { ...actual, searchLs: vi.fn(), searchUsers: vi.fn() };
@@ -68,13 +70,16 @@ describe("HeaderSearch", () => {
   });
 
   it("leaves search ownership to the full search route", () => {
-    renderWithProviders(<Header />, { pathname: "/search" });
+    renderWithProviders(<Header />, { pathname: "/search", session: loggedIn });
 
     expect(screen.queryByRole("combobox", { name: /search ls and people/i })).not.toBeInTheDocument();
     expect(screen.queryByRole("link", { name: /search ls and people/i })).not.toBeInTheDocument();
     expect(screen.queryByRole("link", { name: "Feed" })).not.toBeInTheDocument();
     expect(screen.getByRole("link", { name: /linkedout home/i })).toHaveAttribute("href", "/");
     expect(screen.getByRole("link", { name: /share an l/i })).toHaveAttribute("href", "/new");
+    expect(screen.getByRole("button", { name: /notifications/i })).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: /toggle light and dark theme/i })).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: /account menu/i })).toBeInTheDocument();
   });
 
   it("starts both grouped previews from the first character with bounded limits", async () => {
