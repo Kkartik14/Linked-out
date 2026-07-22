@@ -11,9 +11,9 @@ This file covers `apps/web` only. Its executable API contract is
 
 ### Profile cleanup
 
-- Profiles now expose exactly L, Wins, Stories, Scars, Plot Twists, and Battles, defaulting to L.
-  Removed the All, Journey, and Collections tabs and every Collection route/control; Saved remains
-  the sole bookmark destination.
+- Profiles now expose an All aggregate followed by Ls, Wins, Stories, Scars, Plot Twists, and
+  Battles, defaulting to All. Removed the Journey and Collections tabs and every Collection
+  route/control; Saved remains the sole bookmark destination.
 - Added the self-profile **Current chapter** control directly below Edit profile and removed status
   from Settings. Changes submit only the status field, replace the authoritative profile cache,
   invalidate other viewer-owned summaries, and refresh the server session snapshot.

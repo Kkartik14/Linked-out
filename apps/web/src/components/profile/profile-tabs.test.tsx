@@ -1,4 +1,5 @@
 import { screen, waitFor } from "@testing-library/react";
+import userEvent from "@testing-library/user-event";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
 import { mockUser, renderWithProviders } from "@/test/utils";
@@ -19,10 +20,12 @@ describe("ProfileTabs", () => {
     vi.mocked(getUserLs).mockResolvedValue({ data: [], nextCursor: null });
   });
 
-  it("exposes exactly the six active type sections and defaults to L", async () => {
+  it("defaults to All, followed by the six active type sections", async () => {
+    const user = userEvent.setup();
     renderWithProviders(<ProfileTabs username="kartik" isSelf />, { session });
 
     expect(screen.getAllByRole("tab").map((tab) => tab.textContent)).toEqual([
+      "All",
       "Ls",
       "Wins",
       "Stories",
@@ -30,10 +33,12 @@ describe("ProfileTabs", () => {
       "Plot Twists",
       "Battles",
     ]);
-    expect(screen.getByRole("tab", { name: "Ls" })).toHaveAttribute("aria-selected", "true");
-    expect(screen.queryByRole("tab", { name: "All" })).not.toBeInTheDocument();
+    expect(screen.getByRole("tab", { name: "All" })).toHaveAttribute("aria-selected", "true");
     expect(screen.queryByRole("tab", { name: "Collections" })).not.toBeInTheDocument();
 
-    await waitFor(() => expect(getUserLs).toHaveBeenCalledWith("kartik", "L", undefined));
+    await waitFor(() => expect(getUserLs).toHaveBeenCalledWith("kartik", undefined, undefined));
+
+    await user.click(screen.getByRole("tab", { name: "Stories" }));
+    await waitFor(() => expect(getUserLs).toHaveBeenCalledWith("kartik", "STORY", undefined));
   });
 });

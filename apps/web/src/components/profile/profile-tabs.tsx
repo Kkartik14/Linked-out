@@ -17,11 +17,14 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { usePrincipal } from "@/components/session-provider";
 import { queryKeys } from "@/lib/query-keys";
 
-function LsList({ username, type, empty }: { username: string; type: LType; empty: string }) {
+const ALL_TAB = "ALL" as const;
+type ProfileTab = typeof ALL_TAB | LType;
+
+function LsList({ username, type, empty }: { username: string; type?: LType; empty: string }) {
   const principal = usePrincipal();
   return (
     <InfiniteList<LCardType>
-      queryKey={queryKeys.users.ls(principal, username, type)}
+      queryKey={queryKeys.users.ls(principal, username, type ?? ALL_TAB)}
       queryFn={(cursor) => getUserLs(username, type, cursor)}
       getItemKey={(l) => l.id}
       renderItem={(l) => <LCard l={l} />}
@@ -45,15 +48,20 @@ export function ProfileTabs({
   isSelf: boolean;
 }) {
   const meta = useMeta();
-  const [tab, setTab] = React.useState<LType>("L");
+  const [tab, setTab] = React.useState<ProfileTab>(ALL_TAB);
   const emptyMsg = isSelf ? "Nothing here yet — share your first L." : "Nothing here yet.";
   // `/meta/enums` is the source of truth for the LType set and its order.
   const sectionTypes = meta.lType.map((o) => o.value);
+  const tabs: ProfileTab[] = [ALL_TAB, ...sectionTypes];
 
   return (
     <Tabs
       value={tab}
       onValueChange={(value) => {
+        if (value === ALL_TAB) {
+          setTab(ALL_TAB);
+          return;
+        }
         const parsed = lTypeSchema.safeParse(value);
         if (parsed.success) setTab(parsed.data);
       }}
@@ -61,16 +69,16 @@ export function ProfileTabs({
     >
       <div className="overflow-x-auto pb-1">
         <TabsList className="w-max">
-          {sectionTypes.map((t) => (
+          {tabs.map((t) => (
             <TabsTrigger key={t} value={t}>
-              {typeSectionLabel(meta, t)}
+              {t === ALL_TAB ? "All" : typeSectionLabel(meta, t)}
             </TabsTrigger>
           ))}
         </TabsList>
       </div>
-      {sectionTypes.map((t) => (
+      {tabs.map((t) => (
         <TabsContent key={t} value={t} className="mt-6">
-          <LsList username={username} type={t} empty={emptyMsg} />
+          <LsList username={username} type={t === ALL_TAB ? undefined : t} empty={emptyMsg} />
         </TabsContent>
       ))}
     </Tabs>
