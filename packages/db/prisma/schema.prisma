@@ -126,7 +126,6 @@ model EmailOtpChallenge {
   email          String
   purpose        EmailOtpPurpose
   codeDigest     String          @db.Char(64)
-  passwordHash   String?
   failedAttempts Int             @default(0)
   deliveryCount  Int             @default(1)
   createdAt      DateTime        @default(now())
