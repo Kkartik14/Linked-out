@@ -173,6 +173,26 @@ test('one OpenAPI document covers exactly the sole public API', async () => {
   assert.equal(document.info.version, '1.1.4');
   assert.deepEqual(document.servers, [{ url: '/v1' }]);
   assert.equal(document.paths['/tags/popular'], undefined);
+  for (const path of [
+    '/collections',
+    '/collections/{id}',
+    '/collections/{id}/ls/{lId}',
+    '/users/{username}/collections',
+    '/users/{username}/journey',
+  ]) {
+    assert.equal(document.paths[path], undefined, `${path} stays retired`);
+  }
+  for (const schema of [
+    'AddLToCollectionInput',
+    'Collection',
+    'CollectionDetail',
+    'CreateCollectionInput',
+    'PaginatedCollection',
+    'PaginatedJourneyNode',
+    'UpdateCollectionInput',
+  ]) {
+    assert.equal(document.components.schemas[schema], undefined, `${schema} stays retired`);
+  }
   assert.ok(document.paths['/feed/sidebar']);
   assert.equal(document.paths['/feed'].get.parameters.some((item) => item.name === 'filter'), false);
   assert.equal(document.paths['/search'].get.parameters.some((item) => item.name === 'filter'), false);
