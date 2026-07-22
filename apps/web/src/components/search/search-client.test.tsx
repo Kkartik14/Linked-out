@@ -1,5 +1,5 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
-import { screen, waitFor } from "@testing-library/react";
+import { act, screen, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import type { LCard, Paginated, UserSummary } from "@linkedout/contracts";
 
@@ -124,9 +124,47 @@ describe("SearchClient", () => {
       { pathname: "/search" },
     );
 
+    expect(screen.queryByText("Lazy feed content")).not.toBeInTheDocument();
+    expect(screen.getByRole("tab", { name: "Ls" })).toBeInTheDocument();
+
     await user.clear(screen.getByRole("searchbox", { name: /search ls and people/i }));
 
     expect(screen.getByText("Lazy feed content")).toBeInTheDocument();
+    expect(screen.queryByRole("tab")).not.toBeInTheDocument();
+  });
+
+  it("synchronizes query, result type, and empty content on browser history traversal", async () => {
+    renderWithProviders(
+      <SearchClient
+        q="running"
+        type="ls"
+        initialLs={page([RESULT])}
+        emptyContent={<p>Normal feed content</p>}
+      />,
+      { pathname: "/search" },
+    );
+
+    act(() => {
+      window.history.pushState(null, "", "/search?q=runner&type=users");
+      window.dispatchEvent(new PopStateEvent("popstate"));
+    });
+
+    expect(screen.getByRole("searchbox", { name: /search ls and people/i })).toHaveValue(
+      "runner",
+    );
+    expect(screen.getByRole("tab", { name: "People" })).toHaveAttribute(
+      "aria-selected",
+      "true",
+    );
+    await waitFor(() => expect(screen.getByText(PERSON.name!)).toBeInTheDocument());
+
+    act(() => {
+      window.history.pushState(null, "", "/search");
+      window.dispatchEvent(new PopStateEvent("popstate"));
+    });
+
+    expect(screen.getByRole("searchbox", { name: /search ls and people/i })).toHaveValue("");
+    expect(screen.getByText("Normal feed content")).toBeInTheDocument();
     expect(screen.queryByRole("tab")).not.toBeInTheDocument();
   });
 });
