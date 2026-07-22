@@ -5,6 +5,8 @@ and their CI/test boundaries. Newest first.
 
 ## [Unreleased]
 
+## [1.1.4] — 2026-07-23
+
 ### Changed
 
 - `GET /users/:username/followers` and `/following` now return `Paginated<FollowListUser>`: each row
