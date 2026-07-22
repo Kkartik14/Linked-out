@@ -12,7 +12,6 @@ import { deleteL, errorMessage, patchL } from "@/lib/api";
 import { statusOption, typeLabel, useMeta } from "@/components/meta-provider";
 import { UserAvatar } from "@/components/user-avatar";
 import { ReactionBar } from "@/components/l/reaction-bar";
-import { SaveToCollectionButton } from "@/components/collections/save-to-collection-button";
 import { ConfirmDialog } from "@/components/confirm-dialog";
 import { Badge } from "@/components/ui/badge";
 import { assertComposedPrincipal, useComposedPrincipal } from "@/components/session-provider";
@@ -101,31 +100,6 @@ export function LDetailView({ l }: { l: LDetail }) {
       </h1>
 
       <div className="mt-5 text-[15px] leading-relaxed whitespace-pre-line">{l.story}</div>
-
-      {l.collections.length > 0 ? (
-        <div className="mt-5">
-          <p className="text-muted-foreground mb-1.5 text-xs font-medium tracking-wide uppercase">
-            In collections
-          </p>
-          <div className="flex flex-wrap gap-2">
-            {l.collections.map((c) => (
-              <Link key={c.id} href={`/collections/${c.id}`}>
-                <Badge variant="secondary" className="hover:bg-secondary/70">
-                  {c.title}
-                </Badge>
-              </Link>
-            ))}
-          </div>
-        </div>
-      ) : null}
-
-      {l.viewer.canEdit ? (
-        <SaveToCollectionButton
-          lId={l.id}
-          existingCollectionIds={l.collections.map((collection) => collection.id)}
-          className="mt-5"
-        />
-      ) : null}
 
       <div className="mt-6 border-y py-2">
         <ReactionBar

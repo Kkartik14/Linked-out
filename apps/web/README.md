@@ -113,6 +113,6 @@ addressing "the feed" (a screen reader, a test) needs that name to mean somethin
 ## Routes
 
 `/` feed + discovery rails · `/ls/[id]` detail + comments · `/ls/[id]/edit` · `/new` composer ·
-`/u/[username]` profile (journey, sections, collections) · `/collections/[id]` ·
+`/u/[username]` profile sections ·
 `/search` · `/notifications` · `/saved` · `/settings` ·
 `/login` · `/auth/callback` · `/onboarding`.

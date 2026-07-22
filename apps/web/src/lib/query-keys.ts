@@ -43,8 +43,6 @@ export const queryKeys = {
   users: {
     ls: (p: string, username: string, type: string) =>
       ["user-ls", p, username, type] as const,
-    collections: (p: string, username: string) =>
-      ["user-collections", p, username] as const,
   },
   ls: {
     reactions: (p: string, lId: string) => ["ls", p, lId, "reactions"] as const,

@@ -3,8 +3,6 @@ import type {
   AuthMeResponse,
   AvatarUploadRequest,
   AvatarUploadResponse,
-  Collection,
-  CollectionDetail,
   Comment,
   CreateCommentInput,
   EmailAuthHandoffResponse,
@@ -227,37 +225,10 @@ export const patchMe = (principal: ComposedPrincipal, body: UpdateUserInput) =>
   mutate<UserProfile>(principal, "/users/me", { method: "PATCH", ...json(body) });
 export const getUserLs = (username: string, type?: LType, cursor?: string, limit?: number) =>
   apiFetch<Paginated<LCard>>(`/users/${username}/ls${qs({ type, cursor, limit })}`);
-export const getUserCollections = (username: string, cursor?: string, limit?: number) =>
-  apiFetch<Paginated<Collection>>(`/users/${username}/collections${qs({ cursor, limit })}`);
 export const follow = (principal: ComposedPrincipal, username: string) =>
   mutate<FollowResult>(principal, `/users/${username}/follow`, { method: "PUT" });
 export const unfollow = (principal: ComposedPrincipal, username: string) =>
   mutate<FollowResult>(principal, `/users/${username}/follow`, { method: "DELETE" });
-
-// ── Collections ──────────────────────────────────────────────────────────────
-export const createCollection = (principal: ComposedPrincipal, title: string) =>
-  mutate<Collection>(principal, "/collections", { method: "POST", ...json({ title }) });
-export const getCollection = (id: string) =>
-  apiFetch<CollectionDetail>(`/collections/${id}`);
-export const renameCollection = (principal: ComposedPrincipal, id: string, title: string) =>
-  mutate<Collection>(principal, `/collections/${id}`, { method: "PATCH", ...json({ title }) });
-export const deleteCollection = (principal: ComposedPrincipal, id: string) =>
-  mutate<OkResponse>(principal, `/collections/${id}`, { method: "DELETE" });
-export const addLToCollection = (
-  principal: ComposedPrincipal,
-  id: string,
-  lId: string,
-  position?: number,
-) =>
-  mutate<CollectionDetail>(principal, `/collections/${id}/ls/${lId}`, {
-    method: "PUT",
-    ...(position !== undefined ? json({ position }) : {}),
-  });
-export const removeLFromCollection = (
-  principal: ComposedPrincipal,
-  id: string,
-  lId: string,
-) => mutate<CollectionDetail>(principal, `/collections/${id}/ls/${lId}`, { method: "DELETE" });
 
 // ── Search ───────────────────────────────────────────────────────────────────
 /** Public API search is always relevance-ranked and has no category filter. */
