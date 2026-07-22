@@ -1,7 +1,7 @@
 # LinkedOut — Local Run & End-to-End Guide
 
-Current for the Parts 6–8 candidate for backend/frontend 1.1.4. The web application and API share
-one v1 contract; the release version remains unchanged until Parts 1–5 are integrated.
+Current for the integrated backend/frontend 1.1.4 workstreams. The web application and API share
+one v1 contract; the package/OpenAPI release version remains unchanged until the final release cut.
 
 ## Prerequisites
 

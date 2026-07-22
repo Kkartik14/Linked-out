@@ -1,9 +1,9 @@
 # LinkedOut local documentation index
 
 This directory contains internal product, architecture, contract, research, and operations
-narratives for the Parts 6–8 candidate for backend/frontend 1.1.4 (2026-07-23). Current Markdown
-authorities are committed; local environment material remains ignored. The final 1.1.4 version cut
-waits for Parts 1–5 to be integrated.
+narratives for the integrated backend/frontend 1.1.4 workstreams (2026-07-23). Current Markdown
+authorities are committed; local environment material remains ignored. All eight workstreams are
+now on `main`; the final package/OpenAPI version cut remains a separate release action.
 
 ## Authority order
 
@@ -21,7 +21,7 @@ When two documents differ, use this order:
 | Document | Status | Purpose |
 |---|---|---|
 | `NEXT-STEPS-PLAN.md` | Historical delivery plan | Earlier handoff for Builders Helped, reactions, Search/Saved navigation, and live grouped search |
-| `NEXT-STEPS-PLAN-1.1.4.md` | Parts 6–8 implemented | Delivery record for removing Journey/Collections, reducing L types, and introducing Current chapter |
+| `NEXT-STEPS-PLAN-1.1.4.md` | All workstreams integrated | Delivery and verification record for the eight 1.1.4 product changes |
 | `PRODUCT-FLOW-QUESTIONS.md` | Historical discovery snapshot | Questions raised on 2026-07-21; 1.1.4 supersedes its Journey, Collection, profile-tab, L-type, and reputation observations |
 | `CONTEXT.md` | Current accepted product language | Canonical definitions agreed during product discovery; contains no implementation details |
 | `product.md` | Current product vision | Product language, principles, and shipped MVP scope; not a wire contract |

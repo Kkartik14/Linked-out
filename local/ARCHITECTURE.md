@@ -1,7 +1,7 @@
 # LinkedOut — Current Architecture
 
-> "LinkedIn for your Ls." This describes the Parts 6–8 candidate for backend/frontend 1.1.4
-> (2026-07-23), not the final integrated 1.1.4 release.
+> "LinkedIn for your Ls." This describes the integrated implementation after all eight 1.1.4
+> workstreams merged to `main` on 2026-07-23. The final package/OpenAPI version cut is still pending.
 
 ## System shape
 

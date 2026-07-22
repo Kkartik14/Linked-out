@@ -1,6 +1,6 @@
 # LinkedOut 1.1.4 next steps: search, social graph, rails, and profile cleanup
 
-Status: Parts 6–8 implemented and release-verified on `fix/better-ux`
+Status: All eight workstreams integrated on `main`; final 1.1.4 version cut pending
 Created: 2026-07-23
 Target release: 1.1.4
 Product owner: Kartik
@@ -831,7 +831,8 @@ about the six L types and reduced reputation shape.
 
 ## Parts 6–8 implementation record
 
-Completed on `fix/better-ux` on 2026-07-23:
+Parts 6–8 were completed on `fix/better-ux` and merged into `main` by merge commit `8579301` on
+2026-07-23. That merge also integrated Parts 1–5 from the current mainline:
 
 - removed Journey and Collections from frontend routes/components, client contracts, shared
   contracts, OpenAPI, backend modules, current Prisma schema, seeds, fixtures, and current docs;
@@ -847,18 +848,19 @@ Completed on `fix/better-ux` on 2026-07-23:
   control on other profiles or in Settings. It uses the existing `{ status }` profile mutation,
   supports clearing, replaces the exact profile cache, invalidates other principal-owned views,
   and refreshes the server session snapshot; and
-- refreshed API/web release notes under Unreleased. Package and generated OpenAPI version bumps
-  remain intentionally deferred to the final integrator after Parts 1–5 land, as required by the
-  merge-order section above.
+- refreshed API/web release notes under Unreleased. Package and generated OpenAPI versions remain
+  at 1.1.2; with all eight workstreams now integrated, the release owner can perform the final
+  1.1.4 version cut as a separate release action.
 
-Final verification at the branch tip:
+Final verification after merging the current mainline into the feature branch and before the PR
+merge:
 
 - root and web typecheck/lint: passed;
 - backend build and production Next builds in both legacy and handoff modes: passed;
-- API unit: 174/174 passed across 32 files;
-- web unit/component: 306/306 passed across 46 files;
-- real-Postgres HTTP integration: 359/359 passed across 30 suites;
-- legacy Playwright: 63/63 passed, including Current chapter set/clear persistence; and
+- API unit: 175/175 passed across 32 files;
+- web unit/component: 333/333 passed across 50 files;
+- real-Postgres HTTP integration: 361/361 passed across 30 suites;
+- legacy Playwright: 73/73 passed, including Current chapter and follower-directory flows; and
 - handoff Playwright: 12/12 passed.
 
 The local runner used Node 26.4.0 and emitted the repository's expected engine warning because CI
