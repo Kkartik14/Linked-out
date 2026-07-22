@@ -193,7 +193,7 @@ describe("ProfileHeader current chapter", () => {
     await user.click(await screen.findByRole("option", { name: /Working/ }));
 
     await waitFor(() => expect(chapter).toBeDisabled());
-    expect(screen.getByText("Updating current chapter…")).toBeInTheDocument();
+    expect(screen.getByText("Updating current chapter…")).toHaveAttribute("aria-live", "polite");
 
     await act(async () => finishUpdate?.({ ...mockUser, status: "WORKING" }));
     await waitFor(() => expect(chapter).not.toBeDisabled());
