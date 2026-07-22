@@ -71,7 +71,9 @@ describe("SignupForm", () => {
 
     await reachOtpStep(user);
 
-    expect(emailSignup).toHaveBeenCalledWith({ email: EMAIL, password: PASSWORD });
+    // Signup carries the email only; the password is held and authored at verify (contract §0.1).
+    expect(emailSignup).toHaveBeenCalledWith({ email: EMAIL });
+    expect(vi.mocked(emailSignup).mock.calls[0]?.[0]).not.toHaveProperty("password");
     expect(screen.getByText(EMAIL)).toBeInTheDocument();
   });
 
@@ -87,7 +89,12 @@ describe("SignupForm", () => {
 
     await typeOtp(user, CODE); // eighth digit auto-submits via onComplete
 
-    expect(emailVerify).toHaveBeenCalledWith({ email: EMAIL, otp: CODE, returnTo: "/feed" });
+    expect(emailVerify).toHaveBeenCalledWith({
+      email: EMAIL,
+      otp: CODE,
+      password: PASSWORD,
+      returnTo: "/feed",
+    });
     expect(completeEmailSession).toHaveBeenCalledWith("A".repeat(43));
   });
 
