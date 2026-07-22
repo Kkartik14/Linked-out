@@ -137,10 +137,13 @@ export const emailResetPassword = (body: ResetPasswordInput) =>
   apiFetch<OkResponse>("/auth/email/password/reset", { method: "POST", ...json(body) });
 
 // ── Meta & discovery ─────────────────────────────────────────────────────────
+const META_CONTRACT_REVISION = "1.1.4";
+
 export const getMeta = () =>
-  apiFetch<MetaEnumsResponse>("/meta/enums", {
-    // Public, deployment-versioned display metadata: share across principals and revalidate
-    // daily. Omitting credentials is what makes cross-request Next caching safe.
+  apiFetch<MetaEnumsResponse>(`/meta/enums?v=${META_CONTRACT_REVISION}`, {
+    // The URL revision changes whenever enum membership or display copy changes, preventing a
+    // previous deployment's 24-hour Data Cache entry from outliving a contract cutover.
+    // Omitting credentials keeps the versioned response safe to share across principals.
     cache: "force-cache",
     credentials: "omit",
     next: { revalidate: 86_400 },

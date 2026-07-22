@@ -29,6 +29,12 @@ describe('01 · meta & discovery (contract §4.12)', () => {
     assert.equal(res.headers.get('cache-control'), STATIC_METADATA_CACHE_CONTROL);
   });
 
+  test('the frontend cache revision still resolves the canonical metadata resource', async () => {
+    const res = await h.get('/meta/enums?v=1.1.4');
+    h.expectShape(res, metaEnumsResponseSchema);
+    assert.equal(res.headers.get('cache-control'), STATIC_METADATA_CACHE_CONTROL);
+  });
+
   test('GET /meta/enums serves every enum value the contracts package declares', async () => {
     const { body } = await h.get('/meta/enums');
     const values = (list) => list.map((m) => m.value);
