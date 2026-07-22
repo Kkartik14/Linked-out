@@ -6,6 +6,21 @@ import { AppConfigService } from '../../config/app-config.service';
 
 export const PWNED_PASSWORDS_FETCH = Symbol('PWNED_PASSWORDS_FETCH');
 
+interface PasswordRangeResponse {
+  readonly ok: boolean;
+  readonly headers: { get(name: string): string | null };
+  text(): Promise<string>;
+}
+
+type PasswordRangeFetch = (
+  input: string,
+  init: {
+    method: 'GET';
+    headers: Record<string, string>;
+    signal: AbortSignal;
+  },
+) => Promise<PasswordRangeResponse>;
+
 const HIBP_RANGE_URL = 'https://api.pwnedpasswords.com/range/';
 const MAX_RANGE_RESPONSE_BYTES = 1_000_000;
 const CACHE_TTL_MS = 5 * 60 * 1000;
@@ -45,7 +60,7 @@ export class PwnedPasswordsClient {
 
   constructor(
     private readonly config: AppConfigService,
-    @Inject(PWNED_PASSWORDS_FETCH) private readonly fetcher: typeof globalThis.fetch,
+    @Inject(PWNED_PASSWORDS_FETCH) private readonly fetcher: PasswordRangeFetch,
   ) {}
 
   async isCompromised(password: string): Promise<boolean | null> {
