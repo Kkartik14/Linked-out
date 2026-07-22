@@ -26,7 +26,6 @@ describe('03 · POST /ls — create (contract §4.3)', () => {
     assert.equal(l.title, VALID.title);
     assert.equal(l.story, VALID.story);
     assert.equal(l.author.username, 'kartik');
-    assert.deepEqual(l.collections, []);
     assert.deepEqual(l.viewer, { reactions: [], canEdit: true });
     assert.deepEqual(l.reactions, {
       total: 0,
@@ -88,7 +87,6 @@ describe('03 · POST /ls — create (contract §4.3)', () => {
       lsShared: 4,
       storiesShared: 1,
       lessonsShared: 1,
-      collectionsCreated: 0,
     });
   });
 

@@ -41,7 +41,6 @@ assert.deepEqual(subparts, [
   'subparts/07-reactions.cjs',
   'subparts/08-comments.cjs',
   'subparts/09-follows.cjs',
-  'subparts/10-collections.cjs',
   'subparts/11-notifications.cjs',
   'subparts/12-search.cjs',
   'subparts/13-users-profile.cjs',

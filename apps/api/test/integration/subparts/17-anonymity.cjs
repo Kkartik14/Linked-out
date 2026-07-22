@@ -77,27 +77,6 @@ describe('17 · anonymity is absolute across every surface (contract §3)', () =
     }
   });
 
-  test('collection membership cannot re-attribute an anonymous L', async () => {
-    const collection = await h.post('/collections', {
-      cookie: author.cookie,
-      body: { title: 'Anonymous stories' },
-    });
-    await h.put(`/collections/${collection.body.id}/ls/${anon.id}`, { cookie: author.cookie });
-
-    const ownerL = await h.get(`/ls/${anon.id}`, { cookie: author.cookie });
-    assert.equal(ownerL.body.collections[0].id, collection.body.id, 'the owner retains collection controls');
-    const ownerCollection = await h.get(`/collections/${collection.body.id}`, { cookie: author.cookie });
-    assert.equal(ownerCollection.body.ls[0].id, anon.id);
-
-    for (const [who, cookie] of everyViewer().filter(([label]) => label !== 'the author themselves')) {
-      const l = await h.get(`/ls/${anon.id}`, { cookie });
-      assert.deepEqual(l.body.collections, [], `L detail exposed an attributive collection to ${who}`);
-      const res = await h.get(`/collections/${collection.body.id}`, { cookie });
-      assert.ok(!res.body.ls.some((card) => card.id === anon.id), `collection associated the anonymous L with ${who}`);
-      assert.equal(res.body.lCount, 0, `collection count revealed a hidden anonymous member to ${who}`);
-    }
-  });
-
   test('GET /me/saved hides the author of a saved anonymous L', async () => {
     await h.put(`/ls/${anon.id}/reactions/SAVED`, { cookie: stranger.cookie });
     const res = await h.get('/me/saved', { cookie: stranger.cookie });

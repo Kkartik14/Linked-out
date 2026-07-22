@@ -5,9 +5,6 @@ const test = require('node:test');
 
 const { LsRepository } = require('../../dist/modules/ls/ls.repository');
 const {
-  CollectionsRepository,
-} = require('../../dist/modules/collections/collections.repository');
-const {
   NotificationsRepository,
 } = require('../../dist/modules/notifications/notifications.repository');
 
@@ -51,16 +48,6 @@ test('saved pages issue the query matched by Reaction_userId_type_id_idx', async
   assert.deepEqual(probe.query().where.id, { lt: 'cursor' });
   assert.deepEqual(probe.query().orderBy, { id: 'desc' });
   assert.equal(probe.query().take, 21);
-});
-
-test('owner collection pages issue the query matched by Collection_ownerId_id_idx', async () => {
-  const probe = capture();
-  const repo = new CollectionsRepository({ db: { collection: probe.model } });
-  await repo.listByOwner('owner', 10, 'cursor');
-
-  assert.deepEqual(probe.query().where, { ownerId: 'owner', id: { lt: 'cursor' } });
-  assert.deepEqual(probe.query().orderBy, { id: 'desc' });
-  assert.equal(probe.query().take, 11);
 });
 
 test('notification pages issue the query matched by the complete recipient keyset index', async () => {

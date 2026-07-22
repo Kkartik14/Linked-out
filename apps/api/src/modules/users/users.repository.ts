@@ -16,7 +16,6 @@ const PROFILE_SELECT = {
   storiesShared: true,
   lessonsShared: true,
   lsShared: true,
-  collectionsCreated: true,
   followerCount: true,
   followingCount: true,
   createdAt: true,

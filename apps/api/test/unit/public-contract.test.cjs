@@ -98,7 +98,6 @@ test('public reputation contract retires Builders Helped completely', () => {
     storiesShared: 2,
     lessonsShared: 3,
     lsShared: 8,
-    collectionsCreated: 1,
   };
 
   assert.deepEqual(contracts.reputationSchema.parse(reputation), reputation);

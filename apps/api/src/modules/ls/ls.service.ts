@@ -124,7 +124,7 @@ export class LsService {
 
   async getDetail(id: string, viewerId: string | undefined): Promise<LDetail> {
     const detail = await this.detailState(id, viewerId);
-    return toLDetail(detail.l, detail.viewer, detail.collections);
+    return toLDetail(detail.l, detail.viewer);
   }
 
   async getFeed(query: FeedQuery, viewerId: string | undefined): Promise<Paginated<LCard>> {
@@ -182,12 +182,12 @@ export class LsService {
 
   async create(user: AuthUser, input: CreateLInput): Promise<LDetail> {
     const l = await this.createRow(user, normalizeCreate(input));
-    return toLDetail(l, { reactions: [], canEdit: true }, []);
+    return toLDetail(l, { reactions: [], canEdit: true });
   }
 
   async update(user: AuthUser, id: string, input: UpdateLInput): Promise<LDetail> {
     const detail = await this.updateState(user, id, updatePlans(input));
-    return toLDetail(detail.l, detail.viewer, detail.collections);
+    return toLDetail(detail.l, detail.viewer);
   }
 
   async remove(user: AuthUser, id: string): Promise<{ ok: true }> {
@@ -223,15 +223,9 @@ export class LsService {
     const l = await this.repo.findById(id);
     if (!l) throw AppErrors.lNotFound();
     await this.assertCanView(l, viewerId);
-    const [collections, reactionMap] = await Promise.all([
-      l.isAnonymous && viewerId !== l.authorId
-        ? Promise.resolve([])
-        : this.repo.collectionsForL(id),
-      this.reactionMap(viewerId, [id]),
-    ]);
+    const reactionMap = await this.reactionMap(viewerId, [id]);
     return {
       l,
-      collections,
       viewer: {
         reactions: reactionMap.get(id) ?? [],
         canEdit: viewerId === l.authorId,
@@ -248,13 +242,9 @@ export class LsService {
     const result = await this.repo.updateOwnedL(id, user.id, plans);
     if (result.status === 'not_found') throw AppErrors.lNotFound();
     if (result.status === 'not_owner') throw AppErrors.notLOwner();
-    const [collections, reactionMap] = await Promise.all([
-      this.repo.collectionsForL(id),
-      this.reactionMap(user.id, [id]),
-    ]);
+    const reactionMap = await this.reactionMap(user.id, [id]);
     return {
       l: result.row,
-      collections,
       viewer: { reactions: reactionMap.get(id) ?? [], canEdit: true } satisfies LViewerContext,
     };
   }

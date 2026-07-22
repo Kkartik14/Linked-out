@@ -4,7 +4,6 @@ export const reputationSchema = z.object({
   storiesShared: z.number().int(),
   lessonsShared: z.number().int(),
   lsShared: z.number().int(),
-  collectionsCreated: z.number().int(),
 }).strict();
 export type Reputation = z.infer<typeof reputationSchema>;
 

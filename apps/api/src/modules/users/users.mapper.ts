@@ -22,7 +22,6 @@ export function toUserProfile(
       storiesShared: user.storiesShared,
       lessonsShared: user.lessonsShared,
       lsShared: user.lsShared,
-      collectionsCreated: user.collectionsCreated,
     },
     counts: {
       followers: user.followerCount,

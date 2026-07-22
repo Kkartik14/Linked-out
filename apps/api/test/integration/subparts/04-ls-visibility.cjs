@@ -127,18 +127,4 @@ describe('04 · GET /ls/:id — visibility matrix (contract §4.3)', () => {
     assert.equal(card.storyPreview, 'Short and complete.');
   });
 
-  test('LDetail lists the collections the L belongs to', async () => {
-    const l = await h.createL(owner.id);
-    const created = await h.post('/collections', {
-      cookie: owner.cookie,
-      body: { title: 'Google Interview Journey' },
-    });
-    await h.put(`/collections/${created.body.id}/ls/${l.id}`, { cookie: owner.cookie });
-
-    const detail = await h.get(`/ls/${l.id}`, { cookie: owner.cookie });
-    const parsed = h.expectShape(detail, lDetailSchema);
-    assert.equal(parsed.collections.length, 1);
-    assert.equal(parsed.collections[0].title, 'Google Interview Journey');
-    assert.equal(parsed.collections[0].slug, 'google-interview-journey');
-  });
 });

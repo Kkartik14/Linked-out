@@ -121,5 +121,4 @@ export const REPUTATION_META: readonly ReputationMeta[] = [
   { key: 'storiesShared', label: 'Stories Shared' },
   { key: 'lessonsShared', label: 'Lessons Shared' },
   { key: 'lsShared', label: 'Ls Shared' },
-  { key: 'collectionsCreated', label: 'Collections Created' },
 ];

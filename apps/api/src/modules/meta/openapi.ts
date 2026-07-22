@@ -236,9 +236,6 @@ export function buildOpenApiDocument(): OpenApiDocument {
           parameters: [usernamePath(), ...queryParameters(userLsQuerySchema)],
         },
       },
-      '/users/{username}/collections': {
-        get: { security: optionalAuth, parameters: [usernamePath(), ...pagination] },
-      },
       '/users/{username}/followers': {
         get: { security: optionalAuth, parameters: [usernamePath(), ...pagination] },
       },
@@ -274,16 +271,6 @@ export function buildOpenApiDocument(): OpenApiDocument {
         post: { parameters: [idPath()] },
       },
       '/comments/{id}': { delete: { parameters: [idPath()] } },
-      '/collections': { post: {} },
-      '/collections/{id}': {
-        get: { security: optionalAuth, parameters: [idPath()] },
-        patch: { parameters: [idPath()] },
-        delete: { parameters: [idPath()] },
-      },
-      '/collections/{id}/ls/{lId}': {
-        put: { parameters: [idPath(), idPath('lId')] },
-        delete: { parameters: [idPath(), idPath('lId')] },
-      },
       '/uploads/avatar': {
         post: { responses: { 503: jsonResponse('ErrorEnvelope', 'Uploads disabled') } },
       },

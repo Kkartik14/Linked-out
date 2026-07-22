@@ -11,14 +11,6 @@ import { lTypeSchema, visibilitySchema, reactionTypeSchema } from './enums';
 import { reactionsSummarySchema } from './reaction';
 import { userSummarySchema } from './user';
 
-/** Lightweight reference to a collection an L belongs to (embedded in LDetail). */
-export const collectionRefSchema = z.object({
-  id: ulidSchema,
-  title: z.string(),
-  slug: z.string(),
-});
-export type CollectionRef = z.infer<typeof collectionRefSchema>;
-
 const lViewerSchema = z
   .object({
     reactions: z.array(reactionTypeSchema),
@@ -47,10 +39,9 @@ export const lCardSchema = lCoreSchema.extend({
 });
 export type LCard = z.infer<typeof lCardSchema>;
 
-/** A single L (full body + collections). */
+/** A single L with its full body. */
 export const lDetailSchema = lCoreSchema.extend({
   story: z.string(),
-  collections: z.array(collectionRefSchema),
 });
 export type LDetail = z.infer<typeof lDetailSchema>;
 

@@ -35,7 +35,6 @@ describe('13 · users & profiles (contract §4.2)', () => {
       storiesShared: 0,
       lessonsShared: 0,
       lsShared: 0,
-      collectionsCreated: 0,
     });
     assert.equal('buildersHelped' in res.body.reputation, false);
   });

@@ -95,13 +95,12 @@ deterministically between tests.
 | `07-reactions` | Idempotency, counters, and popularity weights |
 | `08-comments` | One-level threading, `commentCount`, cascade delete |
 | `09-follows` | Idempotency, self-follow, counts, notification once |
-| `10-collections` | CRUD/detail, ordering/position, viewer-aware `lCount` |
 | `11-notifications` | Folding via `dedupeKey`, server-composed copy, read state |
 | `12-search` | Postgres FTS/user ranking, visibility, strict queries, hostile queries |
 | `13-users-profile` | Profile, `PATCH /users/me`, username rules, avatar-URL ownership |
 | `14-saved` | `/me/saved` visibility and pagination |
 | `16-uploads` | Presign shape, size/type limits, `UPLOADS_DISABLED` |
-| `17-anonymity` | Strong anonymity: no author, profile, or collection attribution path |
+| `17-anonymity` | Strong anonymity: no author or profile attribution path |
 | `18-contract-invariants` | Envelopes, cursors, ULIDs, ISO timestamps, CORS, error codes |
 | `19-rate-limit` | 120 reads/min, 30 writes/min, `Retry-After`, per-identity buckets |
 | `20-concurrency-edges` | Counter integrity under concurrent writes; coercion edges |

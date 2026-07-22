@@ -8,7 +8,6 @@ export * from './l';
 export * from './feed';
 export * from './comment';
 export * from './follow';
-export * from './collection';
 export * from './notification';
 export * from './search';
 export * from './upload';

@@ -81,16 +81,6 @@ export class LsRepository {
     return this.prisma.db.l.findUnique({ where: { id }, include: L_AUTHOR_INCLUDE });
   }
 
-  /** Collection refs an L belongs to (for LDetail). */
-  collectionsForL(lId: string): Promise<Array<{ id: string; title: string; slug: string }>> {
-    return this.prisma.db.collection
-      .findMany({
-        where: { ls: { some: { lId } } },
-        select: { id: true, title: true, slug: true },
-        orderBy: { id: 'desc' },
-      });
-  }
-
   async createL(
     authorId: string,
     data: WriteLData,
