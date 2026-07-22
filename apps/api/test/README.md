@@ -17,7 +17,7 @@ nothing, so without that check a renamed or moved file would leave the suite gre
 The one-shot command from the repo root sets everything up, including the mandatory guard env:
 
 ```bash
-pnpm test:integration     # build → bootstrap+migrate the test DB → run the suite
+pnpm test:integration     # build → rehearse upgrades → bootstrap+migrate → run HTTP suite
 ```
 
 To run the pieces by hand, the destructive steps require the guard env (they fail closed
@@ -26,6 +26,7 @@ without it):
 ```bash
 pnpm db:up                                                        # Postgres in Docker
 pnpm build                                                        # contracts → db → api (before setup)
+ALLOW_TEST_DB_RESET=1 pnpm test:migrations:1.1.4                  # real pre-1.1.4 upgrade
 ALLOW_TEST_DB_RESET=1 TEST_DB_EXPECTED_SESSION_USER=linkedout \
   pnpm db:test:setup                                             # bootstrap marker + migrate
 ALLOW_TEST_DB_RESET=1 TEST_DB_EXPECTED_SESSION_USER=linkedout \
@@ -40,6 +41,13 @@ ALLOW_TEST_DB_RESET=1 TEST_DB_EXPECTED_SESSION_USER=linkedout \
 The suite boots two API processes (one with R2 configured, one without, so
 `UPLOADS_DISABLED` is exercised against a real boot), truncates `linkedout_test` between
 tests, and tears everything down at the end.
+
+Before the HTTP suite, `scripts/test-1.1.4-migrations.cjs` creates only the exact disposable
+`linkedout_test_1_1_4_upgrade` database on the same loopback cluster. It migrates to the previous
+schema, inserts representative Checkpoint/Lesson rows with reactions, comments, counters, and
+Collection storage, applies the two 1.1.4 migrations, and asserts preservation/removal behavior.
+It drops that database in `finally`; it refuses non-loopback URLs or any base database other than
+`linkedout_test`.
 
 ### Test-database safety (fail-closed)
 
