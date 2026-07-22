@@ -7,6 +7,10 @@ and their CI/test boundaries. Newest first.
 
 ### Changed
 
+- `GET /users/:username/followers` and `/following` now return `Paginated<FollowListUser>`: each row
+  is a `UserSummary` plus the viewer's follow relationship (`{ isFollowing, isSelf }`, always present
+  — a signed-out viewer gets both `false`), so a client renders a correct per-row follow control
+  without an N+1. The viewer's follow edges across a page resolve in one batched query.
 - Retired the `Builders Helped` reputation metric from the public contract, metadata, write
   plans, profile/sidebar queries, seed reconstruction, and database schema. `HELPFUL` remains a
   fixed reaction with its existing popularity weight and notification behavior.
