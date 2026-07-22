@@ -93,8 +93,19 @@ export function ProfileHeader({ profile: initialProfile }: { profile: UserProfil
       </div>
 
       <p className="text-muted-foreground text-xs">
-        {compactNumber(profile.counts.followers)} followers ·{" "}
-        {compactNumber(profile.counts.following)} following
+        <Link
+          href={`/u/${profile.username}/followers`}
+          className="hover:text-foreground hover:underline"
+        >
+          {compactNumber(profile.counts.followers)} followers
+        </Link>
+        {" · "}
+        <Link
+          href={`/u/${profile.username}/following`}
+          className="hover:text-foreground hover:underline"
+        >
+          {compactNumber(profile.counts.following)} following
+        </Link>
       </p>
     </header>
   );

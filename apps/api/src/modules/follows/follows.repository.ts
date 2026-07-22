@@ -48,6 +48,16 @@ export class FollowsRepository {
     return result.count > 0;
   }
 
+  /** Of the given candidate ids, which does `followerId` already follow? One batched query. */
+  async followedIdsAmong(followerId: string, candidateIds: string[]): Promise<Set<string>> {
+    if (candidateIds.length === 0) return new Set();
+    const edges = await this.prisma.db.follow.findMany({
+      where: { followerId, followingId: { in: candidateIds } },
+      select: { followingId: true },
+    });
+    return new Set(edges.map((edge) => edge.followingId));
+  }
+
   async listFollowers(
     userId: string,
     limit: number,

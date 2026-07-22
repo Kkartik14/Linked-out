@@ -70,6 +70,22 @@ describe("public API feed and search keys", () => {
   });
 });
 
+describe("follow directory keys", () => {
+  it("scopes followers/following per principal and username and keeps them distinct", () => {
+    expect(queryKeys.users.followers("u1", "sam")).toEqual(["user-followers", "u1", "sam"]);
+    expect(queryKeys.users.following("u1", "sam")).toEqual(["user-following", "u1", "sam"]);
+    expect(queryKeys.users.followers("u1", "sam")).not.toEqual(
+      queryKeys.users.following("u1", "sam"),
+    );
+    expect(queryKeys.users.followers("u1", "sam")).not.toEqual(
+      queryKeys.users.followers("u2", "sam"),
+    );
+    expect(queryKeys.users.followers("u1", "sam")).not.toEqual(
+      queryKeys.users.followers("u1", "ann"),
+    );
+  });
+});
+
 describe("feed sidebar key", () => {
   it("scopes the sidebar per principal, because the response carries viewer state", () => {
     expect(queryKeys.feedSidebar.detail("u1")).not.toEqual(queryKeys.feedSidebar.detail("u2"));

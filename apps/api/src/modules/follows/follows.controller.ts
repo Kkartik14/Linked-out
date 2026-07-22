@@ -2,14 +2,14 @@ import { Controller, Delete, Get, Param, Put, Query, UseGuards } from '@nestjs/c
 import {
   paginationQuerySchema,
   usernameInputSchema,
+  type FollowListUser,
   type FollowResult,
   type Paginated,
   type PaginationQuery,
-  type UserSummary,
 } from '@linkedout/contracts';
 
 import { ApiContract, API_ROUTE_CONTRACTS } from '../../common/contracts/api-route-contracts';
-import { CurrentUser } from '../../common/decorators/current-user.decorator';
+import { CurrentUser, OptionalUser } from '../../common/decorators/current-user.decorator';
 import { JwtAuthGuard } from '../../common/guards/jwt-auth.guard';
 import { OptionalAuthGuard } from '../../common/guards/optional-auth.guard';
 import { ZodValidationPipe } from '../../common/pipes/zod-validation.pipe';
@@ -47,19 +47,21 @@ export class FollowsController {
   @UseGuards(OptionalAuthGuard)
   @ApiContract(API_ROUTE_CONTRACTS.userFollowers)
   followers(
+    @OptionalUser() user: AuthUser | undefined,
     @Param('username', usernamePipe) username: string,
     @Query(listPipe) query: PaginationQuery,
-  ): Promise<Paginated<UserSummary>> {
-    return this.follows.listFollowers(username, query);
+  ): Promise<Paginated<FollowListUser>> {
+    return this.follows.listFollowers(username, user, query);
   }
 
   @Get(':username/following')
   @UseGuards(OptionalAuthGuard)
   @ApiContract(API_ROUTE_CONTRACTS.userFollowing)
   following(
+    @OptionalUser() user: AuthUser | undefined,
     @Param('username', usernamePipe) username: string,
     @Query(listPipe) query: PaginationQuery,
-  ): Promise<Paginated<UserSummary>> {
-    return this.follows.listFollowing(username, query);
+  ): Promise<Paginated<FollowListUser>> {
+    return this.follows.listFollowing(username, user, query);
   }
 }

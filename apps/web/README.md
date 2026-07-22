@@ -101,8 +101,11 @@ Delete it when the BFF/session boundary lands and a broken session is cleared at
 `GET /feed/sidebar` is one optional-auth aggregate carrying the viewer, people to follow,
 Top Ls, and L of the day. The wire does not encode left/right — placement is ours:
 
-- **Left** — viewer box, then People to Follow in its own container.
+- **Left** — viewer box (Ls Shared, Followers, Following), Search/Saved navigation, then People to
+  Follow in its own container.
 - **Right** — Top Ls, then L of the day.
+- The same discovery frame is reused by Feed, full Search, and authenticated Saved. A Saved rail
+  failure never blocks the bookmark list.
 - Both rails read one shared principal-scoped query, so they cost a single request.
 - **Hidden below `lg`/`xl` rather than stacked.** The centre column is an infinite feed, so
   anything after it is unreachable, and stacking four discovery boxes above it would bury
@@ -114,6 +117,10 @@ Top Ls, and L of the day. The wire does not encode left/right — placement is o
 The feed route is three landmarks — two `complementary` rails around a `region` named
 "The Feed". The same L can legitimately appear in both the feed and a rail, so anything
 addressing "the feed" (a screen reader, a test) needs that name to mean something.
+
+On `/search`, the centre searchbox is the only search input. The header search controls and textual
+Feed link are omitted for that route, and an empty query reuses the feed controls/cards without
+repeating the Feed heading or subtitle.
 
 ## Routes
 

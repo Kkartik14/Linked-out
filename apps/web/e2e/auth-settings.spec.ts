@@ -141,6 +141,7 @@ test.describe("auth surface", () => {
 
 test.describe("saved, notifications & settings", () => {
   test("the saved page lists the viewer's SAVED Ls", async ({ page, context }) => {
+    await page.setViewportSize({ width: 1440, height: 900 });
     await signIn(context, world.kartik);
     await db().reaction.create({
       data: { userId: world.kartik.id, lId: world.nadiaPublic.id, type: "SAVED" },
@@ -150,6 +151,46 @@ test.describe("saved, notifications & settings", () => {
 
     await expect(page.getByRole("heading", { name: "Saved" })).toBeVisible();
     await expect(page.getByText(world.nadiaPublic.title)).toBeVisible();
+    const leftRail = page.getByRole("complementary", { name: "Profile and discovery" });
+    await expect(leftRail).toBeVisible();
+    await expect(
+      page.getByRole("complementary", { name: "Top Ls and L of the day" }),
+    ).toBeVisible();
+    await expect(leftRail.getByRole("link", { name: "Saved" })).toHaveAttribute(
+      "aria-current",
+      "page",
+    );
+    await expect(leftRail.getByRole("link", { name: "Followers" })).toHaveAttribute(
+      "href",
+      "/u/kartik/followers",
+    );
+    await expect(leftRail.getByRole("link", { name: "Following" })).toHaveAttribute(
+      "href",
+      "/u/kartik/following",
+    );
+
+    const viewerCard = leftRail.getByRole("region", { name: "Your profile" });
+    const metricCells = viewerCard.locator("dl > div");
+    await expect(metricCells).toHaveCount(3);
+    const [cardBox, cellBoxes] = await Promise.all([
+      viewerCard.boundingBox(),
+      metricCells.evaluateAll((cells) =>
+        cells.map((cell) => {
+          const box = cell.getBoundingClientRect();
+          return { top: box.top, right: box.right, bottom: box.bottom, left: box.left };
+        }),
+      ),
+    ]);
+    expect(cardBox).not.toBeNull();
+    expect(
+      Math.max(...cellBoxes.map((box) => box.top)) -
+        Math.min(...cellBoxes.map((box) => box.top)),
+    ).toBeLessThan(1);
+    for (const box of cellBoxes) {
+      expect(box.left).toBeGreaterThanOrEqual(cardBox!.x);
+      expect(box.right).toBeLessThanOrEqual(cardBox!.x + cardBox!.width);
+      expect(box.bottom).toBeLessThanOrEqual(cardBox!.y + cardBox!.height);
+    }
   });
 
   test("notifications render server-composed copy and can be marked read", async ({
@@ -181,7 +222,7 @@ test.describe("saved, notifications & settings", () => {
       .toBe(0);
   });
 
-  test("settings saves profile changes through PATCH /users/me", async ({ page, context }) => {
+  test("settings saves changes and returns to the edited profile", async ({ page, context }) => {
     await signIn(context, world.kartik);
     await page.goto("/settings");
 
@@ -189,7 +230,9 @@ test.describe("saved, notifications & settings", () => {
     await page.getByRole("textbox", { name: "Name", exact: true }).fill("Kartik G");
     await page.getByRole("button", { name: "Save changes" }).click();
 
-    await expect(page.getByText("Profile updated.")).toBeVisible();
+    // Part 5: a successful save returns to the canonical profile.
+    await expect(page).toHaveURL(/\/u\/kartik$/);
+    await expect(page.getByRole("heading", { name: "Kartik G" })).toBeVisible();
 
     await expect
       .poll(async () => (await db().user.findUnique({ where: { id: world.kartik.id } })).name)
@@ -217,10 +260,25 @@ test.describe("saved, notifications & settings", () => {
 
     await page.getByRole("textbox", { name: "Bio" }).fill("");
     await page.getByRole("button", { name: "Save changes" }).click();
-    await expect(page.getByText("Profile updated.")).toBeVisible();
+    await expect(page).toHaveURL(/\/u\/kartik$/);
 
     await expect
       .poll(async () => (await db().user.findUnique({ where: { id: world.kartik.id } })).bio)
       .toBeNull();
+  });
+
+  test("settings shows the left discovery rail and never the right rail", async ({
+    page,
+    context,
+  }) => {
+    await signIn(context, world.kartik);
+    await page.goto("/settings");
+
+    await expect(page.getByRole("heading", { name: "Settings" })).toBeVisible();
+    // Part 5: Settings renders through the left-only shell.
+    await expect(page.getByRole("complementary", { name: "Profile and discovery" })).toBeVisible();
+    await expect(
+      page.getByRole("complementary", { name: "Top Ls and L of the day" }),
+    ).toHaveCount(0);
   });
 });

@@ -33,15 +33,18 @@ export function SettingsForm({ user }: { user: UserProfile }) {
     e.preventDefault();
     setSaving(true);
     try {
-      await patchMe(assertComposedPrincipal(composedAs), {
+      const updated = await patchMe(assertComposedPrincipal(composedAs), {
         name: name.trim() || null,
         bio: bio.trim() || null,
       });
       toast.success("Profile updated.");
+      // Return to the (possibly renamed) profile. Not router.back(): a direct visit to Settings
+      // has no reliable profile entry in history. Leave `saving` set through the navigation so the
+      // button cannot be re-submitted during the route transition; only a failure re-enables it.
+      router.push(`/u/${updated.username}`);
       router.refresh();
     } catch (err) {
       toast.error(errorMessage(err));
-    } finally {
       setSaving(false);
     }
   }

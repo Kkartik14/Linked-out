@@ -23,6 +23,7 @@ export function FollowButton({
   const router = useRouter();
   const queryClient = useQueryClient();
   const profileKey = queryKeys.profiles.detail(principal, username);
+  const sidebarKey = queryKeys.feedSidebar.detail(principal);
 
   const mutation = useMutation({
     mutationKey: [...profileKey, "follow"] as const,
@@ -59,6 +60,12 @@ export function FollowButton({
             }
           : current,
       );
+    },
+    // The viewer card exposes the viewer's Following count on Feed, Search, and Saved. Reconcile
+    // that shared aggregate after either outcome; a failed response may still follow a committed
+    // write, while a successful one must not remain hidden behind the sidebar's freshness window.
+    onSettled: () => {
+      void queryClient.invalidateQueries({ queryKey: sidebarKey, exact: true });
     },
   });
 

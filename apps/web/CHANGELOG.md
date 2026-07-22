@@ -17,6 +17,19 @@ This file covers `apps/web` only. Its executable API contract is
   invalidate other viewer-owned summaries, and refresh the server session snapshot.
 - Composer create/edit flows now offer only the six supported L types.
 
+### Follower/following directories & settings navigation (1.1.4)
+
+- Added follower and following directory pages at `/u/[username]/followers` and
+  `/u/[username]/following`. The de-emphasised follower/following counts in the profile header now
+  link there. Each directory server-renders its first page and paginates with the existing opaque
+  cursor through one shared `InfiniteList`; rows link to profiles and carry a follow/unfollow toggle
+  (a signed-out visitor is routed through login). Rows arrive with per-row viewer follow-state, so a
+  toggle starts in the right position and a viewer never sees a follow control on their own row.
+- Settings now renders through the discovery frame's new left-only rail mode: the left rail (with
+  static Search/Saved navigation) stays, the right rail is never mounted, and a failed sidebar
+  request never blocks editing. A successful **Save changes** returns to the edited profile
+  (`/u/<username>`) instead of staying on the form.
+
 ### Authentication
 
 - Added email/password sign-in alongside Google and GitHub (backend feature 1.1.3). New `/signup`

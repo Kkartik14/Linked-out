@@ -43,6 +43,8 @@ export const queryKeys = {
   users: {
     ls: (p: string, username: string, type: string) =>
       ["user-ls", p, username, type] as const,
+    followers: (p: string, username: string) => ["user-followers", p, username] as const,
+    following: (p: string, username: string) => ["user-following", p, username] as const,
   },
   ls: {
     reactions: (p: string, lId: string) => ["ls", p, lId, "reactions"] as const,

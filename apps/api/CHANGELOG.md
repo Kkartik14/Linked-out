@@ -7,6 +7,10 @@ and their CI/test boundaries. Newest first.
 
 ### Changed
 
+- `GET /users/:username/followers` and `/following` now return `Paginated<FollowListUser>`: each row
+  is a `UserSummary` plus the viewer's follow relationship (`{ isFollowing, isSelf }`, always present
+  — a signed-out viewer gets both `false`), so a client renders a correct per-row follow control
+  without an N+1. The viewer's follow edges across a page resolve in one batched query.
 - Removed Journey timeline and Collections vertically from the v1 contract, route registry,
   OpenAPI, Nest modules, L detail reads, reputation, seed/test harness, and current Prisma schema.
   The forward migration drops Collection storage; Saved remains the independent `SAVED` reaction.
