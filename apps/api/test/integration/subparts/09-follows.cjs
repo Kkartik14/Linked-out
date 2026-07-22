@@ -137,11 +137,17 @@ describe('09 · follows (contract §4.7)', () => {
   });
 
   test('signed-out viewer receives empty follow state on every row', async () => {
-    await h.put('/users/target/follow', { cookie: me.cookie });
+    const other = await h.createUser({ username: 'other' });
+    await h.follow(me.id, target.id);
+    await h.follow(other.id, target.id);
 
     const followers = await h.get('/users/target/followers');
     const page = h.expectShape(followers, followList);
-    assert.deepEqual(page.data[0].viewer, { isFollowing: false, isSelf: false });
+    assert.equal(page.data.length, 2);
+    assert.ok(
+      page.data.every((r) => r.viewer.isFollowing === false && r.viewer.isSelf === false),
+      'a signed-out viewer follows no one and is no one',
+    );
   });
 
   test('follower rows reflect the signed-in viewer’s own follow edges', async () => {
