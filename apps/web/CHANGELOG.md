@@ -7,6 +7,16 @@ This file covers `apps/web` only. Its executable API contract is
 
 ## [Unreleased]
 
+### Profile cleanup
+
+- Profiles now expose exactly L, Wins, Stories, Scars, Plot Twists, and Battles, defaulting to L.
+  Removed the All, Journey, and Collections tabs and every Collection route/control; Saved remains
+  the sole bookmark destination.
+- Added the self-profile **Current chapter** control directly below Edit profile and removed status
+  from Settings. Changes submit only the status field, replace the authoritative profile cache,
+  invalidate other viewer-owned summaries, and refresh the server session snapshot.
+- Composer create/edit flows now offer only the six supported L types.
+
 ### Authentication
 
 - Added email/password sign-in alongside Google and GitHub (backend feature 1.1.3). New `/signup`

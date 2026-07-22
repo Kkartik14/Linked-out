@@ -7,6 +7,12 @@ and their CI/test boundaries. Newest first.
 
 ### Changed
 
+- Removed Journey timeline and Collections vertically from the v1 contract, route registry,
+  OpenAPI, Nest modules, L detail reads, reputation, seed/test harness, and current Prisma schema.
+  The forward migration drops Collection storage; Saved remains the independent `SAVED` reaction.
+- Reduced `LType` to `L`, `WIN`, `STORY`, `SCAR`, `PLOT_TWIST`, and `BATTLE`. The forward migration
+  reclassifies existing `CHECKPOINT`/`LESSON` rows as `L`, removes `lessonsShared`, and replaces the
+  PostgreSQL enum without changing L identities or related records.
 - Retired the `Builders Helped` reputation metric from the public contract, metadata, write
   plans, profile/sidebar queries, seed reconstruction, and database schema. `HELPFUL` remains a
   fixed reaction with its existing popularity weight and notification behavior.

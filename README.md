@@ -1,6 +1,8 @@
 # LinkedOut
 
-LinkedOut is a full-stack social app for sharing career losses, lessons learned, and professional growth. Think "LinkedIn for your Ls": users can post stories, react, comment, follow people, save collections, search, and manage profiles.
+LinkedOut is a full-stack social app for sharing honest career experiences and professional growth.
+Think "LinkedIn for your Ls": people can share Ls, react, comment, follow others, bookmark posts in
+Saved, search, and manage profiles.
 
 ## Stack
 

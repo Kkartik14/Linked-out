@@ -170,7 +170,7 @@ test('one OpenAPI document covers exactly the sole public API', async () => {
   const registered = await controllerOperations();
   assert.deepEqual([...documentedOperations(document).keys()].sort(), [...registered.keys()].sort());
   assert.deepEqual([...API_ROUTE_CONTRACT_BY_KEY.keys()].sort(), [...registered.keys()].sort());
-  assert.equal(document.info.version, '1.1.2');
+  assert.equal(document.info.version, '1.1.4');
   assert.deepEqual(document.servers, [{ url: '/v1' }]);
   assert.equal(document.paths['/tags/popular'], undefined);
   assert.ok(document.paths['/feed/sidebar']);

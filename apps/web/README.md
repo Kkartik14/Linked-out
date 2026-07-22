@@ -52,6 +52,11 @@ The app speaks the sole **v1 API**. Runtime types and validation come from
 The public L contract has **no `category`, `company`, `tags`, or `eventDate`**, there is no category
 filter on the feed or search, and `/tags/popular` does not exist.
 
+The accepted L types are **L, Win, Story, Scar, Plot Twist, and Battle**. Profiles expose exactly
+those six type tabs and default to L; there is no All, Journey, or Collections surface. Saved is
+the sole bookmark destination. On a self-profile, **Current chapter** appears directly below Edit
+profile and updates the existing status field without routing the user through Settings.
+
 ### Rejected credentials
 
 Optional-auth reads do **not** downgrade a presented-but-invalid credential to a guest
@@ -113,6 +118,6 @@ addressing "the feed" (a screen reader, a test) needs that name to mean somethin
 ## Routes
 
 `/` feed + discovery rails · `/ls/[id]` detail + comments · `/ls/[id]/edit` · `/new` composer ·
-`/u/[username]` profile sections ·
+`/u/[username]` six type-specific profile sections ·
 `/search` · `/notifications` · `/saved` · `/settings` ·
 `/login` · `/auth/callback` · `/onboarding`.

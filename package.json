@@ -1,6 +1,6 @@
 {
   "name": "linkedout",
-  "version": "1.1.2",
+  "version": "1.1.4",
   "private": true,
   "description": "LinkedOut backend monorepo (API + shared packages). apps/web is owned by the frontend team.",
   "scripts": {
