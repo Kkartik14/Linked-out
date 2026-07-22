@@ -14,6 +14,7 @@ import type {
   FeedQuery as ContractFeedQuery,
   FeedSidebarResponse,
   FeedSort as ContractFeedSort,
+  FollowListUser,
   FollowResult,
   ForgotPasswordInput,
   JourneyNode,
@@ -232,6 +233,10 @@ export const getJourney = (username: string, cursor?: string, limit?: number) =>
   apiFetch<Paginated<JourneyNode>>(`/users/${username}/journey${qs({ cursor, limit })}`);
 export const getUserCollections = (username: string, cursor?: string, limit?: number) =>
   apiFetch<Paginated<Collection>>(`/users/${username}/collections${qs({ cursor, limit })}`);
+export const getFollowers = (username: string, cursor?: string, limit?: number) =>
+  apiFetch<Paginated<FollowListUser>>(`/users/${username}/followers${qs({ cursor, limit })}`);
+export const getFollowing = (username: string, cursor?: string, limit?: number) =>
+  apiFetch<Paginated<FollowListUser>>(`/users/${username}/following${qs({ cursor, limit })}`);
 export const follow = (principal: ComposedPrincipal, username: string) =>
   mutate<FollowResult>(principal, `/users/${username}/follow`, { method: "PUT" });
 export const unfollow = (principal: ComposedPrincipal, username: string) =>
