@@ -34,6 +34,11 @@ import { EmailAuthRateLimiter } from './email-auth-rate-limiter';
 import { EmailAuthService } from './email-auth.service';
 import { EMAIL_OTP_DELIVERY, StubEmailOtpDelivery } from './email-otp.delivery';
 import { EmailOtpInspectionGuard } from './email-otp-inspection.guard';
+import {
+  PasswordSafetyService,
+  PWNED_PASSWORDS_FETCH,
+  PwnedPasswordsClient,
+} from './password-safety.service';
 
 // Register each OAuth strategy only when its credentials exist. Passport registers a
 // strategy as a side effect of construction, so skipping construction leaves the provider
@@ -63,6 +68,9 @@ const githubStrategyProvider: Provider = {
     EmailAuthRepository,
     EmailOtpCrypto,
     PasswordHasher,
+    PasswordSafetyService,
+    PwnedPasswordsClient,
+    { provide: PWNED_PASSWORDS_FETCH, useValue: globalThis.fetch.bind(globalThis) },
     EmailAuthRateLimiter,
     EmailAuthService,
     EmailOtpInspectionGuard,

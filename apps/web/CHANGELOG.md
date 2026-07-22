@@ -22,7 +22,9 @@ This file covers `apps/web` only. Its executable API contract is
   not auto-sign-in.
 - Added an accessible segmented OTP field (keyboard entry, paste, backspace, arrow navigation, one
   emitted value with no gaps), a password field with a reveal toggle, and a shared `AuthShell`.
-  Password minimum surfaced as 15 characters per the contract (NIST length-over-composition).
+  Signup and reset now surface the approved 8–128-character policy, explain that composition rules
+  are optional, and show an accessible live zxcvbn strength meter. Known-compromised rejections
+  return users to password editing without discarding their active OTP.
 
 ### Reputation
 

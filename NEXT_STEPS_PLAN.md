@@ -13,6 +13,9 @@
 - [x] OTP password reset with one-time consumption and all-session revocation.
 - [x] Prisma migration, bounded cleanup, OpenAPI/shared Zod contracts, integration tests, and
   checked-in Postman collection/environment template.
+- [x] Approved password policy: 8–128 characters, no mandatory composition rules, accessible live
+  strength feedback, local obvious-password rejection, and HIBP k-anonymity breach checks that
+  fail open after the local fallback when the provider is unavailable.
 
 ### Deliberately deferred
 
@@ -20,15 +23,12 @@
   with the production email provider. Add a transactional delivery worker/outbox, idempotency by
   challenge, retries/dead letters, SPF/DKIM/DMARC, verification/reset/security-notification email
   templates, and remove production OTP disclosure.
-- [ ] Add a breached/common-password blocklist before public launch.
 - [ ] Benchmark Argon2id and run the documented 10,000-distinct-account load test on the actual
   Vercel + Neon pooled deployment; tune operational limits from p95/p99 data.
 - [x] Frontend phase: the web app implements the signup, OTP verification, login, resend, and
   forgot/reset screens and reuses the server-side handoff exchange to set the HttpOnly
-  browser-session cookie. Pending sync to the verify-time-password contract — the password moved
-  from the signup call to the verify call (see `local/contract.md` §6); the reset-resend toast
-  should say the code was re-sent, not that a "fresh" code was generated (resend reuses the active
-  code within its window).
+  browser-session cookie. The forms follow the verify-time-password contract, and resend copy
+  reflects that an active code is re-sent rather than replaced.
 
 Implementation details and handoff shapes are in `docs/email-auth-backend.md`. Primary-source
 security/scaling research is in `docs/research/email-otp-auth.md`.

@@ -40,9 +40,12 @@ export const emailAddressSchema = z
   .toLowerCase()
   .pipe(z.email().max(254));
 
-// NIST SP 800-63B's current minimum for a password used as a single factor is 15 characters.
-// Composition rules are deliberately absent; long passphrases and password-manager output work.
-export const passwordSchema = z.string().min(15).max(128);
+// Product policy: accept memorable passphrases and password-manager output without mandatory
+// uppercase/number/symbol composition rules. The server separately rejects known-compromised and
+// obvious passwords when credentials are created or reset.
+export const PASSWORD_MIN_LENGTH = 8;
+export const PASSWORD_MAX_LENGTH = 128;
+export const passwordSchema = z.string().min(PASSWORD_MIN_LENGTH).max(PASSWORD_MAX_LENGTH);
 export const emailOtpSchema = z.string().regex(/^\d{8}$/, 'otp must contain exactly 8 digits');
 
 // Signup only starts email verification; it never carries the password. The account credential is

@@ -34,6 +34,8 @@ export function emailAuthErrorMessage(err: unknown): string {
     case "INVALID_CREDENTIALS":
       // Same answer for "no such account" and "wrong password" — deliberately not distinguished.
       return "The email or password is incorrect.";
+    case "PASSWORD_COMPROMISED":
+      return "That password appears in known data breaches. Choose a different password.";
     case "RATE_LIMITED":
       return "Too many attempts. Please wait a moment and try again.";
     case "PROVIDER_NOT_CONFIGURED":

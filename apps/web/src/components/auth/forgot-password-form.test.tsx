@@ -19,7 +19,7 @@ import { emailForgotPassword, emailResetPassword } from "@/lib/api";
 import { renderWithProviders } from "@/test/utils";
 
 const EMAIL = "kartik@example.com";
-const NEW_PASSWORD = "brand new battery staple"; // ≥ 15 chars
+const NEW_PASSWORD = "brand new battery staple";
 const CODE = "12345678";
 
 beforeEach(() => vi.clearAllMocks());
@@ -60,11 +60,20 @@ describe("ForgotPasswordForm", () => {
     await reachResetStep(user);
 
     await typeOtp(user, CODE);
-    await user.type(screen.getByLabelText("New password"),"short");
+    await user.type(screen.getByLabelText("New password"), "short");
     await user.click(screen.getByRole("button", { name: "Reset password" }));
 
-    expect(await screen.findByRole("alert")).toHaveTextContent(/at least 15 characters/i);
+    expect(await screen.findByRole("alert")).toHaveTextContent(/at least 8 characters/i);
     expect(emailResetPassword).not.toHaveBeenCalled();
+  });
+
+  it("shows live strength feedback for the replacement password", async () => {
+    const user = userEvent.setup();
+    render();
+    await reachResetStep(user);
+
+    await user.type(screen.getByLabelText("New password"), "password");
+    expect(screen.getByRole("meter", { name: /password strength/i })).toBeInTheDocument();
   });
 
   it("resets the password and shows the signed-out confirmation", async () => {
@@ -74,7 +83,7 @@ describe("ForgotPasswordForm", () => {
     await reachResetStep(user);
 
     await typeOtp(user, CODE);
-    await user.type(screen.getByLabelText("New password"),NEW_PASSWORD);
+    await user.type(screen.getByLabelText("New password"), NEW_PASSWORD);
     await user.click(screen.getByRole("button", { name: "Reset password" }));
 
     expect(emailResetPassword).toHaveBeenCalledWith({

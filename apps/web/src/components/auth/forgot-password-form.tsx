@@ -3,7 +3,13 @@
 import * as React from "react";
 import Link from "next/link";
 import { toast } from "sonner";
-import { emailAddressSchema, emailOtpSchema, passwordSchema } from "@linkedout/contracts";
+import {
+  emailAddressSchema,
+  emailOtpSchema,
+  PASSWORD_MAX_LENGTH,
+  PASSWORD_MIN_LENGTH,
+  passwordSchema,
+} from "@linkedout/contracts";
 
 import { emailForgotPassword, emailResendOtp, emailResetPassword } from "@/lib/api";
 import { emailAuthErrorMessage } from "@/lib/email-auth";
@@ -12,9 +18,8 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { OtpInput, OTP_LENGTH } from "@/components/auth/otp-input";
 import { PasswordField } from "@/components/auth/password-field";
+import { PasswordStrength } from "@/components/auth/password-strength";
 import { useResendCooldown } from "@/components/auth/use-resend-cooldown";
-
-const PASSWORD_MIN = 15;
 
 type Step = "request" | "reset" | "done";
 
@@ -63,7 +68,7 @@ export function ForgotPasswordForm({ returnTo }: { returnTo: string }) {
       return;
     }
     if (!passwordSchema.safeParse(password).success) {
-      setError(`Use at least ${PASSWORD_MIN} characters for your new password.`);
+      setError(`Use at least ${PASSWORD_MIN_LENGTH} characters for your new password.`);
       return;
     }
     setBusy(true);
@@ -82,7 +87,7 @@ export function ForgotPasswordForm({ returnTo }: { returnTo: string }) {
     cooldown.start();
     try {
       await emailResendOtp({ email, purpose: "PASSWORD_RESET" });
-      toast.success("If that account exists, we’ve sent a fresh code.");
+      toast.success("If that account exists, we’ve re-sent your code.");
     } catch (err) {
       toast.error(emailAuthErrorMessage(err));
     }
@@ -177,15 +182,17 @@ export function ForgotPasswordForm({ returnTo }: { returnTo: string }) {
             setPassword(e.target.value);
             setError(null);
           }}
-          placeholder="At least 15 characters"
+          placeholder={`At least ${PASSWORD_MIN_LENGTH} characters`}
           autoComplete="new-password"
-          maxLength={128}
+          maxLength={PASSWORD_MAX_LENGTH}
           aria-invalid={error !== null}
           aria-describedby="new-password-hint"
         />
         <p id="new-password-hint" className="text-muted-foreground text-xs">
-          Use at least {PASSWORD_MIN} characters. A memorable passphrase works well.
+          Use at least {PASSWORD_MIN_LENGTH} characters. Longer, unique passwords are stronger;
+          uppercase letters, numbers, and symbols are optional.
         </p>
+        <PasswordStrength password={password} />
       </div>
 
       {error ? (

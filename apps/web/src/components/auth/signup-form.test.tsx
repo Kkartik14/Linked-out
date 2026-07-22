@@ -25,7 +25,7 @@ import { completeEmailSession } from "@/lib/email-auth";
 import { renderWithProviders } from "@/test/utils";
 
 const EMAIL = "kartik@example.com";
-const PASSWORD = "correct horse battery staple"; // ≥ 15 chars
+const PASSWORD = "correct horse battery staple";
 const CODE = "12345678";
 
 beforeEach(() => vi.clearAllMocks());
@@ -53,16 +53,25 @@ async function reachOtpStep(user: ReturnType<typeof userEvent.setup>) {
 }
 
 describe("SignupForm", () => {
-  it("refuses a password shorter than the NIST minimum before hitting the API", async () => {
+  it("refuses a password shorter than eight characters before hitting the API", async () => {
     const user = userEvent.setup();
     render();
 
     await user.type(screen.getByLabelText("Email"), EMAIL);
-    await user.type(screen.getByLabelText("Password"), "too short");
+    await user.type(screen.getByLabelText("Password"), "short7!");
     await user.click(screen.getByRole("button", { name: "Create account" }));
 
-    expect(await screen.findByRole("alert")).toHaveTextContent(/at least 15 characters/i);
+    expect(await screen.findByRole("alert")).toHaveTextContent(/at least 8 characters/i);
     expect(emailSignup).not.toHaveBeenCalled();
+  });
+
+  it("shows live password-strength feedback without imposing composition rules", async () => {
+    const user = userEvent.setup();
+    render();
+
+    await user.type(screen.getByLabelText("Password"), "password");
+    expect(screen.getByRole("meter", { name: /password strength/i })).toBeInTheDocument();
+    expect(screen.getByText(/very weak|weak/i)).toBeInTheDocument();
   });
 
   it("requests a code and advances to the verification step", async () => {
@@ -109,6 +118,25 @@ describe("SignupForm", () => {
     await typeOtp(user, CODE);
 
     expect(await screen.findByRole("alert")).toHaveTextContent(/incorrect or has expired/i);
+    expect(completeEmailSession).not.toHaveBeenCalled();
+  });
+
+  it("returns to password editing when the server rejects a compromised password", async () => {
+    const user = userEvent.setup();
+    vi.mocked(emailVerify).mockRejectedValue(
+      new ApiError(
+        422,
+        "PASSWORD_COMPROMISED",
+        "This password appears in known data breaches.",
+      ),
+    );
+    render();
+    await reachOtpStep(user);
+
+    await typeOtp(user, CODE);
+
+    expect(await screen.findByLabelText("Password")).toHaveValue(PASSWORD);
+    expect(screen.getByRole("alert")).toHaveTextContent(/known data breaches/i);
     expect(completeEmailSession).not.toHaveBeenCalled();
   });
 

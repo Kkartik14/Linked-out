@@ -367,6 +367,7 @@ function baseEnv(port, extra) {
     EMAIL_OTP_PEPPER,
     EMAIL_OTP_ENCRYPTION_KEY,
     EMAIL_OTP_INSPECTION_SECRET,
+    PWNED_PASSWORDS_MODE: 'local-only',
     COOKIE_DOMAIN: '',
     GOOGLE_CLIENT_ID: 'test-google-client-id',
     GOOGLE_CLIENT_SECRET: 'test-google-client-secret',

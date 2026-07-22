@@ -2,13 +2,13 @@
   "info": {
     "_postman_id": "a13c5f8a-8662-4c21-ae63-f551113e1a11",
     "name": "LinkedOut — Email Auth 1.1.3",
-    "description": "Backend workflow for signup verification, password login, resend, forgot/reset, and the temporary protected stub OTP inspector. Run requests in collection order. No real secret is committed.",
+    "description": "Backend workflow for signup verification, password login, resend, forgot/reset, and the temporary protected stub OTP inspector. Run requests in collection order. New/reset passwords use the 8–128 character policy and are checked against local/common and HIBP breach data. No real secret is committed.",
     "schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json"
   },
   "variable": [
     { "key": "email", "value": "kartik.postman@example.com" },
-    { "key": "password", "value": "correct horse battery staple" },
-    { "key": "newPassword", "value": "different horse battery staple" },
+    { "key": "password", "value": "LinkedOut-Postman-7uN!2026" },
+    { "key": "newPassword", "value": "LinkedOut-Reset-9vQ!2026" },
     { "key": "signupOtp", "value": "" },
     { "key": "resetOtp", "value": "" },
     { "key": "handoffCode", "value": "" }
@@ -49,7 +49,7 @@
             "header": [{ "key": "Content-Type", "value": "application/json" }],
             "body": { "mode": "raw", "raw": "{\n  \"email\": \"{{email}}\",\n  \"otp\": \"{{signupOtp}}\",\n  \"password\": \"{{password}}\",\n  \"returnTo\": \"/feed\"\n}" },
             "url": "{{baseUrl}}/auth/email/verify",
-            "description": "Atomically consumes the OTP, creates the verified user and Argon2id credential, then returns the existing one-time browser-session handoff."
+            "description": "Checks the 8–128 character password against local/common and HIBP breach data, then atomically consumes the OTP, creates the verified user and Argon2id credential, and returns the existing one-time browser-session handoff. A rejected password does not consume the OTP."
           },
           "event": [{ "listen": "test", "script": { "exec": ["pm.test('verified', () => pm.response.to.have.status(200));", "const body = pm.response.json();", "pm.expect(body.code).to.match(/^[A-Za-z0-9_-]{43}$/);", "pm.collectionVariables.set('handoffCode', body.code);"] } }]
         }

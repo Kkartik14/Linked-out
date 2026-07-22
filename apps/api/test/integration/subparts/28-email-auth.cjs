@@ -124,6 +124,31 @@ describe('28 · email/password authentication with OTP', () => {
     assert.equal((await h.ctx.prisma.browserSession.findMany())[0].sub, user.id);
   });
 
+  test('password policy accepts eight characters and rejects a compromised password without consuming the OTP', async () => {
+    await requestSignup();
+    const { body: delivery } = await inspect(EMAIL, 'SIGNUP');
+
+    h.expectError(
+      await h.post('/auth/email/verify', {
+        body: { email: EMAIL, otp: delivery.otp, password: 'seven77', returnTo: '/' },
+      }),
+      400,
+      'VALIDATION_ERROR',
+    );
+    h.expectError(
+      await h.post('/auth/email/verify', {
+        body: { email: EMAIL, otp: delivery.otp, password: 'password', returnTo: '/' },
+      }),
+      422,
+      'PASSWORD_COMPROMISED',
+    );
+
+    const verified = await h.post('/auth/email/verify', {
+      body: { email: EMAIL, otp: delivery.otp, password: 'Safe8!go', returnTo: '/' },
+    });
+    assert.equal(verified.status, 200, JSON.stringify(verified.body));
+  });
+
   test('two simultaneous correct verifications produce exactly one account and one handoff', async () => {
     await requestSignup();
     const otp = (await inspect(EMAIL, 'SIGNUP')).body.otp;
@@ -207,6 +232,14 @@ describe('28 · email/password authentication with OTP', () => {
     assert.equal(forgot.status, 202);
     assert.deepEqual(forgot.body, unknown.body);
     const resetOtp = (await inspect(EMAIL, 'PASSWORD_RESET')).body.otp;
+
+    h.expectError(
+      await h.post('/auth/email/password/reset', {
+        body: { email: EMAIL, otp: resetOtp, newPassword: 'password' },
+      }),
+      422,
+      'PASSWORD_COMPROMISED',
+    );
 
     const reset = await h.post('/auth/email/password/reset', {
       body: { email: EMAIL, otp: resetOtp, newPassword: NEW_PASSWORD },

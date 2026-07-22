@@ -9,6 +9,7 @@ export const APP_ERROR_CODES = [
   'INVALID_HANDOFF',
   'INVALID_OTP',
   'INVALID_CREDENTIALS',
+  'PASSWORD_COMPROMISED',
   'PRINCIPAL_MISMATCH',
   'FORBIDDEN',
   'NOT_L_OWNER',
@@ -116,6 +117,11 @@ export const AppErrors = {
       { code: 'INVALID_CREDENTIALS', message: 'The email or password is incorrect.' },
       { telemetryClassification: 'security-rejection' },
     ),
+  passwordCompromised: (): AppException =>
+    new AppException(422, {
+      code: 'PASSWORD_COMPROMISED',
+      message: 'This password appears in known data breaches. Choose a different password.',
+    }),
   principalMismatch: (): AppException =>
     new AppException(
       409,

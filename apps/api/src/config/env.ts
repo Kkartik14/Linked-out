@@ -177,6 +177,8 @@ export const envSchema = z
     EMAIL_OTP_PEPPER: optionalInternalSecret,
     EMAIL_OTP_ENCRYPTION_KEY: otpEncryptionKey,
     EMAIL_OTP_INSPECTION_SECRET: optionalInternalSecret,
+    PWNED_PASSWORDS_MODE: z.enum(['hibp', 'local-only']).default('hibp'),
+    PWNED_PASSWORDS_TIMEOUT_MS: z.coerce.number().int().min(250).max(10_000).default(2_500),
 
     GOOGLE_CLIENT_ID: z.string().default(''),
     GOOGLE_CLIENT_SECRET: z.string().default(''),
