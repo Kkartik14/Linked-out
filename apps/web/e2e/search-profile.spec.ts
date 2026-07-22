@@ -151,11 +151,8 @@ test.describe("profiles", () => {
     })).status).toBe("WORKING");
 
     await page.goto("/");
-    await expect(
-      page
-        .getByRole("complementary", { name: "Profile and discovery" })
-        .getByText("Working", { exact: true }),
-    ).toBeVisible();
+    const viewerProfile = page.getByRole("region", { name: "Your profile" });
+    await expect(viewerProfile.getByText("Working", { exact: false })).toHaveText("🟢 Working");
 
     await page.goto("/u/kartik");
     await chapter.click();
