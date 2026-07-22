@@ -259,8 +259,6 @@ function expectError(res, status, code) {
 const TABLES = [
   'AvatarDeletionClaim',
   'Notification',
-  'CollectionL',
-  'Collection',
   'Follow',
   'Comment',
   'Reaction',

@@ -50,10 +50,10 @@ describe("API endpoint helpers", () => {
     expect(apiFetch).toHaveBeenCalledWith("/feed/following?cursor=abc&limit=5");
   });
 
-  it("fetches principal-independent enum metadata through Next's shared revalidation cache", () => {
+  it("fetches enum metadata through a contract-versioned shared cache key", () => {
     void getMeta();
 
-    expect(apiFetch).toHaveBeenCalledWith("/meta/enums", {
+    expect(apiFetch).toHaveBeenCalledWith("/meta/enums?v=1.1.4", {
       cache: "force-cache",
       credentials: "omit",
       next: { revalidate: 86_400 },

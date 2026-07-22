@@ -70,7 +70,7 @@ export function requireViewer(session: Session, returnTo: string): Authenticated
 
 /**
  * Enum display metadata. React dedupes calls inside a render; `getMeta` also opts the public,
- * principal-independent fetch into Next's cross-request daily revalidation cache.
+ * principal-independent fetch into a contract-versioned cross-request cache.
  */
 export const getMetaCached = cache(async (): Promise<MetaEnumsResponse> => {
   try {

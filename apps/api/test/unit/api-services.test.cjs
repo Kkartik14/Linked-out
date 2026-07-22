@@ -5,7 +5,6 @@ require('reflect-metadata');
 
 const { LsService } = require('../../dist/modules/ls/ls.service');
 const { CommentsService } = require('../../dist/modules/comments/comments.service');
-const { CollectionsService } = require('../../dist/modules/collections/collections.service');
 const { FollowsService } = require('../../dist/modules/follows/follows.service');
 const { SearchService } = require('../../dist/modules/search/search.service');
 const { UploadsService } = require('../../dist/modules/uploads/uploads.service');
@@ -21,7 +20,6 @@ const USER_ID = '01ARZ3NDEKTSV4RRFFQ69G5FAV';
 const OTHER_ID = '01BRZ3NDEKTSV4RRFFQ69G5FAV';
 const L_ID = '01CRZ3NDEKTSV4RRFFQ69G5FAV';
 const COMMENT_ID = '01DRZ3NDEKTSV4RRFFQ69G5FAV';
-const COLLECTION_ID = '01ERZ3NDEKTSV4RRFFQ69G5FAV';
 
 function errorBody(error) {
   return error.getResponse();
@@ -49,9 +47,7 @@ function userProfileRow(overrides = {}) {
     ...userSummary(),
     bio: null,
     storiesShared: 1,
-    lessonsShared: 2,
     lsShared: 4,
-    collectionsCreated: 1,
     followerCount: 0,
     followingCount: 0,
     createdAt: NOW,
@@ -99,19 +95,6 @@ function commentRow(overrides = {}) {
   };
 }
 
-function collectionRow(overrides = {}) {
-  return {
-    id: COLLECTION_ID,
-    title: 'Interview lessons',
-    slug: 'interview-lessons',
-    ownerId: USER_ID,
-    owner: userSummary(),
-    createdAt: NOW,
-    _count: { ls: 1 },
-    ...overrides,
-  };
-}
-
 test('LsService blocks non-visible Ls while allowing owners and followers', async () => {
   {
     const service = new LsService({
@@ -127,7 +110,6 @@ test('LsService blocks non-visible Ls while allowing owners and followers', asyn
   {
     const service = new LsService({
       findById: async () => lRow({ visibility: 'PRIVATE' }),
-      collectionsForL: async () => [],
       viewerReactions: async () => [],
     });
     const detail = await service.getDetail(L_ID, USER_ID);
@@ -140,7 +122,6 @@ test('LsService blocks non-visible Ls while allowing owners and followers', asyn
     const service = new LsService({
       findById: async () => lRow({ visibility: 'FOLLOWERS' }),
       viewerFollows: async (viewerId, authorId) => viewerId === OTHER_ID && authorId === USER_ID,
-      collectionsForL: async () => [],
       viewerReactions: async () => [{ lId: L_ID, type: 'HELPFUL' }],
     });
     const detail = await service.getDetail(L_ID, OTHER_ID);
@@ -351,66 +332,6 @@ test('FollowsService rejects self-follow and returns counts after follow', async
     assert.equal(followed, true);
     assert.deepEqual(result, { isFollowing: true, counts: { followers: 3, following: 1 } });
   }
-});
-
-test('CollectionsService enforces owner-only collection mutations', async () => {
-  {
-    const service = new CollectionsService({}, {}, {});
-
-    await assert.rejects(
-      () => service.create({ id: USER_ID, username: null }, { title: 'Private notes' }),
-      (error) => assertAppError(error, 403, 'FORBIDDEN'),
-    );
-  }
-
-  {
-    const service = new CollectionsService(
-      { findOwner: async () => null },
-      {},
-      {},
-    );
-
-    await assert.rejects(
-      () => service.rename({ id: USER_ID, username: 'kartik' }, COLLECTION_ID, { title: 'New' }),
-      (error) => assertAppError(error, 404, 'COLLECTION_NOT_FOUND'),
-    );
-  }
-
-  {
-    const service = new CollectionsService(
-      {
-        findOwner: async () => ({ ownerId: USER_ID }),
-        lOwner: async () => ({ authorId: OTHER_ID }),
-      },
-      {},
-      {},
-    );
-
-    await assert.rejects(
-      () => service.addL({ id: USER_ID, username: 'kartik' }, COLLECTION_ID, L_ID, {}),
-      (error) => assertAppError(error, 403, 'FORBIDDEN'),
-    );
-  }
-});
-
-test('CollectionsService composes visible collection details', async () => {
-  const service = new CollectionsService(
-    {
-      findById: async () => collectionRow(),
-      orderedLIds: async () => [L_ID],
-      visibleLs: async (_ids, visibilities, includeAnonymous) => {
-        assert.deepEqual(visibilities, ['PUBLIC', 'FOLLOWERS', 'PRIVATE']);
-        assert.equal(includeAnonymous, true);
-        return [lRow()];
-      },
-      viewerReactions: async () => [],
-    },
-  );
-
-  const detail = await service.getDetail(COLLECTION_ID, USER_ID);
-
-  assert.equal(detail.viewer.canEdit, true);
-  assert.equal(detail.ls.length, 1);
 });
 
 test('SearchService rejects malformed cursors before hitting repositories', async () => {

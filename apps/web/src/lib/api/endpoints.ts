@@ -3,8 +3,6 @@ import type {
   AuthMeResponse,
   AvatarUploadRequest,
   AvatarUploadResponse,
-  Collection,
-  CollectionDetail,
   Comment,
   CreateCommentInput,
   EmailAuthHandoffResponse,
@@ -17,7 +15,6 @@ import type {
   FollowListUser,
   FollowResult,
   ForgotPasswordInput,
-  JourneyNode,
   LCard,
   LDetail,
   LType,
@@ -141,10 +138,13 @@ export const emailResetPassword = (body: ResetPasswordInput) =>
   apiFetch<OkResponse>("/auth/email/password/reset", { method: "POST", ...json(body) });
 
 // ── Meta & discovery ─────────────────────────────────────────────────────────
+const META_CONTRACT_REVISION = "1.1.4";
+
 export const getMeta = () =>
-  apiFetch<MetaEnumsResponse>("/meta/enums", {
-    // Public, deployment-versioned display metadata: share across principals and revalidate
-    // daily. Omitting credentials is what makes cross-request Next caching safe.
+  apiFetch<MetaEnumsResponse>(`/meta/enums?v=${META_CONTRACT_REVISION}`, {
+    // The URL revision changes whenever enum membership or display copy changes, preventing a
+    // previous deployment's 24-hour Data Cache entry from outliving a contract cutover.
+    // Omitting credentials keeps the versioned response safe to share across principals.
     cache: "force-cache",
     credentials: "omit",
     next: { revalidate: 86_400 },
@@ -229,10 +229,6 @@ export const patchMe = (principal: ComposedPrincipal, body: UpdateUserInput) =>
   mutate<UserProfile>(principal, "/users/me", { method: "PATCH", ...json(body) });
 export const getUserLs = (username: string, type?: LType, cursor?: string, limit?: number) =>
   apiFetch<Paginated<LCard>>(`/users/${username}/ls${qs({ type, cursor, limit })}`);
-export const getJourney = (username: string, cursor?: string, limit?: number) =>
-  apiFetch<Paginated<JourneyNode>>(`/users/${username}/journey${qs({ cursor, limit })}`);
-export const getUserCollections = (username: string, cursor?: string, limit?: number) =>
-  apiFetch<Paginated<Collection>>(`/users/${username}/collections${qs({ cursor, limit })}`);
 export const getFollowers = (username: string, cursor?: string, limit?: number) =>
   apiFetch<Paginated<FollowListUser>>(`/users/${username}/followers${qs({ cursor, limit })}`);
 export const getFollowing = (username: string, cursor?: string, limit?: number) =>
@@ -241,31 +237,6 @@ export const follow = (principal: ComposedPrincipal, username: string) =>
   mutate<FollowResult>(principal, `/users/${username}/follow`, { method: "PUT" });
 export const unfollow = (principal: ComposedPrincipal, username: string) =>
   mutate<FollowResult>(principal, `/users/${username}/follow`, { method: "DELETE" });
-
-// ── Collections ──────────────────────────────────────────────────────────────
-export const createCollection = (principal: ComposedPrincipal, title: string) =>
-  mutate<Collection>(principal, "/collections", { method: "POST", ...json({ title }) });
-export const getCollection = (id: string) =>
-  apiFetch<CollectionDetail>(`/collections/${id}`);
-export const renameCollection = (principal: ComposedPrincipal, id: string, title: string) =>
-  mutate<Collection>(principal, `/collections/${id}`, { method: "PATCH", ...json({ title }) });
-export const deleteCollection = (principal: ComposedPrincipal, id: string) =>
-  mutate<OkResponse>(principal, `/collections/${id}`, { method: "DELETE" });
-export const addLToCollection = (
-  principal: ComposedPrincipal,
-  id: string,
-  lId: string,
-  position?: number,
-) =>
-  mutate<CollectionDetail>(principal, `/collections/${id}/ls/${lId}`, {
-    method: "PUT",
-    ...(position !== undefined ? json({ position }) : {}),
-  });
-export const removeLFromCollection = (
-  principal: ComposedPrincipal,
-  id: string,
-  lId: string,
-) => mutate<CollectionDetail>(principal, `/collections/${id}/ls/${lId}`, { method: "DELETE" });
 
 // ── Search ───────────────────────────────────────────────────────────────────
 /** Public API search is always relevance-ranked and has no category filter. */

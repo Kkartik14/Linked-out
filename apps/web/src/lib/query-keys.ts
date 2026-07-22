@@ -43,9 +43,6 @@ export const queryKeys = {
   users: {
     ls: (p: string, username: string, type: string) =>
       ["user-ls", p, username, type] as const,
-    journey: (p: string, username: string) => ["journey", p, username] as const,
-    collections: (p: string, username: string) =>
-      ["user-collections", p, username] as const,
     followers: (p: string, username: string) => ["user-followers", p, username] as const,
     following: (p: string, username: string) => ["user-following", p, username] as const,
   },

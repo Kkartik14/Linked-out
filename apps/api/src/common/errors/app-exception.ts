@@ -16,7 +16,6 @@ export const APP_ERROR_CODES = [
   'L_NOT_FOUND',
   'USER_NOT_FOUND',
   'COMMENT_NOT_FOUND',
-  'COLLECTION_NOT_FOUND',
   'USERNAME_TAKEN',
   'USERNAME_INVALID',
   'EMAIL_TAKEN',
@@ -149,11 +148,6 @@ export const AppErrors = {
     new AppException(404, { code: 'USER_NOT_FOUND', message: 'This user does not exist.' }),
   commentNotFound: (): AppException =>
     new AppException(404, { code: 'COMMENT_NOT_FOUND', message: 'This comment does not exist.' }),
-  collectionNotFound: (): AppException =>
-    new AppException(404, {
-      code: 'COLLECTION_NOT_FOUND',
-      message: 'This collection does not exist.',
-    }),
   usernameTaken: (): AppException =>
     new AppException(409, { code: 'USERNAME_TAKEN', message: 'That username is already taken.' }),
   usernameInvalid: (): AppException =>

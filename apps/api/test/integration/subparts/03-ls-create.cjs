@@ -26,7 +26,6 @@ describe('03 · POST /ls — create (contract §4.3)', () => {
     assert.equal(l.title, VALID.title);
     assert.equal(l.story, VALID.story);
     assert.equal(l.author.username, 'kartik');
-    assert.deepEqual(l.collections, []);
     assert.deepEqual(l.viewer, { reactions: [], canEdit: true });
     assert.deepEqual(l.reactions, {
       total: 0,
@@ -77,19 +76,26 @@ describe('03 · POST /ls — create (contract §4.3)', () => {
     assert.equal(l.viewer.canEdit, true, 'the author can still edit their anonymous L');
   });
 
-  test('increments lsShared, and storiesShared/lessonsShared by type', async () => {
+  test('increments lsShared and storiesShared by type', async () => {
     await h.post('/ls', { cookie: author.cookie, body: VALID });
     await h.post('/ls', { cookie: author.cookie, body: { ...VALID, type: 'STORY' } });
-    await h.post('/ls', { cookie: author.cookie, body: { ...VALID, type: 'LESSON' } });
     await h.post('/ls', { cookie: author.cookie, body: { ...VALID, type: 'WIN' } });
 
     const { body } = await h.get('/users/kartik');
     assert.deepEqual(body.reputation, {
-      lsShared: 4,
+      lsShared: 3,
       storiesShared: 1,
-      lessonsShared: 1,
-      collectionsCreated: 0,
     });
+  });
+
+  test('rejects retired CHECKPOINT and LESSON types', async () => {
+    for (const type of ['CHECKPOINT', 'LESSON']) {
+      h.expectError(
+        await h.post('/ls', { cookie: author.cookie, body: { ...VALID, type } }),
+        400,
+        'VALIDATION_ERROR',
+      );
+    }
   });
 
   test('requires authentication', async () => {

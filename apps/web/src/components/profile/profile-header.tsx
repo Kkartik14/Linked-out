@@ -9,6 +9,7 @@ import { queryKeys } from "@/lib/query-keys";
 import { usePrincipal } from "@/components/session-provider";
 import { statusOption, useMeta } from "@/components/meta-provider";
 import { UserAvatar } from "@/components/user-avatar";
+import { CurrentChapterControl } from "@/components/profile/current-chapter-control";
 import { FollowButton } from "@/components/profile/follow-button";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -44,35 +45,40 @@ export function ProfileHeader({ profile: initialProfile }: { profile: UserProfil
 
   return (
     <header className="flex flex-col gap-4">
-      <div className="flex items-start gap-4">
-        <UserAvatar
-          name={profile.name}
-          username={profile.username}
-          image={profile.image}
-          statusDot={status?.dot}
-          className="size-16 text-lg"
-        />
-        <div className="min-w-0 flex-1">
-          <h1 className="text-xl font-semibold tracking-tight">
-            {profile.name ?? profile.username}
-          </h1>
-          <p className="text-muted-foreground text-sm">@{profile.username}</p>
-          {status ? (
-            <Badge variant="secondary" className="mt-1.5 gap-1">
-              <span aria-hidden>{status.dot}</span>
-              {status.label}
-            </Badge>
-          ) : null}
+      <div className="flex flex-col gap-4 sm:flex-row sm:items-start">
+        <div className="flex min-w-0 flex-1 items-start gap-4">
+          <UserAvatar
+            name={profile.name}
+            username={profile.username}
+            image={profile.image}
+            statusDot={status?.dot}
+            className="size-16 text-lg"
+          />
+          <div className="min-w-0 flex-1">
+            <h1 className="text-xl font-semibold tracking-tight">
+              {profile.name ?? profile.username}
+            </h1>
+            <p className="text-muted-foreground text-sm">@{profile.username}</p>
+            {status ? (
+              <Badge variant="secondary" className="mt-1.5 gap-1">
+                <span aria-hidden>{status.dot}</span>
+                {status.label}
+              </Badge>
+            ) : null}
+          </div>
         </div>
-        <div className="shrink-0">
-          {profile.viewer.isSelf ? (
+        {profile.viewer.isSelf ? (
+          <div className="grid w-full shrink-0 gap-2 sm:w-48">
             <Button asChild variant="outline">
               <Link href="/settings">Edit profile</Link>
             </Button>
-          ) : (
+            <CurrentChapterControl profile={profile} />
+          </div>
+        ) : (
+          <div className="shrink-0">
             <FollowButton username={profile.username} following={profile.viewer.isFollowing} />
-          )}
-        </div>
+          </div>
+        )}
       </div>
 
       {profile.bio ? <p className="text-[15px] leading-relaxed">{profile.bio}</p> : null}

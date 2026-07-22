@@ -15,7 +15,6 @@ import { FeedSidebarModule } from './modules/feed-sidebar/feed-sidebar.module';
 import { ReactionsModule } from './modules/reactions/reactions.module';
 import { CommentsModule } from './modules/comments/comments.module';
 import { FollowsModule } from './modules/follows/follows.module';
-import { CollectionsModule } from './modules/collections/collections.module';
 import { NotificationsModule } from './modules/notifications/notifications.module';
 import { SearchModule } from './modules/search/search.module';
 import { UploadsModule } from './modules/uploads/uploads.module';
@@ -34,7 +33,6 @@ import { MetaModule } from './modules/meta/meta.module';
     ReactionsModule,
     CommentsModule,
     FollowsModule,
-    CollectionsModule,
     NotificationsModule,
     SearchModule,
     UploadsModule,

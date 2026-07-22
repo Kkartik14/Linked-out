@@ -145,11 +145,11 @@ test('handoff mode creates no legacy session or browser credential', async () =>
 
   await controller.googleCallback(
     USER,
-    { oauthReturnTo: '/journey?view=recent', query: {} },
+    { oauthReturnTo: '/saved?view=recent', query: {} },
     response,
   );
 
-  assert.deepEqual(issueInput, { sub: USER.id, returnTo: '/journey?view=recent' });
+  assert.deepEqual(issueInput, { sub: USER.id, returnTo: '/saved?view=recent' });
   assert.equal(legacyStarted, false);
   assert.equal(authCookiesSet, false);
   assert.equal(authCookiesCleared, true);

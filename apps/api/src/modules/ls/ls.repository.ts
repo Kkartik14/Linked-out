@@ -11,7 +11,6 @@ import {
 } from '../../common/read-models/l-read-model';
 import type {
   FeedPageCursor,
-  JourneyPageCursor,
   LDeletePlan,
   LUpdatePlans,
   OwnedLWriteResult,
@@ -80,16 +79,6 @@ export class LsRepository {
 
   findById(id: string): Promise<LWithAuthor | null> {
     return this.prisma.db.l.findUnique({ where: { id }, include: L_AUTHOR_INCLUDE });
-  }
-
-  /** Collection refs an L belongs to (for LDetail). */
-  collectionsForL(lId: string): Promise<Array<{ id: string; title: string; slug: string }>> {
-    return this.prisma.db.collection
-      .findMany({
-        where: { ls: { some: { lId } } },
-        select: { id: true, title: true, slug: true },
-        orderBy: { id: 'desc' },
-      });
   }
 
   async createL(
@@ -204,38 +193,6 @@ export class LsRepository {
     return { rows: page.rows.map((r) => r.l), nextCursor: page.nextCursor };
   }
 
-  /** Journey timeline ordered by publication time ascending. */
-  async journey(params: {
-    authorId: string;
-    visibilities: Visibility[];
-    includeAnonymous: boolean;
-    limit: number;
-    cursor?: JourneyPageCursor;
-  }): Promise<EntityPage<LWithAuthor>> {
-    const cursorWhere: Prisma.LWhereInput | undefined = params.cursor
-      ? {
-          OR: [
-            { createdAt: { gt: new Date(params.cursor.createdAt) } },
-            { createdAt: new Date(params.cursor.createdAt), id: { gt: params.cursor.id } },
-          ],
-        }
-      : undefined;
-    const rows = await this.prisma.db.l.findMany({
-      where: {
-        authorId: params.authorId,
-        visibility: { in: params.visibilities },
-        ...(params.includeAnonymous ? {} : { isAnonymous: false }),
-        ...(cursorWhere ? { AND: [cursorWhere] } : {}),
-      },
-      include: L_AUTHOR_INCLUDE,
-      orderBy: [{ createdAt: 'asc' }, { id: 'asc' }],
-      take: params.limit + 1,
-    });
-    return buildPage(rows, params.limit, (row) =>
-      encodeCursor({ createdAt: row.createdAt.toISOString(), id: row.id }),
-    );
-  }
-
   /** Does the viewer follow the author? Used for FOLLOWERS-visibility checks. */
   async viewerFollows(viewerId: string, authorId: string): Promise<boolean> {
     const follow = await this.prisma.db.follow.findUnique({
@@ -333,9 +290,6 @@ function incrementReputation(
   if (delta.lsShared !== undefined) update.lsShared = { increment: sign * delta.lsShared };
   if (delta.storiesShared !== undefined) {
     update.storiesShared = { increment: sign * delta.storiesShared };
-  }
-  if (delta.lessonsShared !== undefined) {
-    update.lessonsShared = { increment: sign * delta.lessonsShared };
   }
   return update;
 }

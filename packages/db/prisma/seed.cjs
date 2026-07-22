@@ -1,7 +1,7 @@
 /**
  * Deterministic dev seed. Wipes app data, then creates a small realistic world:
  * 3 users, a spread of Ls (types/visibility/anonymity), reactions, threaded
- * comments, follows and a collection — then recomputes every denormalized counter so the
+ * comments and follows — then recomputes every denormalized counter so the
  * seeded state is exactly what the services would have produced.
  *
  * Run: ALLOW_DB_SEED=1 SEED_DB_EXPECTED_SESSION_USER=<role> pnpm --filter @linkedout/db seed
@@ -40,8 +40,6 @@ async function wipe(tx) {
   await tx.notification.deleteMany();
   await tx.reaction.deleteMany();
   await tx.comment.deleteMany();
-  await tx.collectionL.deleteMany();
-  await tx.collection.deleteMany();
   await tx.follow.deleteMany();
   await tx.dailyLSelection.deleteMany();
   await tx.l.deleteMany();
@@ -86,7 +84,7 @@ async function main() {
 
   const google = await mkL({ authorId: kartik.id, title: 'Rejected after the final round at Google', story: 'Four rounds in, strong signals, then three weeks of silence. Here is the honest story and what I learned about interview signal.', type: 'STORY', visibility: 'PUBLIC' });
   const layoff = await mkL({ authorId: kartik.id, title: 'Laid off two weeks after relocating', story: 'Signed the lease on Monday, got the call on Friday. The whole thing.', type: 'PLOT_TWIST', visibility: 'PUBLIC' });
-  await mkL({ authorId: kartik.id, title: 'Ship before perfect', story: 'A lesson that took me five years and one dead startup to internalize.', type: 'LESSON', visibility: 'PUBLIC' });
+  await mkL({ authorId: kartik.id, title: 'Ship before perfect', story: 'A lesson that took me five years and one dead startup to internalize.', type: 'L', visibility: 'PUBLIC' });
   const burnout = await mkL({ authorId: nadia.id, title: 'Burned out and hid it for months', story: 'I smiled in every standup while quietly falling apart. Writing this anonymously because I still work here.', type: 'SCAR', visibility: 'PUBLIC', isAnonymous: true });
   await mkL({ authorId: rahul.id, title: 'My first startup died at $0 MRR', story: 'Built for a year, launched to crickets. Talked to zero customers first.', type: 'STORY', visibility: 'PUBLIC' });
   await mkL({ authorId: rahul.id, title: 'Interviewing again after the shutdown', story: 'Ongoing. Some days good, most days humbling.', type: 'BATTLE', visibility: 'PUBLIC' });
@@ -114,15 +112,8 @@ async function main() {
     { followerId: kartik.id, followingId: nadia.id },
   ] });
 
-  // Collection.
-  const col = await prisma.collection.create({ data: { ownerId: kartik.id, title: 'Google Interview Journey', slug: 'google-interview-journey' } });
-  await prisma.collectionL.createMany({ data: [
-    { collectionId: col.id, lId: google.id, position: 0 },
-    { collectionId: col.id, lId: layoff.id, position: 1 },
-  ] });
-
   await recomputeCounters();
-  console.log('Seed complete: 3 users, 6 Ls, reactions, comments, follows, 1 collection.');
+  console.log('Seed complete: 3 users, 6 Ls, reactions, comments and follows.');
   console.log('Users: kartik, nadia, rahul');
 }
 
@@ -150,15 +141,11 @@ async function recomputeCounters() {
     const [
       lsShared,
       storiesShared,
-      lessonsShared,
-      collectionsCreated,
       followerCount,
       followingCount,
     ] = await Promise.all([
       prisma.l.count({ where: { authorId: id } }),
       prisma.l.count({ where: { authorId: id, type: 'STORY' } }),
-      prisma.l.count({ where: { authorId: id, type: 'LESSON' } }),
-      prisma.collection.count({ where: { ownerId: id } }),
       prisma.follow.count({ where: { followingId: id } }),
       prisma.follow.count({ where: { followerId: id } }),
     ]);
@@ -167,8 +154,6 @@ async function recomputeCounters() {
       data: {
         lsShared,
         storiesShared,
-        lessonsShared,
-        collectionsCreated,
         followerCount,
         followingCount,
       },

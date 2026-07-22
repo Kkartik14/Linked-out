@@ -23,7 +23,7 @@ function lCard() {
     id: L_ID,
     title: 'The launch missed, and this is what changed',
     storyPreview: 'A short account of the failed launch and the lesson.',
-    type: 'LESSON',
+    type: 'L',
     visibility: 'PUBLIC',
     isAnonymous: false,
     resolvedAt: null,
@@ -70,14 +70,22 @@ test('public queries reject removed category filters', () => {
   assert.equal(contracts.feedSidebarQuerySchema.safeParse({ limit: '5' }).success, false);
 });
 
-test('root package does not export removed category or tag-discovery contracts', () => {
+test('root package does not export removed resource or discovery contracts', () => {
   for (const name of [
+    'addLToCollectionInputSchema',
+    'collectionDetailSchema',
+    'collectionRefSchema',
+    'collectionSchema',
+    'createCollectionInputSchema',
+    'journeyNodeSchema',
+    'journeyQuerySchema',
     'lCategorySchema',
     'L_CATEGORY_META',
     'feedFilterSchema',
     'FEED_FILTER_TO_CATEGORY',
     'popularTagsQuerySchema',
     'popularTagsResponseSchema',
+    'updateCollectionInputSchema',
   ]) {
     assert.equal(name in contracts, false, `${name} is absent from @linkedout/contracts`);
   }
@@ -93,15 +101,31 @@ test('root package does not export removed category or tag-discovery contracts',
   assert.equal('lCategory' in meta, false);
 });
 
-test('public reputation contract retires Builders Helped completely', () => {
+test('LDetail strictly rejects the retired collections field', () => {
+  const card = lCard();
+  delete card.storyPreview;
+  const detail = { ...card, story: 'The complete story.' };
+
+  assert.deepEqual(contracts.lDetailSchema.parse(detail), detail);
+  assert.equal(
+    contracts.lDetailSchema.safeParse({ ...detail, collections: [] }).success,
+    false,
+    'retired Collection references must not return on the LDetail wire',
+  );
+});
+
+test('public reputation contract exposes only active counters', () => {
   const reputation = {
     storiesShared: 2,
-    lessonsShared: 3,
     lsShared: 8,
-    collectionsCreated: 1,
   };
 
   assert.deepEqual(contracts.reputationSchema.parse(reputation), reputation);
+  assert.equal(
+    contracts.reputationSchema.safeParse({ ...reputation, lessonsShared: 3 }).success,
+    false,
+    'retired Lessons Shared must not be silently accepted',
+  );
   assert.equal(
     contracts.reputationSchema.safeParse({ ...reputation, buildersHelped: 5 }).success,
     false,
@@ -124,6 +148,20 @@ test('public reputation contract retires Builders Helped completely', () => {
     false,
     'retired reputation keys must be rejected on the metadata wire too',
   );
+});
+
+test('the public L type contract exposes exactly the six active types', () => {
+  assert.deepEqual(contracts.lTypeSchema.options, [
+    'L',
+    'WIN',
+    'STORY',
+    'SCAR',
+    'PLOT_TWIST',
+    'BATTLE',
+  ]);
+  for (const retired of ['CHECKPOINT', 'LESSON']) {
+    assert.equal(contracts.lTypeSchema.safeParse(retired).success, false);
+  }
 });
 
 test('OAuth failure copy is contract-valid and server-owned', () => {

@@ -119,8 +119,6 @@ test('L deletion declares only type-derived reputation effects before persistenc
       STORY: { lsShared: 1, storiesShared: 1 },
       SCAR: { lsShared: 1 },
       PLOT_TWIST: { lsShared: 1 },
-      CHECKPOINT: { lsShared: 1 },
-      LESSON: { lsShared: 1, lessonsShared: 1 },
       BATTLE: { lsShared: 1 },
     },
   });

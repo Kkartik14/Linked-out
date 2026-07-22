@@ -5,7 +5,6 @@ import type { LDeletePlan, ReputationDelta } from './ls.types';
 export function reputationForType(type: LType): ReputationDelta {
   const delta: ReputationDelta = { lsShared: 1 };
   if (type === 'STORY') delta.storiesShared = 1;
-  if (type === 'LESSON') delta.lessonsShared = 1;
   return delta;
 }
 
@@ -17,10 +16,8 @@ export function reputationDeltaForTypeChange(
   const before = reputationForType(from);
   const after = reputationForType(to);
   const delta: ReputationDelta = {};
-  for (const field of ['storiesShared', 'lessonsShared'] as const) {
-    const value = (after[field] ?? 0) - (before[field] ?? 0);
-    if (value !== 0) delta[field] = value;
-  }
+  const storiesShared = (after.storiesShared ?? 0) - (before.storiesShared ?? 0);
+  if (storiesShared !== 0) delta.storiesShared = storiesShared;
   return delta;
 }
 

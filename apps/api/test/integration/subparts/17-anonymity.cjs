@@ -61,14 +61,10 @@ describe('17 · anonymity is absolute across every surface (contract §3)', () =
   test('author-owned profile surfaces expose an anonymous L only to its author', async () => {
     const ownerLs = await h.get('/users/author/ls', { cookie: author.cookie });
     assert.equal(ownerLs.body.data.find((c) => c.id === anon.id).author, null);
-    const ownerJourney = await h.get('/users/author/journey', { cookie: author.cookie });
-    assert.ok(ownerJourney.body.data.some((node) => node.id === anon.id));
 
     for (const [who, cookie] of everyViewer().filter(([label]) => label !== 'the author themselves')) {
       const ls = await h.get('/users/author/ls', { cookie });
       assert.ok(!ls.body.data.some((card) => card.id === anon.id), `profile associated the anonymous L with ${who}`);
-      const journey = await h.get('/users/author/journey', { cookie });
-      assert.ok(!journey.body.data.some((node) => node.id === anon.id), `journey associated the anonymous L with ${who}`);
     }
   });
 
@@ -78,27 +74,6 @@ describe('17 · anonymity is absolute across every surface (contract §3)', () =
       const card = res.body.data.find((c) => c.id === anon.id);
       assert.ok(card, 'the anonymous L is still discoverable');
       assert.equal(card.author, null, `author leaked in search to ${who}`);
-    }
-  });
-
-  test('collection membership cannot re-attribute an anonymous L', async () => {
-    const collection = await h.post('/collections', {
-      cookie: author.cookie,
-      body: { title: 'Anonymous stories' },
-    });
-    await h.put(`/collections/${collection.body.id}/ls/${anon.id}`, { cookie: author.cookie });
-
-    const ownerL = await h.get(`/ls/${anon.id}`, { cookie: author.cookie });
-    assert.equal(ownerL.body.collections[0].id, collection.body.id, 'the owner retains collection controls');
-    const ownerCollection = await h.get(`/collections/${collection.body.id}`, { cookie: author.cookie });
-    assert.equal(ownerCollection.body.ls[0].id, anon.id);
-
-    for (const [who, cookie] of everyViewer().filter(([label]) => label !== 'the author themselves')) {
-      const l = await h.get(`/ls/${anon.id}`, { cookie });
-      assert.deepEqual(l.body.collections, [], `L detail exposed an attributive collection to ${who}`);
-      const res = await h.get(`/collections/${collection.body.id}`, { cookie });
-      assert.ok(!res.body.ls.some((card) => card.id === anon.id), `collection associated the anonymous L with ${who}`);
-      assert.equal(res.body.lCount, 0, `collection count revealed a hidden anonymous member to ${who}`);
     }
   });
 

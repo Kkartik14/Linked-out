@@ -50,8 +50,12 @@ The app speaks the sole **v1 API**. Runtime types and validation come from
 `NEXT_PUBLIC_API_BASE_URL` carries the `/v1` prefix and there is no second base URL.
 
 The public L contract has **no `category`, `company`, `tags`, or `eventDate`**, there is no category
-filter on the feed or search, and `/tags/popular` does not exist. `JourneyNode` carries
-`createdAt` and the journey is ordered by `(createdAt, id)`.
+filter on the feed or search, and `/tags/popular` does not exist.
+
+The accepted L types are **L, Win, Story, Scar, Plot Twist, and Battle**. Profiles expose exactly
+those six type tabs and default to L; there is no All, Journey, or Collections surface. Saved is
+the sole bookmark destination. On a self-profile, **Current chapter** appears directly below Edit
+profile and updates the existing status field without routing the user through Settings.
 
 ### Rejected credentials
 
@@ -121,6 +125,6 @@ repeating the Feed heading or subtitle.
 ## Routes
 
 `/` feed + discovery rails · `/ls/[id]` detail + comments · `/ls/[id]/edit` · `/new` composer ·
-`/u/[username]` profile (journey, sections, collections) · `/collections/[id]` ·
+`/u/[username]` six type-specific profile sections ·
 `/search` · `/notifications` · `/saved` · `/settings` ·
 `/login` · `/auth/callback` · `/onboarding`.

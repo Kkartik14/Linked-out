@@ -17,8 +17,6 @@ const LIST_ENDPOINTS = [
   { path: '/feed', auth: false },
   { path: '/feed/following', auth: true },
   { path: '/users/probe/ls', auth: false },
-  { path: '/users/probe/journey', auth: false, maxLimit: 100 },
-  { path: '/users/probe/collections', auth: false },
   { path: '/users/probe/followers', auth: false },
   { path: '/users/probe/following', auth: false },
   { path: '/me/saved', auth: true },
@@ -199,14 +197,12 @@ describe('18 · cross-cutting contract invariants (§1.5–§1.7)', () => {
   test('every id in every response is a 26-char ULID', async () => {
     const l = await h.createL(user.id);
     await h.post(`/ls/${l.id}/comments`, { cookie: user.cookie, body: { body: 'hi' } });
-    const collection = await h.post('/collections', { cookie: user.cookie, body: { title: 'c' } });
 
     const ULID = /^[0-9A-HJKMNP-TV-Z]{26}$/;
     const responses = [
       (await h.get(`/ls/${l.id}`)).body,
       (await h.get('/feed')).body.data[0],
       (await h.get(`/ls/${l.id}/comments`)).body.data[0],
-      collection.body,
       (await h.get('/users/probe')).body,
     ];
 

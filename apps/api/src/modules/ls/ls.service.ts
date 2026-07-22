@@ -3,8 +3,6 @@ import {
   lTypeSchema,
   type CreateLInput,
   type FeedQuery,
-  type JourneyNode,
-  type JourneyQuery,
   type LCard,
   type LDetail,
   type LType,
@@ -18,7 +16,6 @@ import {
 
 import { AppErrors } from '../../common/errors/app-exception';
 import { decodeCursor } from '../../common/pagination/cursor';
-import { mapPage } from '../../common/pagination/paginate';
 import {
   groupViewerReactions,
   lAudiencePolicy,
@@ -32,7 +29,6 @@ import {
 } from './ls.repository';
 import type {
   FeedPageCursor,
-  JourneyPageCursor,
   LUpdatePlans,
   UpdateLData,
   WriteLData,
@@ -42,7 +38,7 @@ import {
   reputationDeltaForTypeChange,
   reputationForType,
 } from './ls.write-plan';
-import { toJourneyNode, toLCard, toLDetail } from './ls.mapper';
+import { toLCard, toLDetail } from './ls.mapper';
 
 function normalizeCreate(input: CreateLInput): WriteLData {
   return {
@@ -100,17 +96,6 @@ function cursorField(cursor: string | undefined, field: string): string | undefi
   return cursorString(decodeCursor(cursor)[field]);
 }
 
-function journeyCursor(cursor: string | undefined): JourneyPageCursor | undefined {
-  if (cursor === undefined) return undefined;
-  const payload = decodeCursor(cursor);
-  const createdAt = cursorString(payload.createdAt);
-  const parsed = new Date(createdAt);
-  if (Number.isNaN(parsed.getTime()) || parsed.toISOString() !== createdAt) {
-    throw AppErrors.badCursor();
-  }
-  return { createdAt, id: cursorString(payload.id) };
-}
-
 function updatePlans(input: UpdateLInput): LUpdatePlans {
   return Object.fromEntries(
     lTypeSchema.options.map((currentType) => [
@@ -139,7 +124,7 @@ export class LsService {
 
   async getDetail(id: string, viewerId: string | undefined): Promise<LDetail> {
     const detail = await this.detailState(id, viewerId);
-    return toLDetail(detail.l, detail.viewer, detail.collections);
+    return toLDetail(detail.l, detail.viewer);
   }
 
   async getFeed(query: FeedQuery, viewerId: string | undefined): Promise<Paginated<LCard>> {
@@ -188,30 +173,6 @@ export class LsService {
     return this.getUserLs(await this.requireAuthorId(username), query, viewerId);
   }
 
-  async getJourney(
-    authorId: string,
-    query: JourneyQuery,
-    viewerId: string | undefined,
-  ): Promise<Paginated<JourneyNode>> {
-    const visibilities = await this.allowedVisibilities(viewerId, authorId);
-    const page = await this.repo.journey({
-      authorId,
-      visibilities,
-      includeAnonymous: viewerId === authorId,
-      limit: query.limit,
-      cursor: journeyCursor(query.cursor),
-    });
-    return mapPage(page, toJourneyNode);
-  }
-
-  async getJourneyByUsername(
-    username: string,
-    query: JourneyQuery,
-    viewerId: string | undefined,
-  ): Promise<Paginated<JourneyNode>> {
-    return this.getJourney(await this.requireAuthorId(username), query, viewerId);
-  }
-
   async getSaved(userId: string, query: PaginationQuery): Promise<Paginated<LCard>> {
     const page = await this.repo.savedByUser(userId, query.limit, cursorField(query.cursor, 'rid'));
     return { data: await this.toCards(page.rows, userId), nextCursor: page.nextCursor };
@@ -221,12 +182,12 @@ export class LsService {
 
   async create(user: AuthUser, input: CreateLInput): Promise<LDetail> {
     const l = await this.createRow(user, normalizeCreate(input));
-    return toLDetail(l, { reactions: [], canEdit: true }, []);
+    return toLDetail(l, { reactions: [], canEdit: true });
   }
 
   async update(user: AuthUser, id: string, input: UpdateLInput): Promise<LDetail> {
     const detail = await this.updateState(user, id, updatePlans(input));
-    return toLDetail(detail.l, detail.viewer, detail.collections);
+    return toLDetail(detail.l, detail.viewer);
   }
 
   async remove(user: AuthUser, id: string): Promise<{ ok: true }> {
@@ -262,15 +223,9 @@ export class LsService {
     const l = await this.repo.findById(id);
     if (!l) throw AppErrors.lNotFound();
     await this.assertCanView(l, viewerId);
-    const [collections, reactionMap] = await Promise.all([
-      l.isAnonymous && viewerId !== l.authorId
-        ? Promise.resolve([])
-        : this.repo.collectionsForL(id),
-      this.reactionMap(viewerId, [id]),
-    ]);
+    const reactionMap = await this.reactionMap(viewerId, [id]);
     return {
       l,
-      collections,
       viewer: {
         reactions: reactionMap.get(id) ?? [],
         canEdit: viewerId === l.authorId,
@@ -287,13 +242,9 @@ export class LsService {
     const result = await this.repo.updateOwnedL(id, user.id, plans);
     if (result.status === 'not_found') throw AppErrors.lNotFound();
     if (result.status === 'not_owner') throw AppErrors.notLOwner();
-    const [collections, reactionMap] = await Promise.all([
-      this.repo.collectionsForL(id),
-      this.reactionMap(user.id, [id]),
-    ]);
+    const reactionMap = await this.reactionMap(user.id, [id]);
     return {
       l: result.row,
-      collections,
       viewer: { reactions: reactionMap.get(id) ?? [], canEdit: true } satisfies LViewerContext,
     };
   }

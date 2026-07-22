@@ -9,9 +9,7 @@ export const lTypeSchema = z.enum([
   'STORY',
   'SCAR',
   'PLOT_TWIST',
-  'CHECKPOINT',
   'BATTLE',
-  'LESSON',
 ]);
 export type LType = z.infer<typeof lTypeSchema>;
 
@@ -82,9 +80,7 @@ export const L_TYPE_META: readonly LTypeMeta[] = [
   { value: 'STORY', label: 'Story', sectionLabel: 'Stories' },
   { value: 'SCAR', label: 'Scar', sectionLabel: 'Scars' },
   { value: 'PLOT_TWIST', label: 'Plot Twist', sectionLabel: 'Plot Twists' },
-  { value: 'CHECKPOINT', label: 'Checkpoint', sectionLabel: 'Checkpoints' },
   { value: 'BATTLE', label: 'Battle', sectionLabel: 'Battles' },
-  { value: 'LESSON', label: 'Lesson', sectionLabel: 'Character Development' },
 ];
 
 export const VISIBILITY_META: readonly VisibilityMeta[] = [
@@ -119,7 +115,5 @@ export const NOTIFICATION_TYPE_META: readonly NotificationTypeMeta[] = [
 
 export const REPUTATION_META: readonly ReputationMeta[] = [
   { key: 'storiesShared', label: 'Stories Shared' },
-  { key: 'lessonsShared', label: 'Lessons Shared' },
   { key: 'lsShared', label: 'Ls Shared' },
-  { key: 'collectionsCreated', label: 'Collections Created' },
 ];

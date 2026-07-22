@@ -258,7 +258,6 @@ describe('02 · auth & sessions (contract §1.1, §4.1)', () => {
     const routes = [
       ['POST', '/ls'],
       ['PATCH', '/users/me'],
-      ['POST', '/collections'],
       ['GET', '/me/saved'],
       ['GET', '/notifications'],
       ['GET', '/notifications/unread-count'],

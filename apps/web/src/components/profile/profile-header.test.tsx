@@ -1,4 +1,4 @@
-import { beforeEach, describe, expect, it, vi } from "vitest";
+import { beforeAll, beforeEach, describe, expect, it, vi } from "vitest";
 import { act, screen, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import type { FeedSidebarResponse, UserProfile } from "@linkedout/contracts";
@@ -14,12 +14,19 @@ vi.mock("@/lib/api", async (importOriginal) => {
     getFeedSidebar: vi.fn(),
     follow: vi.fn(),
     unfollow: vi.fn(),
+    patchMe: vi.fn(),
   };
 });
 
+vi.mock("sonner", () => ({
+  toast: { error: vi.fn(), success: vi.fn() },
+}));
+
 import { ProfileHeader } from "@/components/profile/profile-header";
 import { FeedSidebarLeft } from "@/components/feed/sidebar/feed-sidebar";
-import { follow, getFeedSidebar, getProfile } from "@/lib/api";
+import { follow, getFeedSidebar, getProfile, patchMe } from "@/lib/api";
+import { queryKeys } from "@/lib/query-keys";
+import { toast } from "sonner";
 
 const loggedIn: Session = { status: "authenticated", user: mockUser, needsOnboarding: false };
 const profile: UserProfile = {
@@ -62,6 +69,21 @@ function followingMetricValue(): string | null | undefined {
     ?.querySelector("dd")?.textContent;
 }
 
+beforeAll(() => {
+  vi.stubGlobal(
+    "ResizeObserver",
+    class ResizeObserver {
+      observe() {}
+      unobserve() {}
+      disconnect() {}
+    },
+  );
+  Object.defineProperty(HTMLElement.prototype, "scrollIntoView", {
+    configurable: true,
+    value() {},
+  });
+});
+
 beforeEach(() => {
   vi.clearAllMocks();
   vi.mocked(getProfile).mockResolvedValue(profile);
@@ -70,6 +92,7 @@ beforeEach(() => {
     isFollowing: true,
     counts: { followers: 11, following: 4 },
   });
+  vi.mocked(patchMe).mockResolvedValue(mockUser);
 });
 
 describe("ProfileHeader follow state", () => {
@@ -78,6 +101,7 @@ describe("ProfileHeader follow state", () => {
 
     expect(screen.getByText(/Ls Shared/i)).toBeInTheDocument();
     expect(screen.queryByText(/Builders Helped/i)).not.toBeInTheDocument();
+    expect(screen.queryByRole("combobox", { name: "Current chapter" })).not.toBeInTheDocument();
   });
 
   it("links the follower and following counts to their directories", () => {
@@ -157,5 +181,123 @@ describe("ProfileHeader follow state", () => {
 
     await waitFor(() => expect(getFeedSidebar).toHaveBeenCalledOnce());
     await waitFor(() => expect(followingMetricValue()).toBe("1"));
+  });
+});
+
+describe("ProfileHeader current chapter", () => {
+  it("shows the control directly after Edit profile on the owner's profile", () => {
+    renderWithProviders(<ProfileHeader profile={mockUser} />, { session: loggedIn });
+
+    const editProfile = screen.getByRole("link", { name: "Edit profile" });
+    const chapter = screen.getByRole("combobox", { name: "Current chapter" });
+
+    expect(editProfile.nextElementSibling).toContainElement(chapter);
+    expect(chapter).toHaveTextContent("Building");
+  });
+
+  it("offers clearing plus every metadata-owned chapter choice in order", async () => {
+    const user = userEvent.setup();
+    renderWithProviders(<ProfileHeader profile={mockUser} />, { session: loggedIn });
+
+    screen.getByRole("combobox", { name: "Current chapter" }).focus();
+    await user.keyboard("{ArrowDown}");
+
+    expect((await screen.findAllByRole("option")).map((option) => option.textContent)).toEqual([
+      "Not set",
+      "🟡 Interviewing",
+      "🔵 Building",
+      "🟢 Working",
+      "🟣 Starting Up",
+      "🔴 Recovering",
+      "⚫ Taking a Break",
+    ]);
+  });
+
+  it("sets a chapter and reconciles every other cache owned by the principal", async () => {
+    const user = userEvent.setup();
+    const refresh = vi.fn();
+    const updated = { ...mockUser, status: "WORKING" as const };
+    vi.mocked(patchMe).mockResolvedValue(updated);
+    const { queryClient } = renderWithProviders(<ProfileHeader profile={mockUser} />, {
+      session: loggedIn,
+      router: { refresh },
+    });
+    const profileKey = queryKeys.profiles.detail(mockUser.id, mockUser.username);
+    const sidebarKey = queryKeys.feedSidebar.detail(mockUser.id);
+    const searchKey = queryKeys.search.preview.users(mockUser.id, "sam");
+    queryClient.setQueryData(sidebarKey, { people: [] });
+    queryClient.setQueryData(searchKey, { items: [] });
+
+    screen.getByRole("combobox", { name: "Current chapter" }).focus();
+    await user.keyboard("{ArrowDown}");
+    await user.click(await screen.findByRole("option", { name: /Working/ }));
+
+    await waitFor(() => {
+      expect(patchMe).toHaveBeenCalledWith(mockUser.id, { status: "WORKING" });
+      expect(queryClient.getQueryData(profileKey)).toEqual(updated);
+      expect(queryClient.getQueryState(sidebarKey)?.isInvalidated).toBe(true);
+      expect(queryClient.getQueryState(searchKey)?.isInvalidated).toBe(true);
+      expect(refresh).toHaveBeenCalledOnce();
+    });
+    expect(queryClient.getQueryState(profileKey)?.isInvalidated).toBe(false);
+  });
+
+  it("clears the chapter with an explicit null", async () => {
+    const user = userEvent.setup();
+    vi.mocked(patchMe).mockResolvedValue({ ...mockUser, status: null });
+    renderWithProviders(<ProfileHeader profile={mockUser} />, { session: loggedIn });
+
+    screen.getByRole("combobox", { name: "Current chapter" }).focus();
+    await user.keyboard("{ArrowDown}");
+    await user.click(await screen.findByRole("option", { name: "Not set" }));
+
+    await waitFor(() => expect(patchMe).toHaveBeenCalledWith(mockUser.id, { status: null }));
+  });
+
+  it("locks the picker and announces progress while the mutation is pending", async () => {
+    const user = userEvent.setup();
+    let finishUpdate: ((profile: UserProfile) => void) | undefined;
+    vi.mocked(patchMe).mockImplementation(
+      () =>
+        new Promise<UserProfile>((resolve) => {
+          finishUpdate = resolve;
+        }),
+    );
+    renderWithProviders(<ProfileHeader profile={mockUser} />, { session: loggedIn });
+    const chapter = screen.getByRole("combobox", { name: "Current chapter" });
+
+    chapter.focus();
+    await user.keyboard("{ArrowDown}");
+    await user.click(await screen.findByRole("option", { name: /Working/ }));
+
+    await waitFor(() => expect(chapter).toBeDisabled());
+    expect(screen.getByText("Updating current chapter…")).toHaveAttribute("aria-live", "polite");
+
+    await act(async () => finishUpdate?.({ ...mockUser, status: "WORKING" }));
+    await waitFor(() => expect(chapter).not.toBeDisabled());
+  });
+
+  it("keeps the authoritative chapter and reports an error when the mutation fails", async () => {
+    const user = userEvent.setup();
+    const refresh = vi.fn();
+    vi.mocked(patchMe).mockRejectedValue(new Error("Update refused"));
+    const { queryClient } = renderWithProviders(<ProfileHeader profile={mockUser} />, {
+      session: loggedIn,
+      router: { refresh },
+    });
+    const chapter = screen.getByRole("combobox", { name: "Current chapter" });
+
+    chapter.focus();
+    await user.keyboard("{ArrowDown}");
+    await user.click(await screen.findByRole("option", { name: /Working/ }));
+
+    await waitFor(() => expect(toast.error).toHaveBeenCalledWith("Update refused"));
+    expect(chapter).toHaveTextContent("Building");
+    expect(
+      queryClient.getQueryData<UserProfile>(
+        queryKeys.profiles.detail(mockUser.id, mockUser.username),
+      )?.status,
+    ).toBe("BUILDING");
+    expect(refresh).not.toHaveBeenCalled();
   });
 });

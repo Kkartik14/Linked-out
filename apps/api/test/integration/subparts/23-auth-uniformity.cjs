@@ -26,9 +26,6 @@ describe('23 · authentication uniformity (contract §0)', () => {
     const comment = await h.ctx.prisma.comment.create({
       data: { lId: l.id, authorId: author.id, body: 'A top-level comment.' },
     });
-    const collection = await h.ctx.prisma.collection.create({
-      data: { ownerId: author.id, title: 'Rejections', slug: 'rejections' },
-    });
 
     // Every route whose authentication is optional. A guest (no cookie) must be served; a
     // bad credential must be rejected. Kept explicit rather than derived from the route table
@@ -40,13 +37,10 @@ describe('23 · authentication uniformity (contract §0)', () => {
       `/ls/${l.id}`,
       `/ls/${l.id}/comments`,
       `/comments/${comment.id}/replies`,
-      `/collections/${collection.id}`,
       '/users/author',
       '/users/author/ls',
-      '/users/author/journey',
       '/users/author/followers',
       '/users/author/following',
-      '/users/author/collections',
     ];
   });
 

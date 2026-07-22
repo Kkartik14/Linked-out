@@ -41,8 +41,6 @@ export type {
   Reaction,
   Comment,
   Follow,
-  Collection,
-  CollectionL,
   Notification,
 } from '../generated/client';
 export { EmailOtpPurpose } from '../generated/client';

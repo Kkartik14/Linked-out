@@ -1,10 +1,7 @@
 import { Body, Controller, Get, Param, Patch, Query, Res, UseGuards } from '@nestjs/common';
 import {
-  journeyQuerySchema,
   usernameInputSchema,
   userLsQuerySchema,
-  type JourneyNode,
-  type JourneyQuery,
   type LCard,
   type Paginated,
   type UpdateUserInput,
@@ -31,7 +28,6 @@ const updatePipe = new ZodValidationPipe(API_ROUTE_CONTRACTS.userUpdateMe.body.s
       : null,
 });
 const userLsPipe = new ZodValidationPipe(userLsQuerySchema);
-const journeyPipe = new ZodValidationPipe(journeyQuerySchema);
 const usernamePipe = new ZodValidationPipe(usernameInputSchema);
 
 @Controller('users')
@@ -79,16 +75,5 @@ export class UsersController {
     @Query(userLsPipe) query: UserLsQuery,
   ): Promise<Paginated<LCard>> {
     return this.ls.getUserLsByUsername(username, query, user?.id);
-  }
-
-  @Get(':username/journey')
-  @UseGuards(OptionalAuthGuard)
-  @ApiContract(API_ROUTE_CONTRACTS.userJourney)
-  async journey(
-    @OptionalUser() user: AuthUser | undefined,
-    @Param('username', usernamePipe) username: string,
-    @Query(journeyPipe) query: JourneyQuery,
-  ): Promise<Paginated<JourneyNode>> {
-    return this.ls.getJourneyByUsername(username, query, user?.id);
   }
 }

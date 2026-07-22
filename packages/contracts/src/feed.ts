@@ -16,7 +16,3 @@ export const userLsQuerySchema = paginationQuerySchema()
   .extend({ type: lTypeSchema.optional() })
   .strict();
 export type UserLsQuery = z.infer<typeof userLsQuerySchema>;
-
-/** GET /users/:username/journey — larger pages, oldest→newest. */
-export const journeyQuerySchema = paginationQuerySchema({ defaultLimit: 30, maxLimit: 100 }).strict();
-export type JourneyQuery = z.infer<typeof journeyQuerySchema>;

@@ -5,37 +5,25 @@ import { useRouter } from "next/navigation";
 import { toast } from "sonner";
 import {
   avatarContentTypeSchema,
-  journeyStatusSchema,
   type UserProfile,
 } from "@linkedout/contracts";
 
 import { errorMessage, patchMe, presignAvatar } from "@/lib/api";
-import { useMeta } from "@/components/meta-provider";
 import { UserAvatar } from "@/components/user-avatar";
 import { assertComposedPrincipal, useComposedPrincipal } from "@/components/session-provider";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
-import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from "@/components/ui/select";
 
-const NO_STATUS = "NONE";
 const MAX_BYTES = 5 * 1024 * 1024;
 
 export function SettingsForm({ user }: { user: UserProfile }) {
-  const meta = useMeta();
   const router = useRouter();
   const composedAs = useComposedPrincipal();
 
   const [name, setName] = React.useState(user.name ?? "");
   const [bio, setBio] = React.useState(user.bio ?? "");
-  const [status, setStatus] = React.useState<string>(user.status ?? NO_STATUS);
   const [image, setImage] = React.useState(user.image);
   const [saving, setSaving] = React.useState(false);
   const [uploading, setUploading] = React.useState(false);
@@ -48,7 +36,6 @@ export function SettingsForm({ user }: { user: UserProfile }) {
       const updated = await patchMe(assertComposedPrincipal(composedAs), {
         name: name.trim() || null,
         bio: bio.trim() || null,
-        status: status === NO_STATUS ? null : journeyStatusSchema.parse(status),
       });
       toast.success("Profile updated.");
       // Return to the (possibly renamed) profile. Not router.back(): a direct visit to Settings
@@ -160,23 +147,6 @@ export function SettingsForm({ user }: { user: UserProfile }) {
           rows={3}
           placeholder="A short line about where you are in your journey."
         />
-      </div>
-
-      <div className="grid gap-2">
-        <Label htmlFor="journey-status">Journey status</Label>
-        <Select value={status} onValueChange={setStatus}>
-          <SelectTrigger id="journey-status" className="sm:w-64">
-            <SelectValue />
-          </SelectTrigger>
-          <SelectContent>
-            <SelectItem value={NO_STATUS}>None</SelectItem>
-            {meta.journeyStatus.map((s) => (
-              <SelectItem key={s.value} value={s.value}>
-                <span aria-hidden>{s.dot}</span> {s.label}
-              </SelectItem>
-            ))}
-          </SelectContent>
-        </Select>
       </div>
 
       <div className="flex justify-end">

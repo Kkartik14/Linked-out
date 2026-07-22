@@ -1,6 +1,5 @@
 import type { Type } from '@nestjs/common';
 import {
-  addLToCollectionInputSchema,
   authMeResponseSchema,
   emailSignupInputSchema,
   emailOtpRequestAcceptedSchema,
@@ -20,17 +19,13 @@ import {
   sessionRevokeResponseSchema,
   avatarUploadRequestSchema,
   avatarUploadResponseSchema,
-  collectionDetailSchema,
-  collectionSchema,
   commentSchema,
-  createCollectionInputSchema,
   createCommentInputSchema,
   createLInputSchema,
   errorEnvelopeSchema,
   feedSidebarResponseSchema,
   followListUserSchema,
   followResultSchema,
-  journeyNodeSchema,
   lCardSchema,
   lDetailSchema,
   metaEnumsResponseSchema,
@@ -39,7 +34,6 @@ import {
   paginatedSchema,
   reactionResultSchema,
   unreadCountSchema,
-  updateCollectionInputSchema,
   updateLInputSchema,
   updateUserInputSchema,
   userProfileSchema,
@@ -52,9 +46,7 @@ const openApiDocumentSchema = z.record(z.string(), z.json());
 const redirectResponseSchema = z.void();
 
 const paginatedLCardSchema = paginatedSchema(lCardSchema);
-const paginatedJourneyNodeSchema = paginatedSchema(journeyNodeSchema);
 const paginatedCommentSchema = paginatedSchema(commentSchema);
-const paginatedCollectionSchema = paginatedSchema(collectionSchema);
 const paginatedUserSummarySchema = paginatedSchema(userSummarySchema);
 const paginatedFollowListUserSchema = paginatedSchema(followListUserSchema);
 const paginatedNotificationSchema = paginatedSchema(notificationSchema);
@@ -66,7 +58,6 @@ const searchResultSchema = z.union([paginatedLCardSchema, paginatedUserSummarySc
  * handler contract or the published document cannot silently select a different schema.
  */
 export const API_COMPONENT_SCHEMAS = {
-  AddLToCollectionInput: addLToCollectionInputSchema,
   AuthMeResponse: authMeResponseSchema,
   EmailSignupInput: emailSignupInputSchema,
   EmailOtpRequestAccepted: emailOtpRequestAcceptedSchema,
@@ -86,10 +77,7 @@ export const API_COMPONENT_SCHEMAS = {
   SessionRevokeResponse: sessionRevokeResponseSchema,
   AvatarUploadRequest: avatarUploadRequestSchema,
   AvatarUploadResponse: avatarUploadResponseSchema,
-  Collection: collectionSchema,
-  CollectionDetail: collectionDetailSchema,
   Comment: commentSchema,
-  CreateCollectionInput: createCollectionInputSchema,
   CreateCommentInput: createCommentInputSchema,
   CreateLInput: createLInputSchema,
   ErrorEnvelope: errorEnvelopeSchema,
@@ -100,17 +88,14 @@ export const API_COMPONENT_SCHEMAS = {
   MetaEnumsResponse: metaEnumsResponseSchema,
   OperationalHealthResponse: operationalHealthResponseSchema,
   OkResponse: okSchema,
-  PaginatedCollection: paginatedCollectionSchema,
   PaginatedComment: paginatedCommentSchema,
   PaginatedFollowListUser: paginatedFollowListUserSchema,
-  PaginatedJourneyNode: paginatedJourneyNodeSchema,
   PaginatedLCard: paginatedLCardSchema,
   PaginatedNotification: paginatedNotificationSchema,
   PaginatedUserSummary: paginatedUserSummarySchema,
   ReactionResult: reactionResultSchema,
   SearchResult: searchResultSchema,
   UnreadCount: unreadCountSchema,
-  UpdateCollectionInput: updateCollectionInputSchema,
   UpdateLInput: updateLInputSchema,
   UpdateUserInput: updateUserInputSchema,
   UserProfile: userProfileSchema,
@@ -308,16 +293,6 @@ export const API_ROUTE_CONTRACTS = {
   ),
   userProfile: route('get /users/{username}', 200, jsonResponse('UserProfile')),
   userLs: route('get /users/{username}/ls', 200, jsonResponse('PaginatedLCard')),
-  userJourney: route(
-    'get /users/{username}/journey',
-    200,
-    jsonResponse('PaginatedJourneyNode'),
-  ),
-  userCollections: route(
-    'get /users/{username}/collections',
-    200,
-    jsonResponse('PaginatedCollection'),
-  ),
   userFollowers: route(
     'get /users/{username}/followers',
     200,
@@ -367,36 +342,6 @@ export const API_ROUTE_CONTRACTS = {
     jsonBody('CreateCommentInput'),
   ),
   commentDelete: route('delete /comments/{id}', 200, jsonResponse('OkResponse')),
-
-  collectionCreate: route(
-    'post /collections',
-    201,
-    jsonResponse('Collection', 'Created'),
-    jsonBody('CreateCollectionInput'),
-  ),
-  collectionDetail: route(
-    'get /collections/{id}',
-    200,
-    jsonResponse('CollectionDetail'),
-  ),
-  collectionUpdate: route(
-    'patch /collections/{id}',
-    200,
-    jsonResponse('Collection'),
-    jsonBody('UpdateCollectionInput'),
-  ),
-  collectionDelete: route('delete /collections/{id}', 200, jsonResponse('OkResponse')),
-  collectionAddL: route(
-    'put /collections/{id}/ls/{lId}',
-    200,
-    jsonResponse('CollectionDetail'),
-    jsonBody('AddLToCollectionInput', false),
-  ),
-  collectionRemoveL: route(
-    'delete /collections/{id}/ls/{lId}',
-    200,
-    jsonResponse('CollectionDetail'),
-  ),
 
   avatarUpload: route(
     'post /uploads/avatar',

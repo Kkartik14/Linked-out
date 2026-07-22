@@ -19,7 +19,7 @@ export interface UpdateLData {
   resolvedAt: Date | null | undefined;
 }
 
-export type ReputationField = 'lsShared' | 'storiesShared' | 'lessonsShared';
+export type ReputationField = 'lsShared' | 'storiesShared';
 export type ReputationDelta = Partial<Record<ReputationField, number>>;
 
 /** Fully resolved business plan selected by the repository using the locked current type. */
@@ -38,11 +38,6 @@ export type FeedPageCursor =
   | { sort: 'latest'; id: string }
   | { sort: 'popular'; id: string; score: number }
   | { sort: 'helpful'; id: string; count: number };
-
-export interface JourneyPageCursor {
-  createdAt: string;
-  id: string;
-}
 
 export type OwnedLWriteResult<T> =
   | { status: 'ok'; row: T }

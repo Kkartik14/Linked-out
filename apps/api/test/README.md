@@ -17,7 +17,7 @@ nothing, so without that check a renamed or moved file would leave the suite gre
 The one-shot command from the repo root sets everything up, including the mandatory guard env:
 
 ```bash
-pnpm test:integration     # build → bootstrap+migrate the test DB → run the suite
+pnpm test:integration     # build → rehearse upgrades → bootstrap+migrate → run HTTP suite
 ```
 
 To run the pieces by hand, the destructive steps require the guard env (they fail closed
@@ -26,6 +26,7 @@ without it):
 ```bash
 pnpm db:up                                                        # Postgres in Docker
 pnpm build                                                        # contracts → db → api (before setup)
+ALLOW_TEST_DB_RESET=1 pnpm test:migrations:1.1.4                  # real pre-1.1.4 upgrade
 ALLOW_TEST_DB_RESET=1 TEST_DB_EXPECTED_SESSION_USER=linkedout \
   pnpm db:test:setup                                             # bootstrap marker + migrate
 ALLOW_TEST_DB_RESET=1 TEST_DB_EXPECTED_SESSION_USER=linkedout \
@@ -40,6 +41,13 @@ ALLOW_TEST_DB_RESET=1 TEST_DB_EXPECTED_SESSION_USER=linkedout \
 The suite boots two API processes (one with R2 configured, one without, so
 `UPLOADS_DISABLED` is exercised against a real boot), truncates `linkedout_test` between
 tests, and tears everything down at the end.
+
+Before the HTTP suite, `scripts/test-1.1.4-migrations.cjs` creates only the exact disposable
+`linkedout_test_1_1_4_upgrade` database on the same loopback cluster. It migrates to the previous
+schema, inserts representative Checkpoint/Lesson rows with reactions, comments, counters, and
+Collection storage, applies the two 1.1.4 migrations, and asserts preservation/removal behavior.
+It drops that database in `finally`; it refuses non-loopback URLs or any base database other than
+`linkedout_test`.
 
 ### Test-database safety (fail-closed)
 
@@ -95,13 +103,12 @@ deterministically between tests.
 | `07-reactions` | Idempotency, counters, and popularity weights |
 | `08-comments` | One-level threading, `commentCount`, cascade delete |
 | `09-follows` | Idempotency, self-follow, counts, notification once |
-| `10-collections` | CRUD/detail, ordering/position, viewer-aware `lCount` |
 | `11-notifications` | Folding via `dedupeKey`, server-composed copy, read state |
 | `12-search` | Postgres FTS/user ranking, visibility, strict queries, hostile queries |
 | `13-users-profile` | Profile, `PATCH /users/me`, username rules, avatar-URL ownership |
-| `14-journey-saved` | Created-at journeys and `/me/saved` visibility/pagination |
+| `14-saved` | `/me/saved` visibility and pagination |
 | `16-uploads` | Presign shape, size/type limits, `UPLOADS_DISABLED` |
-| `17-anonymity` | Strong anonymity: no author, profile/journey, or collection attribution path |
+| `17-anonymity` | Strong anonymity: no author or profile attribution path |
 | `18-contract-invariants` | Envelopes, cursors, ULIDs, ISO timestamps, CORS, error codes |
 | `19-rate-limit` | 120 reads/min, 30 writes/min, `Retry-After`, per-identity buckets |
 | `20-concurrency-edges` | Counter integrity under concurrent writes; coercion edges |

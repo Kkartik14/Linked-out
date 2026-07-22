@@ -175,6 +175,11 @@ jobs:
           name: backend-build
           path: .
 
+      - name: Rehearse 1.1.4 migrations on representative legacy data
+        env:
+          ALLOW_TEST_DB_RESET: "1"
+        run: pnpm test:migrations:1.1.4
+
       # Guard (exact name + session role) and plant the fingerprinted marker BEFORE the destructive
       # migrate DDL — the guard runs on this destructive step only.
       - name: Bootstrap + migrate the test database
