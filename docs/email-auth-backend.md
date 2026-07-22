@@ -4,19 +4,32 @@ This branch implements the backend contract for email/password signup, email ver
 normal password login, resend, and forgot/reset password. It deliberately does not include
 frontend screens or a real email provider.
 
+## Credential-authoring rule (read first)
+
+**The account password is set at `POST /auth/email/verify`, together with the emailed code — not at
+signup.** Signup carries the email only. Setting the password at signup and committing it on later
+verification enables account **pre-hijacking**: anyone could start a signup for a victim's address
+with an attacker password, and the victim's verification would create an account holding it
+(Sudhodanan & Paverd, *Pre-hijacked accounts*, USENIX Security 2022; OWASP: "do not activate
+accounts before verification is completed"). Binding password authorship to code possession removes
+the pre-verification credential entirely.
+
+Frontend impact: collect email **and** password on the signup screen as before, but send only the
+email to `/signup`; hold the password client-side and submit it with the code to `/verify`.
+
 ## Public API flow
 
 All paths are below `/v1`.
 
-| Step | Endpoint | Success |
-|---|---|---|
-| Start signup | `POST /auth/email/signup` | `202 { accepted: true, expiresInSeconds: 600 }` |
-| Inspect stub delivery | `POST /auth/email/otp/inspect` | current encrypted-capture OTP (protected header) |
-| Verify email | `POST /auth/email/verify` | one-time session handoff code |
-| Password login | `POST /auth/email/login` | one-time session handoff code |
-| Resend | `POST /auth/email/resend` | same generic `202` envelope |
-| Forgot password | `POST /auth/email/password/forgot` | same generic `202` for known/unknown email |
-| Reset password | `POST /auth/email/password/reset` | `200 { ok: true }` |
+| Step | Endpoint | Body | Success |
+|---|---|---|---|
+| Start signup | `POST /auth/email/signup` | `{ email }` | `202 { accepted: true, expiresInSeconds: 600 }` |
+| Inspect stub delivery | `POST /auth/email/otp/inspect` | `{ email, purpose }` | current encrypted-capture OTP (protected header) |
+| Verify + set password | `POST /auth/email/verify` | `{ email, otp, password, returnTo? }` | one-time session handoff code |
+| Password login | `POST /auth/email/login` | `{ email, password, returnTo? }` | one-time session handoff code |
+| Resend | `POST /auth/email/resend` | `{ email, purpose }` | same generic `202` envelope |
+| Forgot password | `POST /auth/email/password/forgot` | `{ email }` | same generic `202` for known/unknown email |
+| Reset password | `POST /auth/email/password/reset` | `{ email, otp, newPassword }` | `200 { ok: true }` |
 
 Verification and login reuse the existing OAuth handoff/session authority. The frontend can use
 the same server-side handoff exchange it already uses for OAuth; there is no second session type.

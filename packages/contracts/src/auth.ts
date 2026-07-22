@@ -45,9 +45,12 @@ export const emailAddressSchema = z
 export const passwordSchema = z.string().min(15).max(128);
 export const emailOtpSchema = z.string().regex(/^\d{8}$/, 'otp must contain exactly 8 digits');
 
-export const emailSignupInputSchema = z
-  .object({ email: emailAddressSchema, password: passwordSchema })
-  .strict();
+// Signup only starts email verification; it never carries the password. The account credential is
+// authored later, at POST /auth/email/verify, by whoever holds the emailed code — so a password can
+// never be seeded or overwritten in the pre-verification window (account pre-hijacking; Sudhodanan
+// & Paverd, "Pre-hijacked accounts", USENIX Security 2022). The client may still collect the
+// password on its signup screen and hold it locally, but it is only sent with the verify request.
+export const emailSignupInputSchema = z.object({ email: emailAddressSchema }).strict();
 export type EmailSignupInput = z.infer<typeof emailSignupInputSchema>;
 
 export const emailOtpRequestAcceptedSchema = z
@@ -59,6 +62,9 @@ export const emailOtpVerifyInputSchema = z
   .object({
     email: emailAddressSchema,
     otp: emailOtpSchema,
+    // Proving inbox control (otp) and authoring the account credential (password) are one atomic
+    // step: the verified account is created with exactly this password, set by the code's holder.
+    password: passwordSchema,
     returnTo: returnToSchema.default('/'),
   })
   .strict();
