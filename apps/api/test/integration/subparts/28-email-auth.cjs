@@ -23,7 +23,7 @@ function inspect(email, purpose, secret = h.EMAIL_OTP_INSPECTION_SECRET) {
 
 async function requestSignup(overrides = {}) {
   return h.post('/auth/email/signup', {
-    body: { email: EMAIL, password: PASSWORD, ...overrides },
+    body: { email: EMAIL, ...overrides },
   });
 }
 
@@ -57,7 +57,8 @@ describe('28 · email/password authentication with OTP', () => {
     });
     assert.equal(challenge.codeDigest.includes(inspected.body.otp), false);
     assert.equal(challenge.outbox.ciphertext.includes(inspected.body.otp), false);
-    assert.equal(challenge.passwordHash.includes(PASSWORD), false);
+    // The signup challenge no longer stores any password — the credential is authored at verify.
+    assert.equal('passwordHash' in challenge, false);
     assert.ok(challenge.expiresAt.getTime() >= startedAt + 599_000);
     assert.ok(challenge.expiresAt.getTime() <= Date.now() + 600_000);
   });
@@ -98,7 +99,7 @@ describe('28 · email/password authentication with OTP', () => {
     const { body: delivery } = await inspect(EMAIL, 'SIGNUP');
 
     const verified = await h.post('/auth/email/verify', {
-      body: { email: EMAIL, otp: delivery.otp, returnTo: '/feed' },
+      body: { email: EMAIL, otp: delivery.otp, password: PASSWORD, returnTo: '/feed' },
     });
     assert.equal(verified.status, 200, JSON.stringify(verified.body));
     assert.match(verified.body.code, /^[A-Za-z0-9_-]{43}$/);
@@ -113,7 +114,7 @@ describe('28 · email/password authentication with OTP', () => {
 
     h.expectError(
       await h.post('/auth/email/verify', {
-        body: { email: EMAIL, otp: delivery.otp, returnTo: '/feed' },
+        body: { email: EMAIL, otp: delivery.otp, password: PASSWORD, returnTo: '/feed' },
       }),
       400,
       'INVALID_OTP',
@@ -129,7 +130,7 @@ describe('28 · email/password authentication with OTP', () => {
     const attempts = await Promise.all(
       Array.from({ length: 2 }, () =>
         h.post('/auth/email/verify', {
-          body: { email: EMAIL, otp, returnTo: '/' },
+          body: { email: EMAIL, otp, password: PASSWORD, returnTo: '/' },
         }),
       ),
     );
@@ -146,7 +147,7 @@ describe('28 · email/password authentication with OTP', () => {
     for (let attempt = 1; attempt <= 5; attempt += 1) {
       h.expectError(
         await h.post('/auth/email/verify', {
-          body: { email: EMAIL, otp: wrongOtp, returnTo: '/' },
+          body: { email: EMAIL, otp: wrongOtp, password: PASSWORD, returnTo: '/' },
         }),
         400,
         'INVALID_OTP',
@@ -154,7 +155,7 @@ describe('28 · email/password authentication with OTP', () => {
     }
     h.expectError(
       await h.post('/auth/email/verify', {
-        body: { email: EMAIL, otp: '11111111', returnTo: '/' },
+        body: { email: EMAIL, otp: '11111111', password: PASSWORD, returnTo: '/' },
       }),
       400,
       'INVALID_OTP',
@@ -167,7 +168,7 @@ describe('28 · email/password authentication with OTP', () => {
     await requestSignup();
     const { body: delivery } = await inspect(EMAIL, 'SIGNUP');
     await h.post('/auth/email/verify', {
-      body: { email: EMAIL, otp: delivery.otp, returnTo: '/' },
+      body: { email: EMAIL, otp: delivery.otp, password: PASSWORD, returnTo: '/' },
     });
 
     for (const body of [
@@ -196,7 +197,7 @@ describe('28 · email/password authentication with OTP', () => {
     await requestSignup();
     const signupOtp = (await inspect(EMAIL, 'SIGNUP')).body.otp;
     const verified = await h.post('/auth/email/verify', {
-      body: { email: EMAIL, otp: signupOtp, returnTo: '/' },
+      body: { email: EMAIL, otp: signupOtp, password: PASSWORD, returnTo: '/' },
     });
     const browser = await exchange(verified.body.code);
     const user = await h.ctx.prisma.user.findUniqueOrThrow({ where: { email: CANONICAL_EMAIL } });
@@ -240,7 +241,7 @@ describe('28 · email/password authentication with OTP', () => {
 
     h.expectError(
       await h.post('/auth/email/verify', {
-        body: { email: EMAIL, otp, returnTo: '/' },
+        body: { email: EMAIL, otp, password: PASSWORD, returnTo: '/' },
       }),
       400,
       'INVALID_OTP',
@@ -249,5 +250,43 @@ describe('28 · email/password authentication with OTP', () => {
     assert.equal(await cleanup.deleteExpiredBatch('emailOtpChallenges', new Date(), 1), 1);
     assert.equal(await h.ctx.prisma.emailOtpChallenge.count(), 0);
     assert.equal(await h.ctx.prisma.emailOtpOutbox.count(), 0);
+  });
+
+  test('signup accepts no password; the credential is authored only at verify', async () => {
+    // The strict signup contract rejects a password, so nothing is stored before verification —
+    // there is no pre-verification credential for a third party to seed or overwrite.
+    h.expectError(
+      await h.post('/auth/email/signup', { body: { email: EMAIL, password: PASSWORD } }),
+      400,
+      'VALIDATION_ERROR',
+    );
+
+    assert.equal((await requestSignup()).status, 202);
+    const otp = (await inspect(EMAIL, 'SIGNUP')).body.otp;
+    const verified = await h.post('/auth/email/verify', {
+      body: { email: EMAIL, otp, password: NEW_PASSWORD, returnTo: '/' },
+    });
+    assert.equal(verified.status, 200, JSON.stringify(verified.body));
+
+    const user = await h.ctx.prisma.user.findUniqueOrThrow({
+      where: { email: CANONICAL_EMAIL },
+      include: { passwordCredential: true },
+    });
+    assert.ok(user.passwordCredential.passwordHash.startsWith('$argon2id$'));
+
+    // The account credential is exactly the password supplied at verify by the code's holder.
+    assert.equal(
+      (await h.post('/auth/email/login', {
+        body: { email: EMAIL, password: NEW_PASSWORD, returnTo: '/' },
+      })).status,
+      200,
+    );
+    h.expectError(
+      await h.post('/auth/email/login', {
+        body: { email: EMAIL, password: PASSWORD, returnTo: '/' },
+      }),
+      401,
+      'INVALID_CREDENTIALS',
+    );
   });
 });
