@@ -157,9 +157,16 @@ test.describe("profiles", () => {
 
     await expect(page.getByRole("heading", { name: "Kartik Gupta" })).toBeVisible();
     await expect(page.getByText("Building in public")).toBeVisible();
+    await expect(page.getByRole("tab", { name: "All" })).toHaveAttribute(
+      "aria-selected",
+      "true",
+    );
+    await expect(page.getByText(world.google.title)).toBeVisible();
+    await expect(page.getByText(world.startup.title)).toBeVisible();
+
     await page.getByRole("tab", { name: "Stories" }).click();
     await expect(page.getByText(world.google.title)).toBeVisible();
-    await expect(page.getByRole("tab", { name: "All" })).toHaveCount(0);
+    await expect(page.getByText(world.startup.title)).toHaveCount(0);
     await expect(page.getByRole("tab", { name: "Collections" })).toHaveCount(0);
   });
 
