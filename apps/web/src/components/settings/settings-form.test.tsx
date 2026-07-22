@@ -38,6 +38,26 @@ describe("SettingsForm save", () => {
     expect(refresh).toHaveBeenCalled();
   });
 
+  it("keeps the button disabled through a successful navigation (no double-submit)", async () => {
+    const user = userEvent.setup();
+    const push = vi.fn();
+    const refresh = vi.fn();
+    vi.mocked(patchMe).mockResolvedValue({ ...mockUser, username: "kartik-new" });
+
+    renderWithProviders(<SettingsForm user={mockUser} />, {
+      session: loggedIn,
+      router: { push, refresh },
+    });
+
+    await user.click(screen.getByRole("button", { name: "Save changes" }));
+
+    await waitFor(() => expect(push).toHaveBeenCalledWith("/u/kartik-new"));
+    // `saving` stays set through the route transition so the form cannot be re-submitted while
+    // navigation is pending. A `finally { setSaving(false) }` regression re-enables it — and fails
+    // this. Only a failed save re-enables the button (covered by the test below).
+    expect(screen.getByRole("button", { name: "Saving…" })).toBeDisabled();
+  });
+
   it("stays on Settings and re-enables saving when the save fails", async () => {
     const user = userEvent.setup();
     const push = vi.fn();

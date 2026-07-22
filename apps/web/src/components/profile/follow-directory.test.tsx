@@ -1,7 +1,7 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { screen } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
-import type { FollowListUser, Paginated } from "@linkedout/contracts";
+import type { FollowListUser, FollowResult, Paginated } from "@linkedout/contracts";
 
 import { mockUser, renderWithProviders } from "@/test/utils";
 import type { Session } from "@/components/session-provider";
@@ -75,6 +75,9 @@ describe("FollowDirectory", () => {
     });
 
     expect(await screen.findByText("Not following anyone yet.")).toBeInTheDocument();
+    // Symmetric to the followers case: the following variant hits /following, never /followers.
+    expect(getFollowing).toHaveBeenCalledWith("sam", undefined);
+    expect(getFollowers).not.toHaveBeenCalled();
   });
 
   it("omits the follow control on the viewer's own row", async () => {
@@ -110,6 +113,31 @@ describe("FollowDirectory", () => {
 
     expect(follow).toHaveBeenCalledWith(mockUser.id, "ann");
     expect(await screen.findByRole("button", { name: "Following" })).toBeInTheDocument();
+  });
+
+  it("optimistically flips, then rolls back when the follow fails", async () => {
+    const user = userEvent.setup();
+    let rejectFollow!: (reason: Error) => void;
+    vi.mocked(getFollowers).mockResolvedValue(
+      page([row({ id: "01ARZ3NDEKTSV4RRFFQ69G5FB7", username: "ann", name: "Ann" })]),
+    );
+    // A request we control, so the optimistic state is observable before it settles.
+    vi.mocked(follow).mockReturnValue(
+      new Promise<FollowResult>((_resolve, reject) => {
+        rejectFollow = reject;
+      }),
+    );
+    renderWithProviders(<FollowDirectory username="sam" variant="followers" />, {
+      session: loggedIn,
+    });
+
+    await user.click(await screen.findByRole("button", { name: "Follow" }));
+    // Optimistic: the row flips to Following before the request resolves.
+    expect(await screen.findByRole("button", { name: "Following" })).toBeInTheDocument();
+
+    rejectFollow(new Error("nope"));
+    // Rolled back: a failed request restores the pre-click state.
+    expect(await screen.findByRole("button", { name: "Follow" })).toBeInTheDocument();
   });
 
   it("unfollows a followed row", async () => {
