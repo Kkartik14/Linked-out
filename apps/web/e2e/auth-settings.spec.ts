@@ -141,6 +141,7 @@ test.describe("auth surface", () => {
 
 test.describe("saved, notifications & settings", () => {
   test("the saved page lists the viewer's SAVED Ls", async ({ page, context }) => {
+    await page.setViewportSize({ width: 1440, height: 900 });
     await signIn(context, world.kartik);
     await db().reaction.create({
       data: { userId: world.kartik.id, lId: world.nadiaPublic.id, type: "SAVED" },
@@ -150,6 +151,23 @@ test.describe("saved, notifications & settings", () => {
 
     await expect(page.getByRole("heading", { name: "Saved" })).toBeVisible();
     await expect(page.getByText(world.nadiaPublic.title)).toBeVisible();
+    const leftRail = page.getByRole("complementary", { name: "Profile and discovery" });
+    await expect(leftRail).toBeVisible();
+    await expect(
+      page.getByRole("complementary", { name: "Top Ls and L of the day" }),
+    ).toBeVisible();
+    await expect(leftRail.getByRole("link", { name: "Saved" })).toHaveAttribute(
+      "aria-current",
+      "page",
+    );
+    await expect(leftRail.getByRole("link", { name: "Followers" })).toHaveAttribute(
+      "href",
+      "/u/kartik/followers",
+    );
+    await expect(leftRail.getByRole("link", { name: "Following" })).toHaveAttribute(
+      "href",
+      "/u/kartik/following",
+    );
   });
 
   test("notifications render server-composed copy and can be marked read", async ({
