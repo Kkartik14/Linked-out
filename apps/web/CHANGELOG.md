@@ -30,9 +30,6 @@ This file covers `apps/web` only. Its executable API contract is
 
 - Removed the retired `Builders Helped` metric from profile and sidebar presentation. The profile
   card now leads with `Ls Shared` without substituting another vanity metric.
-- Expanded the READY viewer card to show the server-supplied Ls Shared, Followers, and Following
-  counts in one compact row. The social counts link to the corresponding profile directories, and
-  profile follow mutations invalidate the shared sidebar aggregate so Following cannot remain stale.
 
 ### Reactions
 
@@ -43,11 +40,6 @@ This file covers `apps/web` only. Its executable API contract is
 
 ### Search and discovery
 
-- Made `/search` the sole search-input owner while that route is open: desktop/mobile header search
-  controls and the textual Feed link are omitted there, while the home logo and unrelated actions
-  remain. An empty query still embeds feed controls and cards without repeating the Feed introduction.
-- Moved authenticated `/saved` into the shared discovery frame with both desktop rails. Sidebar
-  loading remains ancillary and failure-isolated, so bookmarks and static navigation stay usable.
 - Added persistent Search and Saved actions between the viewer card and People to Follow. The
   actions remain available when the personalized sidebar request fails, and guest Saved visits
   preserve `/saved` through login.
