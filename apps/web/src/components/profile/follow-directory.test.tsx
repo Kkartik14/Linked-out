@@ -12,13 +12,15 @@ vi.mock("@/lib/api", async (importOriginal) => {
     ...actual,
     getFollowers: vi.fn(),
     getFollowing: vi.fn(),
+    getProfile: vi.fn(),
     follow: vi.fn(),
     unfollow: vi.fn(),
   };
 });
 
 import { FollowDirectory } from "@/components/profile/follow-directory";
-import { follow, getFollowers, getFollowing, unfollow } from "@/lib/api";
+import { ProfileHeader } from "@/components/profile/profile-header";
+import { follow, getFollowers, getFollowing, getProfile, unfollow } from "@/lib/api";
 
 const loggedIn: Session = { status: "authenticated", user: mockUser, needsOnboarding: false };
 
@@ -113,6 +115,39 @@ describe("FollowDirectory", () => {
 
     expect(follow).toHaveBeenCalledWith(mockUser.id, "ann");
     expect(await screen.findByRole("button", { name: "Following" })).toBeInTheDocument();
+  });
+
+  it("updates the viewer's following count for back navigation without removing the row", async () => {
+    const user = userEvent.setup();
+    const profileBefore = {
+      ...mockUser,
+      counts: { followers: 4, following: 2 },
+    };
+    const directory = page([
+      row({ id: "01ARZ3NDEKTSV4RRFFQ69G5FB8", username: "ann", name: "Ann" }),
+    ]);
+    vi.mocked(getFollowing).mockResolvedValue(directory);
+    vi.mocked(getProfile).mockReturnValue(new Promise(() => {}));
+    vi.mocked(follow).mockResolvedValue({
+      isFollowing: true,
+      counts: { followers: 1, following: 0 },
+    });
+
+    const { rerender } = renderWithProviders(<ProfileHeader profile={profileBefore} />, {
+      session: { status: "authenticated", user: profileBefore, needsOnboarding: false },
+    });
+    expect(screen.getByRole("link", { name: "2 following" })).toBeInTheDocument();
+
+    rerender(
+      <FollowDirectory username={profileBefore.username} variant="following" initial={directory} />,
+    );
+    await user.click(await screen.findByRole("button", { name: "Follow" }));
+
+    expect(await screen.findByRole("button", { name: "Following" })).toBeInTheDocument();
+    expect(screen.getByText("Ann")).toBeInTheDocument();
+
+    rerender(<ProfileHeader profile={profileBefore} />);
+    expect(screen.getByRole("link", { name: "3 following" })).toBeInTheDocument();
   });
 
   it("optimistically flips, then rolls back when the follow fails", async () => {
