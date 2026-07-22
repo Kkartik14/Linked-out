@@ -28,6 +28,7 @@ import {
   createLInputSchema,
   errorEnvelopeSchema,
   feedSidebarResponseSchema,
+  followListUserSchema,
   followResultSchema,
   journeyNodeSchema,
   lCardSchema,
@@ -55,6 +56,7 @@ const paginatedJourneyNodeSchema = paginatedSchema(journeyNodeSchema);
 const paginatedCommentSchema = paginatedSchema(commentSchema);
 const paginatedCollectionSchema = paginatedSchema(collectionSchema);
 const paginatedUserSummarySchema = paginatedSchema(userSummarySchema);
+const paginatedFollowListUserSchema = paginatedSchema(followListUserSchema);
 const paginatedNotificationSchema = paginatedSchema(notificationSchema);
 const searchResultSchema = z.union([paginatedLCardSchema, paginatedUserSummarySchema]);
 
@@ -100,6 +102,7 @@ export const API_COMPONENT_SCHEMAS = {
   OkResponse: okSchema,
   PaginatedCollection: paginatedCollectionSchema,
   PaginatedComment: paginatedCommentSchema,
+  PaginatedFollowListUser: paginatedFollowListUserSchema,
   PaginatedJourneyNode: paginatedJourneyNodeSchema,
   PaginatedLCard: paginatedLCardSchema,
   PaginatedNotification: paginatedNotificationSchema,
@@ -318,12 +321,12 @@ export const API_ROUTE_CONTRACTS = {
   userFollowers: route(
     'get /users/{username}/followers',
     200,
-    jsonResponse('PaginatedUserSummary'),
+    jsonResponse('PaginatedFollowListUser'),
   ),
   userFollowing: route(
     'get /users/{username}/following',
     200,
-    jsonResponse('PaginatedUserSummary'),
+    jsonResponse('PaginatedFollowListUser'),
   ),
   userFollow: route('put /users/{username}/follow', 200, jsonResponse('FollowResult')),
   userUnfollow: route('delete /users/{username}/follow', 200, jsonResponse('FollowResult')),
