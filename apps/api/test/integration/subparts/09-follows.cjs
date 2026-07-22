@@ -2,11 +2,15 @@
 
 const assert = require('node:assert/strict');
 const { describe, test, beforeEach } = require('node:test');
-const { followResultSchema, userSummarySchema, paginatedSchema } = require('@linkedout/contracts');
+const {
+  followResultSchema,
+  followListUserSchema,
+  paginatedSchema,
+} = require('@linkedout/contracts');
 
 const h = require('../_harness.cjs');
 
-const summaryList = paginatedSchema(userSummarySchema);
+const followList = paginatedSchema(followListUserSchema);
 
 describe('09 · follows (contract §4.7)', () => {
   let me;
@@ -110,16 +114,54 @@ describe('09 · follows (contract §4.7)', () => {
     assert.equal(mine.body.viewer.isFollowing, false, 'isFollowing is false on your own profile');
   });
 
-  test('GET followers/following return paginated UserSummary lists', async () => {
+  test('GET followers/following return follow-list rows with viewer state', async () => {
     await h.put('/users/target/follow', { cookie: me.cookie });
 
-    const followers = await h.get('/users/target/followers');
-    const page = h.expectShape(followers, summaryList);
-    assert.deepEqual(page.data.map((u) => u.username), ['mine']);
+    // 'mine' viewing target's followers finds itself — isSelf, and you never follow yourself.
+    const followers = await h.get('/users/target/followers', { cookie: me.cookie });
+    const page = h.expectShape(followers, followList);
+    assert.deepEqual(
+      page.data.map((r) => r.user.username),
+      ['mine'],
+    );
+    assert.deepEqual(page.data[0].viewer, { isFollowing: false, isSelf: true });
 
-    const following = await h.get('/users/mine/following');
-    const page2 = h.expectShape(following, summaryList);
-    assert.deepEqual(page2.data.map((u) => u.username), ['target']);
+    // 'mine' viewing its own following finds target — followed, and not itself.
+    const following = await h.get('/users/mine/following', { cookie: me.cookie });
+    const page2 = h.expectShape(following, followList);
+    assert.deepEqual(
+      page2.data.map((r) => r.user.username),
+      ['target'],
+    );
+    assert.deepEqual(page2.data[0].viewer, { isFollowing: true, isSelf: false });
+  });
+
+  test('signed-out viewer receives empty follow state on every row', async () => {
+    const other = await h.createUser({ username: 'other' });
+    await h.follow(me.id, target.id);
+    await h.follow(other.id, target.id);
+
+    const followers = await h.get('/users/target/followers');
+    const page = h.expectShape(followers, followList);
+    assert.equal(page.data.length, 2);
+    assert.ok(
+      page.data.every((r) => r.viewer.isFollowing === false && r.viewer.isSelf === false),
+      'a signed-out viewer follows no one and is no one',
+    );
+  });
+
+  test('follower rows reflect the signed-in viewer’s own follow edges', async () => {
+    const ann = await h.createUser({ username: 'ann' });
+    const bob = await h.createUser({ username: 'bob' });
+    await h.follow(ann.id, target.id); // ann and bob both follow target
+    await h.follow(bob.id, target.id);
+    await h.put('/users/ann/follow', { cookie: me.cookie }); // me follows ann, not bob
+
+    const res = await h.get('/users/target/followers', { cookie: me.cookie });
+    const page = h.expectShape(res, followList);
+    const viewerByName = Object.fromEntries(page.data.map((r) => [r.user.username, r.viewer]));
+    assert.deepEqual(viewerByName.ann, { isFollowing: true, isSelf: false });
+    assert.deepEqual(viewerByName.bob, { isFollowing: false, isSelf: false });
   });
 
   test('followers/following of an unknown user are 404', async () => {
@@ -136,17 +178,17 @@ describe('09 · follows (contract §4.7)', () => {
     }
 
     const first = await h.get('/users/target/followers?limit=2');
-    const page1 = h.expectShape(first, summaryList);
+    const page1 = h.expectShape(first, followList);
     assert.equal(page1.data.length, 2);
 
     const second = await h.get(
       `/users/target/followers?limit=2&cursor=${encodeURIComponent(page1.nextCursor)}`,
     );
-    const page2 = h.expectShape(second, summaryList);
+    const page2 = h.expectShape(second, followList);
 
-    const overlap = page1.data.filter((a) => page2.data.some((b) => b.id === a.id));
+    const overlap = page1.data.filter((a) => page2.data.some((b) => b.user.id === a.user.id));
     assert.equal(overlap.length, 0);
-    assert.equal(page1.data[0].username, 'f4', 'newest follow first');
+    assert.equal(page1.data[0].user.username, 'f4', 'newest follow first');
   });
 
   test('following a user creates exactly one NEW_FOLLOWER notification, and re-following adds none', async () => {

@@ -80,6 +80,19 @@ describe("ProfileHeader follow state", () => {
     expect(screen.queryByText(/Builders Helped/i)).not.toBeInTheDocument();
   });
 
+  it("links the follower and following counts to their directories", () => {
+    renderWithProviders(<ProfileHeader profile={profile} />, { session: loggedIn });
+
+    expect(screen.getByRole("link", { name: /7 followers/ })).toHaveAttribute(
+      "href",
+      "/u/sam/followers",
+    );
+    expect(screen.getByRole("link", { name: /2 following/ })).toHaveAttribute(
+      "href",
+      "/u/sam/following",
+    );
+  });
+
   it("uses the fresh RSC profile without a mount refetch and still honors invalidation", async () => {
     const refreshed = {
       ...profile,
@@ -94,14 +107,16 @@ describe("ProfileHeader follow state", () => {
       await new Promise((resolve) => setTimeout(resolve, 0));
     });
     expect(getProfile).not.toHaveBeenCalled();
-    expect(screen.getByText(/7 followers/)).toHaveTextContent("7 followers · 2 following");
+    expect(screen.getByRole("link", { name: /7 followers/ })).toBeInTheDocument();
+    expect(screen.getByRole("link", { name: /2 following/ })).toBeInTheDocument();
 
     await queryClient.invalidateQueries({
       queryKey: ["profiles", mockUser.id, "sam"],
       exact: true,
     });
     await waitFor(() => expect(getProfile).toHaveBeenCalledOnce());
-    expect(screen.getByText(/9 followers/)).toHaveTextContent("9 followers · 3 following");
+    expect(screen.getByRole("link", { name: /9 followers/ })).toBeInTheDocument();
+    expect(screen.getByRole("link", { name: /3 following/ })).toBeInTheDocument();
   });
 
   it("reconciles both the profile and active viewer-card counts after follow", async () => {
@@ -120,7 +135,8 @@ describe("ProfileHeader follow state", () => {
 
     expect(follow).toHaveBeenCalledWith(mockUser.id, "sam");
     expect(await screen.findByRole("button", { name: "Following" })).toBeInTheDocument();
-    expect(screen.getByText(/11 followers/)).toHaveTextContent("11 followers · 4 following");
+    expect(screen.getByRole("link", { name: /11 followers/ })).toBeInTheDocument();
+    expect(screen.getByRole("link", { name: /4 following/ })).toBeInTheDocument();
     await waitFor(() => expect(getFeedSidebar).toHaveBeenCalledOnce());
     await waitFor(() => expect(followingMetricValue()).toBe("1"));
   });

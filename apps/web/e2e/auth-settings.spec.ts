@@ -222,7 +222,7 @@ test.describe("saved, notifications & settings", () => {
       .toBe(0);
   });
 
-  test("settings saves profile changes through PATCH /users/me", async ({ page, context }) => {
+  test("settings saves changes and returns to the edited profile", async ({ page, context }) => {
     await signIn(context, world.kartik);
     await page.goto("/settings");
 
@@ -230,7 +230,9 @@ test.describe("saved, notifications & settings", () => {
     await page.getByRole("textbox", { name: "Name", exact: true }).fill("Kartik G");
     await page.getByRole("button", { name: "Save changes" }).click();
 
-    await expect(page.getByText("Profile updated.")).toBeVisible();
+    // Part 5: a successful save returns to the canonical profile.
+    await expect(page).toHaveURL(/\/u\/kartik$/);
+    await expect(page.getByRole("heading", { name: "Kartik G" })).toBeVisible();
 
     await expect
       .poll(async () => (await db().user.findUnique({ where: { id: world.kartik.id } })).name)
@@ -258,10 +260,25 @@ test.describe("saved, notifications & settings", () => {
 
     await page.getByRole("textbox", { name: "Bio" }).fill("");
     await page.getByRole("button", { name: "Save changes" }).click();
-    await expect(page.getByText("Profile updated.")).toBeVisible();
+    await expect(page).toHaveURL(/\/u\/kartik$/);
 
     await expect
       .poll(async () => (await db().user.findUnique({ where: { id: world.kartik.id } })).bio)
       .toBeNull();
+  });
+
+  test("settings shows the left discovery rail and never the right rail", async ({
+    page,
+    context,
+  }) => {
+    await signIn(context, world.kartik);
+    await page.goto("/settings");
+
+    await expect(page.getByRole("heading", { name: "Settings" })).toBeVisible();
+    // Part 5: Settings renders through the left-only shell.
+    await expect(page.getByRole("complementary", { name: "Profile and discovery" })).toBeVisible();
+    await expect(
+      page.getByRole("complementary", { name: "Top Ls and L of the day" }),
+    ).toHaveCount(0);
   });
 });

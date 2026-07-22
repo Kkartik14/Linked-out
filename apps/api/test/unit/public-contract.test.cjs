@@ -203,3 +203,33 @@ test('feed sidebar schema gives both rails one stable, attributed daily item', (
     );
   }
 });
+
+test('follow-list row keeps required viewer state and rejects unknown fields', () => {
+  const followRow = { user: userSummary(), viewer: { isFollowing: true, isSelf: false } };
+  assert.deepEqual(contracts.followListUserSchema.parse(followRow), followRow);
+
+  // `viewer` is `.strict()`: an extra key must be a parse error, not silently stripped — otherwise
+  // an integration deep-equal (which asserts the post-parse object) could never see the drift.
+  for (const mutate of [
+    (value) => { value.reason = { code: 'MUTUAL_FOLLOWS' }; },
+    (value) => { value.viewer.isBlocked = true; },
+    (value) => { value.user.email = 'private@example.com'; },
+  ]) {
+    const leaked = structuredClone(followRow);
+    mutate(leaked);
+    assert.equal(
+      contracts.followListUserSchema.safeParse(leaked).success,
+      false,
+      'follow-list row rejects unknown fields instead of stripping them',
+    );
+  }
+
+  // Both viewer fields are required — a row missing follow-state is invalid, never defaulted.
+  for (const viewer of [{ isFollowing: true }, { isSelf: false }, {}]) {
+    assert.equal(
+      contracts.followListUserSchema.safeParse({ user: userSummary(), viewer }).success,
+      false,
+      'viewer requires both isFollowing and isSelf',
+    );
+  }
+});

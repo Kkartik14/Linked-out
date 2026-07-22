@@ -10,6 +10,8 @@ import {
   getComments,
   getFeed,
   getFeedSidebar,
+  getFollowers,
+  getFollowing,
   getMeta,
   getNotifications,
   getReplies,
@@ -115,6 +117,16 @@ describe("API endpoint helpers", () => {
       4,
       "/search?q=Kartik+Gupta&type=users&cursor=users-next&limit=5",
     );
+  });
+
+  it("builds follower and following directory URLs with cursor pagination", () => {
+    void getFollowers("sam");
+    void getFollowers("sam", "cursor value", 10);
+    void getFollowing("sam", "next", 5);
+
+    expect(apiFetch).toHaveBeenNthCalledWith(1, "/users/sam/followers");
+    expect(apiFetch).toHaveBeenNthCalledWith(2, "/users/sam/followers?cursor=cursor+value&limit=10");
+    expect(apiFetch).toHaveBeenNthCalledWith(3, "/users/sam/following?cursor=next&limit=5");
   });
 
   it("forwards cancellation to live search requests", () => {
