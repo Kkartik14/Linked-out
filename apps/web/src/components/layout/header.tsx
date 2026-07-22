@@ -16,6 +16,7 @@ export function Header() {
   const user = useViewer();
   const pathname = usePathname();
   const isFeed = pathname === "/";
+  const isSearch = pathname === "/search";
 
   return (
     <header className="bg-background/80 supports-[backdrop-filter]:bg-background/60 sticky top-0 z-40 border-b backdrop-blur">
@@ -33,26 +34,30 @@ export function Header() {
           </span>
         </Link>
 
-        <nav className="ml-2 hidden items-center gap-1 md:flex">
-          <Link
-            href="/"
-            className={cn(
-              "hover:bg-accent rounded-md px-3 py-1.5 text-sm transition-colors",
-              isFeed ? "text-foreground font-medium" : "text-muted-foreground",
-            )}
-          >
-            Feed
-          </Link>
-        </nav>
+        {isSearch ? null : (
+          <nav className="ml-2 hidden items-center gap-1 md:flex">
+            <Link
+              href="/"
+              className={cn(
+                "hover:bg-accent rounded-md px-3 py-1.5 text-sm transition-colors",
+                isFeed ? "text-foreground font-medium" : "text-muted-foreground",
+              )}
+            >
+              Feed
+            </Link>
+          </nav>
+        )}
 
         <div className="flex flex-1 items-center justify-end gap-1.5">
-          <HeaderSearch />
+          {isSearch ? null : <HeaderSearch />}
 
-          <Button asChild variant="ghost" size="icon" className="sm:hidden">
-            <Link href="/search?focus=1" aria-label="Search Ls and people">
-              <Search className="size-4" />
-            </Link>
-          </Button>
+          {isSearch ? null : (
+            <Button asChild variant="ghost" size="icon" className="sm:hidden">
+              <Link href="/search?focus=1" aria-label="Search Ls and people">
+                <Search className="size-4" />
+              </Link>
+            </Button>
+          )}
 
           <Button asChild size="sm" className="gap-1.5">
             <Link href="/new">

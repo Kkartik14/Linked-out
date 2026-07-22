@@ -67,6 +67,16 @@ describe("HeaderSearch", () => {
     );
   });
 
+  it("leaves search ownership to the full search route", () => {
+    renderWithProviders(<Header />, { pathname: "/search" });
+
+    expect(screen.queryByRole("combobox", { name: /search ls and people/i })).not.toBeInTheDocument();
+    expect(screen.queryByRole("link", { name: /search ls and people/i })).not.toBeInTheDocument();
+    expect(screen.queryByRole("link", { name: "Feed" })).not.toBeInTheDocument();
+    expect(screen.getByRole("link", { name: /linkedout home/i })).toHaveAttribute("href", "/");
+    expect(screen.getByRole("link", { name: /share an l/i })).toHaveAttribute("href", "/new");
+  });
+
   it("starts both grouped previews from the first character with bounded limits", async () => {
     const user = userEvent.setup({ advanceTimers: vi.advanceTimersByTime });
     renderWithProviders(<HeaderSearch />);

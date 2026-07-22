@@ -73,6 +73,7 @@ export default async function SearchPage({
             canUseFollowingFeed={loggedIn}
             headingId="search-feed-heading"
             headingAs="h2"
+            showIntroduction={false}
           />
         }
       />
