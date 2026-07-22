@@ -24,7 +24,7 @@ export function reconcileOwnProfile(
       const key = query.queryKey;
       const isUpdatedProfile =
         key[0] === profileKey[0] && key[1] === profileKey[1] && key[2] === profileKey[2];
-      return key.includes(principal) && !isUpdatedProfile;
+      return key[1] === principal && !isUpdatedProfile;
     },
   });
 }

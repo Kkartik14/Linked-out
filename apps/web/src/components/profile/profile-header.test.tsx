@@ -17,9 +17,14 @@ vi.mock("@/lib/api", async (importOriginal) => {
   };
 });
 
+vi.mock("sonner", () => ({
+  toast: { error: vi.fn(), success: vi.fn() },
+}));
+
 import { ProfileHeader } from "@/components/profile/profile-header";
 import { follow, getProfile, patchMe } from "@/lib/api";
 import { queryKeys } from "@/lib/query-keys";
+import { toast } from "sonner";
 
 const loggedIn: Session = { status: "authenticated", user: mockUser, needsOnboarding: false };
 const profile: UserProfile = {
@@ -108,8 +113,26 @@ describe("ProfileHeader current chapter", () => {
     const editProfile = screen.getByRole("link", { name: "Edit profile" });
     const chapter = screen.getByRole("combobox", { name: "Current chapter" });
 
-    expect(editProfile.compareDocumentPosition(chapter)).toBe(Node.DOCUMENT_POSITION_FOLLOWING);
+    expect(editProfile.nextElementSibling).toContainElement(chapter);
     expect(chapter).toHaveTextContent("Building");
+  });
+
+  it("offers clearing plus every metadata-owned chapter choice in order", async () => {
+    const user = userEvent.setup();
+    renderWithProviders(<ProfileHeader profile={mockUser} />, { session: loggedIn });
+
+    screen.getByRole("combobox", { name: "Current chapter" }).focus();
+    await user.keyboard("{ArrowDown}");
+
+    expect((await screen.findAllByRole("option")).map((option) => option.textContent)).toEqual([
+      "Not set",
+      "🟡 Interviewing",
+      "🔵 Building",
+      "🟢 Working",
+      "🟣 Starting Up",
+      "🔴 Recovering",
+      "⚫ Taking a Break",
+    ]);
   });
 
   it("sets a chapter and reconciles every other cache owned by the principal", async () => {
@@ -151,5 +174,52 @@ describe("ProfileHeader current chapter", () => {
     await user.click(await screen.findByRole("option", { name: "Not set" }));
 
     await waitFor(() => expect(patchMe).toHaveBeenCalledWith(mockUser.id, { status: null }));
+  });
+
+  it("locks the picker and announces progress while the mutation is pending", async () => {
+    const user = userEvent.setup();
+    let finishUpdate: ((profile: UserProfile) => void) | undefined;
+    vi.mocked(patchMe).mockImplementation(
+      () =>
+        new Promise<UserProfile>((resolve) => {
+          finishUpdate = resolve;
+        }),
+    );
+    renderWithProviders(<ProfileHeader profile={mockUser} />, { session: loggedIn });
+    const chapter = screen.getByRole("combobox", { name: "Current chapter" });
+
+    chapter.focus();
+    await user.keyboard("{ArrowDown}");
+    await user.click(await screen.findByRole("option", { name: /Working/ }));
+
+    await waitFor(() => expect(chapter).toBeDisabled());
+    expect(screen.getByText("Updating current chapter…")).toBeInTheDocument();
+
+    await act(async () => finishUpdate?.({ ...mockUser, status: "WORKING" }));
+    await waitFor(() => expect(chapter).not.toBeDisabled());
+  });
+
+  it("keeps the authoritative chapter and reports an error when the mutation fails", async () => {
+    const user = userEvent.setup();
+    const refresh = vi.fn();
+    vi.mocked(patchMe).mockRejectedValue(new Error("Update refused"));
+    const { queryClient } = renderWithProviders(<ProfileHeader profile={mockUser} />, {
+      session: loggedIn,
+      router: { refresh },
+    });
+    const chapter = screen.getByRole("combobox", { name: "Current chapter" });
+
+    chapter.focus();
+    await user.keyboard("{ArrowDown}");
+    await user.click(await screen.findByRole("option", { name: /Working/ }));
+
+    await waitFor(() => expect(toast.error).toHaveBeenCalledWith("Update refused"));
+    expect(chapter).toHaveTextContent("Building");
+    expect(
+      queryClient.getQueryData<UserProfile>(
+        queryKeys.profiles.detail(mockUser.id, mockUser.username),
+      )?.status,
+    ).toBe("BUILDING");
+    expect(refresh).not.toHaveBeenCalled();
   });
 });

@@ -113,9 +113,14 @@ test.describe("profiles", () => {
     await expect(page.getByRole("tab", { name: "Collections" })).toHaveCount(0);
   });
 
-  test("a stranger never sees the owner's PRIVATE Ls on their profile", async ({ page }) => {
+  test("a stranger sees neither the owner's PRIVATE Ls nor profile controls", async ({
+    page,
+    context,
+  }) => {
+    await signIn(context, world.nadia);
     await page.goto("/u/kartik");
     await expect(page.getByText(world.privateL.title)).toHaveCount(0);
+    await expect(page.getByRole("combobox", { name: "Current chapter" })).toHaveCount(0);
   });
 
   test("the owner does see their own PRIVATE Ls", async ({ page, context }) => {
@@ -140,14 +145,23 @@ test.describe("profiles", () => {
 
     await expect(page.getByText("Current chapter updated.")).toBeVisible();
     await expect(chapter).toContainText("Working");
-    await expect.poll(async () => (await db().user.findUniqueOrThrow({
+    await expect(page.getByRole("button", { name: "Account menu" })).toContainText("🟢");
+    await expect.poll(async () => (await db().user.findUnique({
       where: { id: world.kartik.id },
     })).status).toBe("WORKING");
 
+    await page.goto("/");
+    await expect(
+      page
+        .getByRole("complementary", { name: "Profile and discovery" })
+        .getByText("Working", { exact: true }),
+    ).toBeVisible();
+
+    await page.goto("/u/kartik");
     await chapter.click();
     await page.getByRole("option", { name: "Not set" }).click();
     await expect(chapter).toHaveText("Not set");
-    await expect.poll(async () => (await db().user.findUniqueOrThrow({
+    await expect.poll(async () => (await db().user.findUnique({
       where: { id: world.kartik.id },
     })).status).toBeNull();
 

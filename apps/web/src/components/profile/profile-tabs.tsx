@@ -17,11 +17,11 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { usePrincipal } from "@/components/session-provider";
 import { queryKeys } from "@/lib/query-keys";
 
-function LsList({ username, type, empty }: { username: string; type?: LType; empty: string }) {
+function LsList({ username, type, empty }: { username: string; type: LType; empty: string }) {
   const principal = usePrincipal();
   return (
     <InfiniteList<LCardType>
-      queryKey={queryKeys.users.ls(principal, username, type ?? "all")}
+      queryKey={queryKeys.users.ls(principal, username, type)}
       queryFn={(cursor) => getUserLs(username, type, cursor)}
       getItemKey={(l) => l.id}
       renderItem={(l) => <LCard l={l} />}
