@@ -13,6 +13,18 @@ test.afterAll(async () => {
 });
 
 test.describe("search", () => {
+  test("the full search route is the sole search-input owner", async ({ page }) => {
+    for (const path of ["/search", "/search?focus=1", "/search?q=burned"]) {
+      await page.goto(path);
+
+      await expect(page.locator('input[type="search"]')).toHaveCount(1);
+      await expect(page.getByRole("combobox", { name: "Search Ls and people" })).toHaveCount(0);
+      await expect(page.getByRole("link", { name: "Feed", exact: true })).toHaveCount(0);
+      await expect(page.getByRole("link", { name: "LinkedOut home" })).toBeVisible();
+      await expect(page.getByRole("link", { name: "Share an L" })).toBeVisible();
+    }
+  });
+
   test("searches Ls live from the first character through the real Postgres index", async ({
     page,
   }) => {
@@ -34,7 +46,9 @@ test.describe("search", () => {
     await page.goto("/search");
 
     const centre = page.getByRole("region", { name: "Search", exact: true });
-    await expect(centre.getByRole("heading", { name: "The Feed" })).toBeVisible();
+    await expect(centre.getByRole("heading", { name: "The Feed" })).toHaveCount(0);
+    await expect(centre.getByText(/honest career stories/i)).toHaveCount(0);
+    await expect(centre.getByRole("tab", { name: "Latest" })).toBeVisible();
     await expect(centre.getByText(world.google.title)).toBeVisible();
     await expect(
       page.getByRole("complementary", { name: "Profile and discovery" }),
@@ -51,7 +65,9 @@ test.describe("search", () => {
     await centre.getByRole("searchbox", { name: "Search Ls and people" }).clear();
 
     await expect(page).toHaveURL(/\/search$/);
-    await expect(centre.getByRole("heading", { name: "The Feed" })).toBeVisible();
+    await expect(centre.getByRole("heading", { name: "The Feed" })).toHaveCount(0);
+    await expect(centre.getByText(/honest career stories/i)).toHaveCount(0);
+    await expect(centre.getByRole("tab", { name: "Latest" })).toBeVisible();
     await expect(centre.getByText(world.google.title)).toBeVisible();
   });
 

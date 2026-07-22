@@ -71,8 +71,6 @@ export default async function SearchPage({
             scope={scope}
             sort={sort}
             canUseFollowingFeed={loggedIn}
-            headingId="search-feed-heading"
-            headingAs="h2"
             showIntroduction={false}
           />
         }
