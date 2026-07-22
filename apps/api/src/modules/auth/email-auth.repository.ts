@@ -103,22 +103,23 @@ export class EmailAuthRepository {
   }
 
   /**
-   * Verify and consume a signup OTP under the per-subject advisory lock, so the five-attempt
-   * ceiling and single-use guarantee cannot be bypassed by concurrent guesses. A wrong code
-   * increments the attempt counter; a correct code marks the challenge consumed. Returns `true`
-   * only for the single caller that consumes the code — the account itself is created afterwards
-   * by {@link createVerifiedAccount} from the password the verifier supplied, so the Argon2 hash
-   * never runs while the lock is held and wrong codes never pay it.
+   * Phase 1 — the attempt gate. Under the per-subject advisory lock, confirm the challenge is
+   * usable and constant-time-compare the code, WITHOUT consuming it. A wrong code increments the
+   * counter (so the five-attempt ceiling holds under concurrent guesses); a correct code returns
+   * `true` and leaves the challenge active for the atomic commit below. Consumption is deferred so
+   * the caller can hash the password *outside* any transaction — the Argon2 cost runs only after a
+   * code is confirmed valid, and never while the lock is held.
    */
-  async consumeSignupChallenge(
+  async verifyCode(
     email: string,
+    purpose: EmailOtpPurpose,
     expectedDigest: string,
     now: Date,
   ): Promise<boolean> {
     return this.prisma.db.$transaction(async (tx) => {
-      await this.lock(tx, email, 'SIGNUP');
+      await this.lock(tx, email, purpose);
       const challenge = await tx.emailOtpChallenge.findUnique({
-        where: { email_purpose: { email, purpose: 'SIGNUP' } },
+        where: { email_purpose: { email, purpose } },
         select: { id: true, codeDigest: true, expiresAt: true, consumedAt: true, failedAttempts: true },
       });
       if (!this.usableNow(challenge, now)) return false;
@@ -129,30 +130,40 @@ export class EmailAuthRepository {
         });
         return false;
       }
-      await tx.emailOtpChallenge.update({ where: { id: challenge.id }, data: { consumedAt: now } });
-      await tx.emailOtpOutbox.deleteMany({ where: { challengeId: challenge.id } });
       return true;
     });
   }
 
   /**
-   * Create the verified account with the password authored at verify time. Returns the new user
-   * id, or `null` if the email was registered by another route in the meantime (unique violation)
-   * — the caller answers that with the same generic invalid-code response. Reached only after a
-   * valid single-use signup code has already been consumed.
+   * Phase 2 (signup) — consume the code and create the verified user + credential in ONE
+   * transaction, so a hashing or database failure never burns a valid code without creating the
+   * account. Re-checks the code under the lock to settle any race with a concurrent verify.
+   * Returns the new user id, or `null` if the code was spent in the gap or the email was registered
+   * by another route first (unique violation → same generic invalid-code response).
    */
-  async createVerifiedAccount(
+  async consumeSignupAndCreateAccount(
     email: string,
+    expectedDigest: string,
     passwordHash: string,
     now: Date,
   ): Promise<string | null> {
     try {
       return await this.prisma.db.$transaction(async (tx) => {
+        await this.lock(tx, email, 'SIGNUP');
+        const challenge = await tx.emailOtpChallenge.findUnique({
+          where: { email_purpose: { email, purpose: 'SIGNUP' } },
+          select: { id: true, codeDigest: true, expiresAt: true, consumedAt: true, failedAttempts: true },
+        });
+        if (!this.usableNow(challenge, now)) return null;
+        if (!this.digestsEqual(challenge.codeDigest, expectedDigest)) return null;
+
         const user = await tx.user.create({
           data: { email, emailVerified: now },
           select: { id: true },
         });
         await tx.passwordCredential.create({ data: { userId: user.id, passwordHash } });
+        await tx.emailOtpChallenge.update({ where: { id: challenge.id }, data: { consumedAt: now } });
+        await tx.emailOtpOutbox.deleteMany({ where: { challengeId: challenge.id } });
         return user.id;
       });
     } catch (error) {
@@ -164,61 +175,41 @@ export class EmailAuthRepository {
   }
 
   /**
-   * Verify a password-reset OTP under the per-subject advisory lock and, on success, consume the
-   * challenge and return the owning user id. Wrong codes increment the attempt counter; the caller
-   * hashes the new password and applies it via {@link applyNewPassword} only after this resolves.
-   * Hashing stays outside this transaction so the lock is never held across the Argon2 cost and
-   * wrong guesses never pay it.
+   * Phase 2 (reset) — consume the code, replace the credential, and revoke every existing session
+   * (legacy refresh sessions deleted, browser sessions revoked) in ONE transaction. Single-use
+   * consumption inside this transaction means overlapping resets cannot apply out of order, and a
+   * failure never burns a valid code. Re-checks the code under the lock; returns `false` for a
+   * spent code or an account without a password credential.
    */
-  async consumeResetChallenge(
+  async consumeResetAndApplyPassword(
     email: string,
     expectedDigest: string,
+    passwordHash: string,
     now: Date,
-  ): Promise<string | null> {
+  ): Promise<boolean> {
     return this.prisma.db.$transaction(async (tx) => {
       await this.lock(tx, email, 'PASSWORD_RESET');
       const challenge = await tx.emailOtpChallenge.findUnique({
         where: { email_purpose: { email, purpose: 'PASSWORD_RESET' } },
-        select: {
-          id: true,
-          codeDigest: true,
-          expiresAt: true,
-          consumedAt: true,
-          failedAttempts: true,
-        },
+        select: { id: true, codeDigest: true, expiresAt: true, consumedAt: true, failedAttempts: true },
       });
-      if (!this.usableNow(challenge, now)) return null;
-      if (!this.digestsEqual(challenge.codeDigest, expectedDigest)) {
-        await tx.emailOtpChallenge.update({
-          where: { id: challenge.id },
-          data: { failedAttempts: { increment: 1 } },
-        });
-        return null;
-      }
+      if (!this.usableNow(challenge, now)) return false;
+      if (!this.digestsEqual(challenge.codeDigest, expectedDigest)) return false;
       const user = await tx.user.findUnique({
         where: { email },
         select: { id: true, passwordCredential: { select: { userId: true } } },
       });
-      if (!user?.passwordCredential) return null;
-      await tx.emailOtpChallenge.update({ where: { id: challenge.id }, data: { consumedAt: now } });
-      await tx.emailOtpOutbox.deleteMany({ where: { challengeId: challenge.id } });
-      return user.id;
-    });
-  }
+      if (!user?.passwordCredential) return false;
 
-  /**
-   * Replace the password hash and invalidate every existing session for the user in one
-   * transaction. A reset is an account-recovery event, so all legacy refresh sessions are deleted
-   * and all live browser sessions revoked.
-   */
-  async applyNewPassword(userId: string, passwordHash: string, now: Date): Promise<void> {
-    await this.prisma.db.$transaction(async (tx) => {
-      await tx.passwordCredential.update({ where: { userId }, data: { passwordHash } });
-      await tx.session.deleteMany({ where: { userId } });
+      await tx.passwordCredential.update({ where: { userId: user.id }, data: { passwordHash } });
+      await tx.session.deleteMany({ where: { userId: user.id } });
       await tx.browserSession.updateMany({
-        where: { sub: userId, revokedAt: null },
+        where: { sub: user.id, revokedAt: null },
         data: { revokedAt: now },
       });
+      await tx.emailOtpChallenge.update({ where: { id: challenge.id }, data: { consumedAt: now } });
+      await tx.emailOtpOutbox.deleteMany({ where: { challengeId: challenge.id } });
+      return true;
     });
   }
 

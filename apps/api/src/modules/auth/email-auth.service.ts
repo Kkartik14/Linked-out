@@ -69,15 +69,21 @@ export class EmailAuthService {
   async verify(input: EmailOtpVerifyInput): Promise<EmailAuthHandoffResponse> {
     this.ensureEnabled();
     const digest = this.crypto.digest(input.email, 'SIGNUP', input.otp);
-    // Attempt-count, digest compare, and single-use consumption happen in one locked transaction
-    // so the five-attempt ceiling and single-use guarantee hold even under concurrent guesses.
-    const consumed = await this.repository.consumeSignupChallenge(input.email, digest, new Date());
-    if (!consumed) throw AppErrors.invalidOtp();
-    // The credential is authored here, by the holder of the just-consumed code — never earlier —
-    // which closes the account pre-hijacking window. Hashing runs only on a valid code and outside
-    // the lock; if account creation loses a unique-email race we return the same generic response.
+    // Gate the code under the per-subject lock (attempt-count + constant-time compare) without
+    // consuming it, so the five-attempt cap holds under concurrency and Argon2 runs only on a valid
+    // code. The credential is authored here, by the code's holder — never earlier — which closes the
+    // pre-hijacking window.
+    if (!(await this.repository.verifyCode(input.email, 'SIGNUP', digest, new Date()))) {
+      throw AppErrors.invalidOtp();
+    }
     const passwordHash = await this.passwords.create(input.password);
-    const userId = await this.repository.createVerifiedAccount(input.email, passwordHash, new Date());
+    // Consume + create the account in one transaction: a hashing/DB failure never burns the code.
+    const userId = await this.repository.consumeSignupAndCreateAccount(
+      input.email,
+      digest,
+      passwordHash,
+      new Date(),
+    );
     if (!userId) throw AppErrors.invalidOtp();
     return this.issueHandoff(userId, input.returnTo);
   }
@@ -111,14 +117,16 @@ export class EmailAuthService {
   async resetPassword(input: ResetPasswordInput): Promise<{ ok: true }> {
     this.ensureEnabled();
     const digest = this.crypto.digest(input.email, 'PASSWORD_RESET', input.otp);
-    const userId = await this.repository.consumeResetChallenge(input.email, digest, new Date());
-    if (!userId) throw AppErrors.invalidOtp();
-    // Hash only after a valid single-use OTP is consumed: wrong guesses stay cheap (no Argon2),
-    // and the Argon2 cost never runs while the per-subject advisory lock is held. The narrow gap
-    // between consuming the code and applying the hash fails closed — a crash leaves the password
-    // unchanged and forces a fresh reset.
+    // Gate first (attempt-count + compare, no consume), so Argon2 runs only on a valid code.
+    if (!(await this.repository.verifyCode(input.email, 'PASSWORD_RESET', digest, new Date()))) {
+      throw AppErrors.invalidOtp();
+    }
     const passwordHash = await this.passwords.create(input.newPassword);
-    await this.repository.applyNewPassword(userId, passwordHash, new Date());
+    // Consume the code, replace the credential, and revoke every session in one transaction, so
+    // overlapping resets cannot apply out of order and a failure never burns a valid code.
+    if (!(await this.repository.consumeResetAndApplyPassword(input.email, digest, passwordHash, new Date()))) {
+      throw AppErrors.invalidOtp();
+    }
     return { ok: true };
   }
 
