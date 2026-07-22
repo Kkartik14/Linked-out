@@ -168,6 +168,29 @@ test.describe("saved, notifications & settings", () => {
       "href",
       "/u/kartik/following",
     );
+
+    const viewerCard = leftRail.getByRole("region", { name: "Your profile" });
+    const metricCells = viewerCard.locator("dl > div");
+    await expect(metricCells).toHaveCount(3);
+    const [cardBox, cellBoxes] = await Promise.all([
+      viewerCard.boundingBox(),
+      metricCells.evaluateAll((cells) =>
+        cells.map((cell) => {
+          const box = cell.getBoundingClientRect();
+          return { top: box.top, right: box.right, bottom: box.bottom, left: box.left };
+        }),
+      ),
+    ]);
+    expect(cardBox).not.toBeNull();
+    expect(
+      Math.max(...cellBoxes.map((box) => box.top)) -
+        Math.min(...cellBoxes.map((box) => box.top)),
+    ).toBeLessThan(1);
+    for (const box of cellBoxes) {
+      expect(box.left).toBeGreaterThanOrEqual(cardBox!.x);
+      expect(box.right).toBeLessThanOrEqual(cardBox!.x + cardBox!.width);
+      expect(box.bottom).toBeLessThanOrEqual(cardBox!.y + cardBox!.height);
+    }
   });
 
   test("notifications render server-composed copy and can be marked read", async ({
