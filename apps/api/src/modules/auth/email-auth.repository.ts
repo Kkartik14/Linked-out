@@ -44,7 +44,6 @@ export class EmailAuthRepository {
     purpose: EmailOtpPurpose;
     codeDigest: string;
     encrypted: EncryptedOtp;
-    passwordHash?: string;
     now: Date;
     expiresAt: Date;
     requireExisting?: boolean;
@@ -66,26 +65,18 @@ export class EmailAuthRepository {
       if (active) {
         const updated = await tx.emailOtpChallenge.update({
           where: { id: current.id },
-          data: {
-            deliveryCount: { increment: 1 },
-            ...(input.passwordHash ? { passwordHash: input.passwordHash } : {}),
-          },
+          data: { deliveryCount: { increment: 1 } },
           include: { outbox: true },
         });
         if (!updated.outbox) throw new Error('Active OTP challenge is missing its stub outbox.');
         return this.issued(updated, updated.outbox);
       }
 
-      const passwordHash =
-        input.purpose === 'SIGNUP' ? (input.passwordHash ?? current?.passwordHash) : null;
-      if (input.purpose === 'SIGNUP' && !passwordHash) return null;
-
       const challenge = current
         ? await tx.emailOtpChallenge.update({
             where: { id: current.id },
             data: {
               codeDigest: input.codeDigest,
-              passwordHash,
               failedAttempts: 0,
               deliveryCount: 1,
               createdAt: input.now,
@@ -98,7 +89,6 @@ export class EmailAuthRepository {
               email: input.email,
               purpose: input.purpose,
               codeDigest: input.codeDigest,
-              passwordHash,
               createdAt: input.now,
               expiresAt: input.expiresAt,
             },
@@ -113,52 +103,56 @@ export class EmailAuthRepository {
   }
 
   /**
-   * Verify a signup OTP and, on success, create the verified account — all under one per-subject
-   * advisory lock so the five-attempt ceiling and single-use guarantee cannot be bypassed by
-   * concurrent guesses. A wrong code increments the attempt counter; a correct code consumes the
-   * challenge and creates the user + credential in the same transaction. Returns the new user id,
-   * or `null` for any invalid/exhausted/expired/already-consumed case (the caller answers all of
-   * them with one generic response).
+   * Verify and consume a signup OTP under the per-subject advisory lock, so the five-attempt
+   * ceiling and single-use guarantee cannot be bypassed by concurrent guesses. A wrong code
+   * increments the attempt counter; a correct code marks the challenge consumed. Returns `true`
+   * only for the single caller that consumes the code — the account itself is created afterwards
+   * by {@link createVerifiedAccount} from the password the verifier supplied, so the Argon2 hash
+   * never runs while the lock is held and wrong codes never pay it.
    */
-  async verifyAndConsumeSignup(
+  async consumeSignupChallenge(
     email: string,
     expectedDigest: string,
+    now: Date,
+  ): Promise<boolean> {
+    return this.prisma.db.$transaction(async (tx) => {
+      await this.lock(tx, email, 'SIGNUP');
+      const challenge = await tx.emailOtpChallenge.findUnique({
+        where: { email_purpose: { email, purpose: 'SIGNUP' } },
+        select: { id: true, codeDigest: true, expiresAt: true, consumedAt: true, failedAttempts: true },
+      });
+      if (!this.usableNow(challenge, now)) return false;
+      if (!this.digestsEqual(challenge.codeDigest, expectedDigest)) {
+        await tx.emailOtpChallenge.update({
+          where: { id: challenge.id },
+          data: { failedAttempts: { increment: 1 } },
+        });
+        return false;
+      }
+      await tx.emailOtpChallenge.update({ where: { id: challenge.id }, data: { consumedAt: now } });
+      await tx.emailOtpOutbox.deleteMany({ where: { challengeId: challenge.id } });
+      return true;
+    });
+  }
+
+  /**
+   * Create the verified account with the password authored at verify time. Returns the new user
+   * id, or `null` if the email was registered by another route in the meantime (unique violation)
+   * — the caller answers that with the same generic invalid-code response. Reached only after a
+   * valid single-use signup code has already been consumed.
+   */
+  async createVerifiedAccount(
+    email: string,
+    passwordHash: string,
     now: Date,
   ): Promise<string | null> {
     try {
       return await this.prisma.db.$transaction(async (tx) => {
-        await this.lock(tx, email, 'SIGNUP');
-        const challenge = await tx.emailOtpChallenge.findUnique({
-          where: { email_purpose: { email, purpose: 'SIGNUP' } },
-          select: {
-            id: true,
-            codeDigest: true,
-            passwordHash: true,
-            expiresAt: true,
-            consumedAt: true,
-            failedAttempts: true,
-          },
-        });
-        if (!this.usableNow(challenge, now)) return null;
-        if (!this.digestsEqual(challenge.codeDigest, expectedDigest)) {
-          await tx.emailOtpChallenge.update({
-            where: { id: challenge.id },
-            data: { failedAttempts: { increment: 1 } },
-          });
-          return null;
-        }
-        if (!challenge.passwordHash) return null;
-        if (await tx.user.findUnique({ where: { email }, select: { id: true } })) return null;
-
         const user = await tx.user.create({
           data: { email, emailVerified: now },
           select: { id: true },
         });
-        await tx.passwordCredential.create({
-          data: { userId: user.id, passwordHash: challenge.passwordHash },
-        });
-        await tx.emailOtpChallenge.update({ where: { id: challenge.id }, data: { consumedAt: now } });
-        await tx.emailOtpOutbox.deleteMany({ where: { challengeId: challenge.id } });
+        await tx.passwordCredential.create({ data: { userId: user.id, passwordHash } });
         return user.id;
       });
     } catch (error) {

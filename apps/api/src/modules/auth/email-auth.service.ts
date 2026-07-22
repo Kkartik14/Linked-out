@@ -47,34 +47,37 @@ export class EmailAuthService {
   async signup(input: EmailSignupInput): Promise<EmailOtpRequestAccepted> {
     this.ensureEnabled();
     await this.rateLimits.issue(input.email);
-    // Hash before account lookup so registration cannot become a cheap email-existence oracle.
-    const passwordHash = await this.passwords.create(input.password);
-    if (await this.repository.findPasswordAccount(input.email)) return ACCEPTED;
-    await this.issue(input.email, 'SIGNUP', passwordHash);
+    // Always issue a signup code. Account existence is not checked here — doing so would turn the
+    // response time into an email-existence oracle — so the reply is identical whether or not the
+    // address is registered. A duplicate is rejected atomically at verify (createVerifiedAccount),
+    // and no password is collected, so there is no pre-verification credential to seed or overwrite.
+    // TODO(provider): when a real email provider is wired, send an "account already exists" template
+    // instead of a signup code when the address already has a verified account.
+    await this.issue(input.email, 'SIGNUP');
     return ACCEPTED;
   }
 
   async resend(input: EmailOtpResendInput): Promise<EmailOtpRequestAccepted> {
     this.ensureEnabled();
     await this.rateLimits.issue(input.email);
-    if (input.purpose === 'PASSWORD_RESET') {
-      if (await this.repository.findPasswordAccount(input.email)) {
-        await this.issue(input.email, input.purpose);
-      }
-    } else {
-      if (!(await this.repository.findPasswordAccount(input.email))) {
-        await this.issue(input.email, input.purpose, undefined, true);
-      }
-    }
+    // Re-send only an already-active challenge (requireExisting): resend never mints a fresh code
+    // for an address that has none, so it stays non-enumerating for both purposes.
+    await this.issue(input.email, input.purpose, true);
     return ACCEPTED;
   }
 
   async verify(input: EmailOtpVerifyInput): Promise<EmailAuthHandoffResponse> {
     this.ensureEnabled();
     const digest = this.crypto.digest(input.email, 'SIGNUP', input.otp);
-    // Attempt-count, digest compare, and account creation happen in one locked transaction so the
-    // five-attempt ceiling and single-use guarantee hold even under concurrent guesses.
-    const userId = await this.repository.verifyAndConsumeSignup(input.email, digest, new Date());
+    // Attempt-count, digest compare, and single-use consumption happen in one locked transaction
+    // so the five-attempt ceiling and single-use guarantee hold even under concurrent guesses.
+    const consumed = await this.repository.consumeSignupChallenge(input.email, digest, new Date());
+    if (!consumed) throw AppErrors.invalidOtp();
+    // The credential is authored here, by the holder of the just-consumed code — never earlier —
+    // which closes the account pre-hijacking window. Hashing runs only on a valid code and outside
+    // the lock; if account creation loses a unique-email race we return the same generic response.
+    const passwordHash = await this.passwords.create(input.password);
+    const userId = await this.repository.createVerifiedAccount(input.email, passwordHash, new Date());
     if (!userId) throw AppErrors.invalidOtp();
     return this.issueHandoff(userId, input.returnTo);
   }
@@ -137,7 +140,6 @@ export class EmailAuthService {
   private async issue(
     email: string,
     purpose: EmailOtpPurpose,
-    passwordHash?: string,
     requireExisting = false,
   ): Promise<void> {
     const now = new Date();
@@ -146,7 +148,6 @@ export class EmailAuthService {
     const issued = await this.repository.issue({
       email,
       purpose,
-      passwordHash,
       codeDigest: this.crypto.digest(email, purpose, candidateOtp),
       encrypted: this.crypto.encrypt(email, purpose, candidateOtp),
       now,
