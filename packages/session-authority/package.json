@@ -1,6 +1,6 @@
 {
   "name": "@linkedout/session-authority",
-  "version": "1.1.4",
+  "version": "1.1.2",
   "private": true,
   "main": "dist/index.js",
   "types": "dist/index.d.ts",

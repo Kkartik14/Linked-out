@@ -145,7 +145,7 @@ export function buildOpenApiDocument(): OpenApiDocument {
 
   return {
     openapi: '3.1.0',
-    info: { title: 'LinkedOut API', version: '1.1.4' },
+    info: { title: 'LinkedOut API', version: '1.1.2' },
     servers: [{ url: '/v1' }],
     security: [{ accessCookie: [] }],
     paths: applyContracts({
