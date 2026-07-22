@@ -9,26 +9,26 @@ export function FeedCentre({
   scope,
   sort,
   canUseFollowingFeed,
-  headingId = "feed-heading",
-  headingAs: Heading = "h1",
+  showIntroduction = true,
 }: {
   initial?: Paginated<LCard>;
   scope: FeedScope;
   sort: FeedSort;
   canUseFollowingFeed: boolean;
-  headingId?: string;
-  headingAs?: "h1" | "h2";
+  showIntroduction?: boolean;
 }) {
   return (
     <>
-      <div className="mb-5">
-        <Heading id={headingId} className="text-2xl font-semibold tracking-tight">
-          The Feed
-        </Heading>
-        <p className="text-muted-foreground text-sm">
-          Honest career stories — the Ls, and what they taught.
-        </p>
-      </div>
+      {showIntroduction ? (
+        <div className="mb-5">
+          <h1 id="feed-heading" className="text-2xl font-semibold tracking-tight">
+            The Feed
+          </h1>
+          <p className="text-muted-foreground text-sm">
+            Honest career stories — the Ls, and what they taught.
+          </p>
+        </div>
+      ) : null}
       <FeedControls scope={scope} sort={sort} canUseFollowingFeed={canUseFollowingFeed} />
       <FeedList key={`${scope}:${sort}`} initial={initial} scope={scope} sort={sort} />
     </>

@@ -350,8 +350,16 @@ describe("FeedSidebarLeft — viewer card", () => {
     expect(screen.getByRole("link", { name: /log in/i })).toHaveAttribute("href", "/login");
   });
 
-  it("shows a signed-in builder their profile and reputation, not their follower count", () => {
-    renderWithProviders(<FeedSidebarLeft initial={memberSidebar()} />, { session: loggedIn });
+  it("shows a signed-in builder exactly the three requested profile metrics", () => {
+    const profile = {
+      ...mockUser,
+      reputation: { ...mockUser.reputation, lsShared: 1_200 },
+      counts: { followers: 1_000_000, following: 987 },
+    };
+    renderWithProviders(
+      <FeedSidebarLeft initial={sidebar({ user: profile, needsOnboarding: false })} />,
+      { session: loggedIn },
+    );
 
     const region = screen.getByRole("region", { name: /your profile/i });
     expect(within(region).getByText(mockUser.name!)).toBeInTheDocument();
@@ -359,10 +367,67 @@ describe("FeedSidebarLeft — viewer card", () => {
       "href",
       `/u/${mockUser.username}`,
     );
-    // product.md: reputation over vanity metrics.
-    expect(within(region).getByText(/Ls Shared/)).toBeInTheDocument();
+    const metrics = Array.from(region.querySelectorAll("dl > div"));
+    expect(
+      metrics.map((metric) => ({
+        label: metric.querySelector("dt")?.textContent,
+        value: metric.querySelector("dd")?.textContent,
+      })),
+    ).toEqual([
+      { label: "Ls Shared", value: "1.2K" },
+      { label: "Followers", value: "1M" },
+      { label: "Following", value: "987" },
+    ]);
+    expect(within(region).getByRole("link", { name: "Followers" })).toHaveAttribute(
+      "href",
+      `/u/${mockUser.username}/followers`,
+    );
+    expect(within(region).getByRole("link", { name: "Following" })).toHaveAttribute(
+      "href",
+      `/u/${mockUser.username}/following`,
+    );
     expect(within(region).queryByText(/Builders Helped/i)).not.toBeInTheDocument();
-    expect(within(region).queryByText(/followers/i)).not.toBeInTheDocument();
+  });
+
+  it("renders every legitimate zero in the READY metric row", () => {
+    renderWithProviders(
+      <FeedSidebarLeft
+        initial={sidebar({
+          user: {
+            ...mockUser,
+            reputation: { ...mockUser.reputation, lsShared: 0 },
+            counts: { followers: 0, following: 0 },
+          },
+          needsOnboarding: false,
+        })}
+      />,
+      { session: loggedIn },
+    );
+
+    const region = screen.getByRole("region", { name: /your profile/i });
+    const metrics = Array.from(region.querySelectorAll("dl > div"));
+    expect(metrics).toHaveLength(3);
+    expect(metrics.map((metric) => metric.querySelector("dd")?.textContent)).toEqual([
+      "0",
+      "0",
+      "0",
+    ]);
+  });
+
+  it("does not fabricate zero metrics for signed-out or onboarding cards", () => {
+    for (const { data, session } of [
+      { data: guestSidebar(), session: signedOut },
+      {
+        data: sidebar({ user: mockUser, needsOnboarding: true }),
+        session: onboarding,
+      },
+    ]) {
+      const { unmount } = renderWithProviders(<FeedSidebarLeft initial={data} />, { session });
+      expect(screen.queryByText("Ls Shared")).not.toBeInTheDocument();
+      expect(screen.queryByRole("link", { name: "Followers" })).not.toBeInTheDocument();
+      expect(screen.queryByRole("link", { name: "Following" })).not.toBeInTheDocument();
+      unmount();
+    }
   });
 
   it("sends a half-onboarded viewer to finish onboarding", () => {
