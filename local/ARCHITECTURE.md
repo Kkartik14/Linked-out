@@ -1,7 +1,7 @@
 # LinkedOut — Current Architecture
 
-> "LinkedIn for your Ls." This describes the implementation as of backend/frontend 1.1.4
-> (2026-07-23), not a future build plan.
+> "LinkedIn for your Ls." This describes the Parts 6–8 candidate for backend/frontend 1.1.4
+> (2026-07-23), not the final integrated 1.1.4 release.
 
 ## System shape
 

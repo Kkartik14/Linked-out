@@ -2,17 +2,20 @@
 
 > LinkedOut — "LinkedIn for your Ls." This file is the operating contract for AI/engineering work in this repo. Read it before touching anything.
 
-## 0. Ownership boundaries (do not cross)
+## 0. Ownership boundaries
 
 This is a shared monorepo. Two teams work in it:
 
 | Path | Owner | Rule |
 |---|---|---|
-| `apps/web/**` | **Frontend team** | 🚫 **Never modify.** It is a self-contained workspace with its own lockfile. Read-only for coordination. |
-| `apps/api/**` | Backend (us) | Our NestJS server. |
-| `packages/contracts/**` | Backend (us) | The shared Zod schema/type package (`@linkedout/contracts`). FE consumes it. |
-| `packages/db/**` | Backend (us) | Prisma schema, client, migrations. |
-| root configs, `docker-compose.yml` | Backend (us) | Root workspace excludes `apps/web` to avoid nested-workspace clashes. |
+| `apps/web/**` | **Frontend team** | Modify only when the assigned scope explicitly includes frontend work; it is a self-contained workspace with its own lockfile. |
+| `apps/api/**` | Backend team | Modify only when the assigned scope includes backend work. |
+| `packages/contracts/**` | Backend team | Shared Zod schemas/types consumed by both workspaces; coordinate every public-shape change. |
+| `packages/db/**` | Backend team | Prisma schema, client, migrations; database changes require explicit scope and real-Postgres verification. |
+| root configs, `docker-compose.yml` | Platform/backend | Root workspace excludes `apps/web` to avoid nested-workspace clashes. |
+
+An explicit full-stack assignment from Kartik authorizes coordinated edits across these ownership
+areas. Absent that authorization, treat another team's area as read-only and hand off the change.
 
 **The frontend is a thin client.** Business policy, permissions, derived wire state, ranking, and
 API business copy (notifications, suggestion reasons, interaction labels) live in the backend.

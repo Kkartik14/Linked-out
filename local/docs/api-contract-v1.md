@@ -89,8 +89,12 @@ type EmailAuthHandoffResponse = {
 };
 ```
 
-`password` and `newPassword` are ≥ 15 characters (NIST single-factor minimum; no composition rules),
-≤ 128. `otp` is exactly 8 digits. `email` is trimmed and lower-cased into a canonical identity.
+`password` and `newPassword` are 8–128 characters. Uppercase letters, numbers, and symbols are not
+mandatory; the frontend gives advisory live strength feedback instead. Credential creation and
+reset reject obvious or known-compromised passwords with `422 PASSWORD_COMPROMISED`, using a local
+fallback plus the HIBP k-anonymous range API. HIBP receives only a five-character hash prefix; if
+it is unavailable the check fails open after the local fallback. `otp` is exactly 8 digits.
+`email` is trimmed and lower-cased into a canonical identity.
 `returnTo` must be a safe relative path (leading `/`, no open redirect) and defaults to `/`.
 
 ### OTP and challenge behavior

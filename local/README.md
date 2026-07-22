@@ -1,8 +1,9 @@
 # LinkedOut local documentation index
 
 This directory contains internal product, architecture, contract, research, and operations
-narratives as of backend/frontend 1.1.4 (2026-07-23). Current Markdown authorities are committed;
-local environment material remains ignored.
+narratives for the Parts 6–8 candidate for backend/frontend 1.1.4 (2026-07-23). Current Markdown
+authorities are committed; local environment material remains ignored. The final 1.1.4 version cut
+waits for Parts 1–5 to be integrated.
 
 ## Authority order
 

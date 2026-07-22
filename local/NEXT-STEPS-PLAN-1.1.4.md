@@ -846,7 +846,9 @@ Completed on `fix/better-ux` on 2026-07-23:
   control on other profiles or in Settings. It uses the existing `{ status }` profile mutation,
   supports clearing, replaces the exact profile cache, invalidates other principal-owned views,
   and refreshes the server session snapshot; and
-- bumped package and generated OpenAPI versions to 1.1.4 and refreshed API/web release notes.
+- refreshed API/web release notes under Unreleased. Package and generated OpenAPI version bumps
+  remain intentionally deferred to the final integrator after Parts 1–5 land, as required by the
+  merge-order section above.
 
 Final verification at the branch tip:
 
