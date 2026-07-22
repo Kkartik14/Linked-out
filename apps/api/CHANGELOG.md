@@ -36,6 +36,11 @@ and their CI/test boundaries. Newest first.
 
 ### Added
 
+- Added the approved consumer password policy for credential creation and reset: 8–128 characters,
+  no composition rules, a local obvious-password fallback, and HIBP Pwned Passwords range checks
+  that disclose only a five-character hash prefix. Provider failures time out and fail open after
+  local checks; compromised values return stable `422 PASSWORD_COMPROMISED` without consuming the
+  valid OTP. Password login remains offline and Argon2id-backed.
 - Added first-party email/password authentication with an emailed 8-digit one-time code
   (`/v1/auth/email/{signup,verify,login,resend,password/forgot,password/reset}`). Codes are HMAC
   digested (never stored in plaintext), valid for 10 minutes, single-use, and exhausted after five

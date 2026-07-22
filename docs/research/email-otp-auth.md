@@ -182,6 +182,13 @@ Because normal LinkedOut login uses the password as a single factor, follow NIST
 
 These are current NIST requirements and recommendations ([NIST SP 800-63B, password verifiers](https://pages.nist.gov/800-63-4/sp800-63b.html#password-verifiers)). Set a reasonable maximum input byte length (for example 1 KiB) before expensive hashing to prevent resource exhaustion, and make Unicode normalization behavior explicit and consistent.
 
+**As-built product decision (Kartik, 2026-07-22):** LinkedOut deliberately uses an 8-character
+minimum and 128-character maximum, with no composition requirements, an advisory zxcvbn strength
+meter, and breached/common-password rejection. This is a consumer-product compromise rather than
+the 15-character NIST single-factor minimum recorded above. Breach checks use HIBP's k-anonymous
+five-character prefix range API plus a local obvious-password fallback and fail open on provider
+unavailability; this decision must be revisited if the authentication assurance level changes.
+
 Use Argon2id, unique salts managed by the library, and a PHC-format result. OWASP's current minimum is 19 MiB memory, two iterations, one degree of parallelism; it recommends benchmarking so one hash remains below about one second and warns that excessive work enables denial of service ([OWASP Password Storage](https://cheatsheetseries.owasp.org/cheatsheets/Password_Storage_Cheat_Sheet.html#password-hashing-algorithms)). Rehash on successful login when stored parameters are below the current policy.
 
 Login must require `emailVerified != null`. For a nonexistent email, still run one verification against a fixed dummy Argon2id hash so response timing and status resemble a wrong password. Always return a generic `401` such as `Invalid email or password`; do not reveal whether the email exists, has no password credential, or is unverified.

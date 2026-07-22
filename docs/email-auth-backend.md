@@ -39,6 +39,12 @@ the same server-side handoff exchange it already uses for OAuth; there is no sec
 ## Persisted data and invariants
 
 - `PasswordCredential` stores only an Argon2id PHC string (`m=19456 KiB, t=2, p=1`).
+- New and reset passwords accept 8–128 characters without mandatory uppercase, number, or symbol
+  composition. A local obvious-password list and HIBP Pwned Passwords k-anonymity lookup reject
+  known-compromised values with `422 PASSWORD_COMPROMISED`; login never calls HIBP.
+- Only the first five characters of a SHA-1 digest are sent to HIBP. Range responses are padded,
+  bounded, cached briefly by prefix, and fetched with a 2.5-second default timeout. If HIBP is
+  unavailable, credential creation fails open only after the local blocklist passes.
 - `EmailOtpChallenge` has one durable row per canonical email and purpose.
 - The eight-digit code is generated with `crypto.randomInt`, accepted at most once, expires in
   10 minutes, and is exhausted after five wrong entries.
@@ -69,6 +75,8 @@ EMAIL_DELIVERY_MODE=stub
 EMAIL_OTP_PEPPER=<at least 32 random bytes; distinct from every other secret>
 EMAIL_OTP_ENCRYPTION_KEY=<exactly 32 random bytes encoded as base64url>
 EMAIL_OTP_INSPECTION_SECRET=<at least 32 random bytes; distinct from every other secret>
+PWNED_PASSWORDS_MODE=hibp
+PWNED_PASSWORDS_TIMEOUT_MS=2500
 ```
 
 `EMAIL_DELIVERY_MODE=disabled` makes every email-auth endpoint fail closed with
@@ -79,6 +87,9 @@ equivalent second access control in front of any production deployment that expo
 
 Import the collection and environment in `postman/`. Fill `otpInspectionSecret` locally—never
 commit it—and run the requests in order.
+
+Use `PWNED_PASSWORDS_MODE=local-only` only for deterministic tests or offline development. The
+normal Preview and Production value is `hibp`; these variables contain no secret.
 
 ## Frontend handoff contract
 

@@ -24,6 +24,7 @@ import { EmailAuthRepository } from './email-auth.repository';
 import { EmailAuthRateLimiter } from './email-auth-rate-limiter';
 import { OAUTH_HANDOFF_TTL_MS, OAuthHandoffService } from './oauth-handoff.service';
 import { PasswordHasher } from './password-hasher';
+import { PasswordSafetyService } from './password-safety.service';
 
 export const EMAIL_OTP_TTL_SECONDS = 600 as const;
 const EMAIL_OTP_TTL_MS = EMAIL_OTP_TTL_SECONDS * 1000;
@@ -39,6 +40,7 @@ export class EmailAuthService {
     private readonly repository: EmailAuthRepository,
     private readonly crypto: EmailOtpCrypto,
     private readonly passwords: PasswordHasher,
+    private readonly passwordSafety: PasswordSafetyService,
     private readonly handoffs: OAuthHandoffService,
     private readonly rateLimits: EmailAuthRateLimiter,
     @Inject(EMAIL_OTP_DELIVERY) private readonly delivery: EmailOtpDelivery,
@@ -76,6 +78,7 @@ export class EmailAuthService {
     if (!(await this.repository.verifyCode(input.email, 'SIGNUP', digest, new Date()))) {
       throw AppErrors.invalidOtp();
     }
+    await this.passwordSafety.assertAcceptable(input.password);
     const passwordHash = await this.passwords.create(input.password);
     // Consume + create the account in one transaction: a hashing/DB failure never burns the code.
     const userId = await this.repository.consumeSignupAndCreateAccount(
@@ -121,6 +124,7 @@ export class EmailAuthService {
     if (!(await this.repository.verifyCode(input.email, 'PASSWORD_RESET', digest, new Date()))) {
       throw AppErrors.invalidOtp();
     }
+    await this.passwordSafety.assertAcceptable(input.newPassword);
     const passwordHash = await this.passwords.create(input.newPassword);
     // Consume the code, replace the credential, and revoke every session in one transaction, so
     // overlapping resets cannot apply out of order and a failure never burns a valid code.

@@ -3,18 +3,23 @@
 import * as React from "react";
 import Link from "next/link";
 import { toast } from "sonner";
-import { emailAddressSchema, emailOtpSchema, passwordSchema } from "@linkedout/contracts";
+import {
+  emailAddressSchema,
+  emailOtpSchema,
+  PASSWORD_MAX_LENGTH,
+  PASSWORD_MIN_LENGTH,
+  passwordSchema,
+} from "@linkedout/contracts";
 
-import { emailResendOtp, emailSignup, emailVerify } from "@/lib/api";
+import { emailResendOtp, emailSignup, emailVerify, isApiError } from "@/lib/api";
 import { completeEmailSession, emailAuthErrorMessage } from "@/lib/email-auth";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { OtpInput, OTP_LENGTH } from "@/components/auth/otp-input";
 import { PasswordField } from "@/components/auth/password-field";
+import { PasswordStrength } from "@/components/auth/password-strength";
 import { useResendCooldown } from "@/components/auth/use-resend-cooldown";
-
-const PASSWORD_MIN = 15;
 
 type Step = "credentials" | "otp";
 
@@ -49,7 +54,7 @@ export function SignupForm({ returnTo }: { returnTo: string }) {
       return;
     }
     if (!passwordSchema.safeParse(password).success) {
-      setError(`Use at least ${PASSWORD_MIN} characters — a memorable passphrase works well.`);
+      setError(`Use at least ${PASSWORD_MIN_LENGTH} characters.`);
       return;
     }
     setBusy(true);
@@ -81,6 +86,7 @@ export function SignupForm({ returnTo }: { returnTo: string }) {
       completeEmailSession(handoff.code);
     } catch (err) {
       setError(emailAuthErrorMessage(err));
+      if (isApiError(err) && err.code === "PASSWORD_COMPROMISED") setStep("credentials");
       setBusy(false);
     }
   }
@@ -126,16 +132,17 @@ export function SignupForm({ returnTo }: { returnTo: string }) {
               setPassword(e.target.value);
               setError(null);
             }}
-            placeholder="At least 15 characters"
+            placeholder={`At least ${PASSWORD_MIN_LENGTH} characters`}
             autoComplete="new-password"
-            maxLength={128}
+            maxLength={PASSWORD_MAX_LENGTH}
             aria-invalid={error !== null}
             aria-describedby="password-hint"
           />
           <p id="password-hint" className="text-muted-foreground text-xs">
-            Use at least {PASSWORD_MIN} characters. Length beats complexity — a passphrase you’ll
-            remember is stronger than a short scramble.
+            Use at least {PASSWORD_MIN_LENGTH} characters. Longer, unique passwords are stronger;
+            uppercase letters, numbers, and symbols are optional.
           </p>
+          <PasswordStrength password={password} />
         </div>
 
         {error ? (
@@ -211,7 +218,7 @@ export function SignupForm({ returnTo }: { returnTo: string }) {
           }}
           className="hover:text-foreground underline-offset-4 hover:underline"
         >
-          Use a different email
+          Edit email or password
         </button>
       </div>
 

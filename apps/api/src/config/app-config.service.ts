@@ -26,6 +26,11 @@ export interface EmailOtpConfig {
   inspectionSecret: string | undefined;
 }
 
+export interface PwnedPasswordsConfig {
+  mode: Env['PWNED_PASSWORDS_MODE'];
+  timeoutMs: number;
+}
+
 /** Typed, validated access to the environment. No `process.env` reads elsewhere. */
 @Injectable()
 export class AppConfigService {
@@ -102,6 +107,13 @@ export class AppConfigService {
       pepper: this.env.EMAIL_OTP_PEPPER || undefined,
       encryptionKey: this.env.EMAIL_OTP_ENCRYPTION_KEY || undefined,
       inspectionSecret: this.env.EMAIL_OTP_INSPECTION_SECRET || undefined,
+    };
+  }
+
+  get pwnedPasswords(): PwnedPasswordsConfig {
+    return {
+      mode: this.env.PWNED_PASSWORDS_MODE,
+      timeoutMs: this.env.PWNED_PASSWORDS_TIMEOUT_MS,
     };
   }
 
