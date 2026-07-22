@@ -4,6 +4,7 @@ import userEvent from "@testing-library/user-event";
 import type { UserProfile } from "@linkedout/contracts";
 
 import { mockUser, renderWithProviders } from "@/test/utils";
+import { queryKeys } from "@/lib/query-keys";
 import type { Session } from "@/components/session-provider";
 
 vi.mock("@/lib/api", async (importOriginal) => {
@@ -72,12 +73,17 @@ describe("ProfileHeader follow state", () => {
 
   it("reconciles the profile cache with the counts returned by follow", async () => {
     const user = userEvent.setup();
-    renderWithProviders(<ProfileHeader profile={profile} />, { session: loggedIn });
+    const { queryClient } = renderWithProviders(<ProfileHeader profile={profile} />, {
+      session: loggedIn,
+    });
+    const sidebarKey = queryKeys.feedSidebar.detail(mockUser.id);
+    queryClient.setQueryData(sidebarKey, { stale: "viewer metrics" });
 
     await user.click(screen.getByRole("button", { name: "Follow" }));
 
     expect(follow).toHaveBeenCalledWith(mockUser.id, "sam");
     expect(await screen.findByRole("button", { name: "Following" })).toBeInTheDocument();
     expect(screen.getByText(/11 followers/)).toHaveTextContent("11 followers · 4 following");
+    await waitFor(() => expect(queryClient.getQueryState(sidebarKey)?.isInvalidated).toBe(true));
   });
 });

@@ -35,7 +35,11 @@ function Prompt({
 function SignedInCard({ profile }: { profile: UserProfile }) {
   const meta = useMeta();
   const status = statusOption(meta, profile.status);
-  const lsSharedLabel = meta.reputation.find((entry) => entry.key === "lsShared")?.label;
+  const lsSharedLabel =
+    meta.reputation.find((entry) => entry.key === "lsShared")?.label ?? "Ls Shared";
+  const profileHref = `/u/${profile.username}`;
+  const metricLinkClass =
+    "hover:text-foreground focus-visible:ring-ring/50 rounded-sm outline-none focus-visible:ring-[3px]";
 
   return (
     <SidebarSection label="Your profile">
@@ -56,20 +60,38 @@ function SignedInCard({ profile }: { profile: UserProfile }) {
         ) : null}
       </div>
 
-      {lsSharedLabel ? (
-        <dl className="grid grid-cols-1 border-t">
-          <div className="px-3 py-2.5 text-center">
-            <dt className="text-muted-foreground text-[11px] leading-tight">{lsSharedLabel}</dt>
-            <dd className="text-sm font-semibold tabular-nums">
-              {compactNumber(profile.reputation.lsShared)}
-            </dd>
-          </div>
-        </dl>
-      ) : null}
+      <dl className="grid grid-cols-3 border-t">
+        <div className="min-w-0 px-2 py-2.5 text-center">
+          <dt className="text-muted-foreground text-[11px] leading-tight">{lsSharedLabel}</dt>
+          <dd className="text-sm font-semibold tabular-nums">
+            {compactNumber(profile.reputation.lsShared)}
+          </dd>
+        </div>
+        <div className="min-w-0 border-l px-2 py-2.5 text-center">
+          <dt className="text-muted-foreground text-[11px] leading-tight">
+            <Link href={`${profileHref}/followers`} className={metricLinkClass}>
+              Followers
+            </Link>
+          </dt>
+          <dd className="text-sm font-semibold tabular-nums">
+            {compactNumber(profile.counts.followers)}
+          </dd>
+        </div>
+        <div className="min-w-0 border-l px-2 py-2.5 text-center">
+          <dt className="text-muted-foreground text-[11px] leading-tight">
+            <Link href={`${profileHref}/following`} className={metricLinkClass}>
+              Following
+            </Link>
+          </dt>
+          <dd className="text-sm font-semibold tabular-nums">
+            {compactNumber(profile.counts.following)}
+          </dd>
+        </div>
+      </dl>
 
       <div className="border-t p-2">
         <Button asChild variant="ghost" size="sm" className="w-full">
-          <Link href={`/u/${profile.username}`}>View profile</Link>
+          <Link href={profileHref}>View profile</Link>
         </Button>
       </div>
     </SidebarSection>
