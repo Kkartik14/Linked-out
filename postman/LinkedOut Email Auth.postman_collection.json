@@ -22,9 +22,9 @@
           "request": {
             "method": "POST",
             "header": [{ "key": "Content-Type", "value": "application/json" }],
-            "body": { "mode": "raw", "raw": "{\n  \"email\": \"{{email}}\",\n  \"password\": \"{{password}}\"\n}" },
+            "body": { "mode": "raw", "raw": "{\n  \"email\": \"{{email}}\"\n}" },
             "url": "{{baseUrl}}/auth/email/signup",
-            "description": "Creates or reuses the active 10-minute signup challenge. The public response is deliberately generic."
+            "description": "Starts email verification with the email only — the password is sent at verify, never here. Creates or reuses the active 10-minute signup challenge. The public response is deliberately generic."
           },
           "event": [{ "listen": "test", "script": { "exec": ["pm.test('accepted', () => pm.response.to.have.status(202));", "pm.test('ten-minute window', () => pm.expect(pm.response.json().expiresInSeconds).to.eql(600));"] } }]
         },
@@ -47,7 +47,7 @@
           "request": {
             "method": "POST",
             "header": [{ "key": "Content-Type", "value": "application/json" }],
-            "body": { "mode": "raw", "raw": "{\n  \"email\": \"{{email}}\",\n  \"otp\": \"{{signupOtp}}\",\n  \"returnTo\": \"/feed\"\n}" },
+            "body": { "mode": "raw", "raw": "{\n  \"email\": \"{{email}}\",\n  \"otp\": \"{{signupOtp}}\",\n  \"password\": \"{{password}}\",\n  \"returnTo\": \"/feed\"\n}" },
             "url": "{{baseUrl}}/auth/email/verify",
             "description": "Atomically consumes the OTP, creates the verified user and Argon2id credential, then returns the existing one-time browser-session handoff."
           },

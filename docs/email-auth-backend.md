@@ -1,8 +1,10 @@
 # Email login backend — feature 1.1.3
 
-This branch implements the backend contract for email/password signup, email verification,
-normal password login, resend, and forgot/reset password. It deliberately does not include
-frontend screens or a real email provider.
+This documents the backend contract for email/password signup, email verification, normal password
+login, resend, and forgot/reset password. The web app implements the matching screens separately
+(signup, OTP verification, login, resend, forgot/reset), against the shapes in
+[`local/contract.md` §6](../local/contract.md). A real email provider is still deferred — delivery
+runs through the stub until it is wired.
 
 ## Credential-authoring rule (read first)
 
@@ -46,8 +48,12 @@ the same server-side handoff exchange it already uses for OAuth; there is no sec
   challenge cleanup and is deleted immediately on consumption.
 - A same-email issuance transaction takes a deterministic PostgreSQL advisory transaction lock.
   Different emails do not contend. Concurrent correct verifications produce exactly one account.
+- Signup verification checks the code under the per-subject lock (without consuming it, so Argon2
+  runs outside any transaction), then consumes the code and creates the user + Argon2id credential
+  in one transaction. A hashing or database failure never burns a valid code without an account.
 - Password reset updates the credential, consumes the challenge, deletes the encrypted capture,
-  deletes legacy refresh sessions, and revokes every browser session in one transaction.
+  deletes legacy refresh sessions, and revokes every browser session in one transaction. Because
+  consumption is atomic with the change, overlapping resets cannot apply out of order.
 
 The product requirement is that resend keeps the same active code during its 10-minute window.
 That intentionally differs from the common rotate-on-resend recommendation; it avoids multiple
