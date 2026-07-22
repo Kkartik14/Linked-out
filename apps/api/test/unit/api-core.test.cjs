@@ -188,7 +188,7 @@ test('OAuth handoff contracts keep identity and navigation server-bound', () => 
   const response = {
     cookie: 'A'.repeat(43),
     expiresAt: '2026-07-18T12:00:00.000Z',
-    returnTo: '/journey?view=recent',
+    returnTo: '/saved?view=recent',
   };
   assert.deepEqual(oauthHandoffExchangeResponseSchema.parse(response), response);
   assert.throws(() =>

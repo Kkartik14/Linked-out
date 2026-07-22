@@ -49,14 +49,14 @@ describe('24 · purpose-scoped OAuth handoffs', () => {
 
   test('the exchange is private, one-time, and creates the authoritative browser session', async () => {
     const user = await h.createUser();
-    const code = await authority().issue(user.id, '/journey?view=recent');
+    const code = await authority().issue(user.id, '/saved?view=recent');
     const stored = await h.ctx.prisma.oAuthHandoff.findUnique({
       where: { codeHash: hashOAuthHandoffCode(code) },
     });
     assert.ok(stored);
     assert.equal(stored.codeHash === code, false);
     assert.equal(stored.sub, user.id);
-    assert.equal(stored.returnTo, '/journey?view=recent');
+    assert.equal(stored.returnTo, '/saved?view=recent');
     assert.equal(stored.consumedAt, null);
 
     const missingAssertion = await h.post('/auth/oauth/handoff/exchange', {
@@ -72,7 +72,7 @@ describe('24 · purpose-scoped OAuth handoffs', () => {
     const success = await exchange(code);
     h.expectShape(success, oauthHandoffExchangeResponseSchema);
     assert.equal(success.body.sub, undefined, 'the BFF cannot choose a subject for the session');
-    assert.equal(success.body.returnTo, '/journey?view=recent');
+    assert.equal(success.body.returnTo, '/saved?view=recent');
     assert.match(success.body.cookie, /^[A-Za-z0-9_-]{43}$/);
     assert.equal(typeof success.body.expiresAt, 'string');
     assert.equal(success.headers.get('cache-control'), 'private, no-store, max-age=0');
