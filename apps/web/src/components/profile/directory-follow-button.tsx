@@ -2,13 +2,16 @@
 
 import { useState } from "react";
 import { usePathname, useRouter } from "next/navigation";
-import { useMutation } from "@tanstack/react-query";
+import { useMutation, useQueryClient } from "@tanstack/react-query";
 import { toast } from "sonner";
+import type { UserProfile } from "@linkedout/contracts";
 
 import { errorMessage, follow, unfollow } from "@/lib/api";
+import { queryKeys } from "@/lib/query-keys";
 import {
   assertComposedPrincipal,
   useComposedPrincipal,
+  usePrincipal,
   useViewer,
 } from "@/components/session-provider";
 import { Button } from "@/components/ui/button";
@@ -16,10 +19,10 @@ import { Button } from "@/components/ui/button";
 /**
  * Row-local follow toggle for the follower/following directories.
  *
- * Unlike the profile `FollowButton` (which reconciles the profile-detail cache), each directory
- * row owns its own optimistic state — the list response already told us the viewer's relationship
- * per row, so there is no shared cache entry to keep in sync. A signed-out viewer is sent to login
- * with the directory as the return path.
+ * Each directory row owns its optimistic relationship state, so it intentionally remains visible
+ * after unfollow and can be followed again immediately. The signed-in viewer's profile count is
+ * shared across routes, however, so that cache is reconciled separately. A signed-out viewer is
+ * sent to login with the directory as the return path.
  */
 export function DirectoryFollowButton({
   username,
@@ -29,22 +32,63 @@ export function DirectoryFollowButton({
   initialFollowing: boolean;
 }) {
   const viewer = useViewer();
+  const principal = usePrincipal();
   const composedAs = useComposedPrincipal();
   const router = useRouter();
   const pathname = usePathname();
+  const queryClient = useQueryClient();
   const [following, setFollowing] = useState(initialFollowing);
+  const viewerProfileKey = viewer
+    ? queryKeys.profiles.detail(principal, viewer.username)
+    : null;
+  const sidebarKey = queryKeys.feedSidebar.detail(principal);
 
   const mutation = useMutation({
     mutationFn: (wasFollowing: boolean) =>
       wasFollowing
         ? unfollow(assertComposedPrincipal(composedAs), username)
         : follow(assertComposedPrincipal(composedAs), username),
-    onMutate: (wasFollowing) => setFollowing(!wasFollowing),
+    onMutate: (wasFollowing) => {
+      setFollowing(!wasFollowing);
+      if (!viewer || !viewerProfileKey) return;
+      queryClient.setQueryData<UserProfile>(viewerProfileKey, (current) => {
+        const profile = current ?? viewer;
+        return {
+          ...profile,
+          counts: {
+            ...profile.counts,
+            following: Math.max(0, profile.counts.following + (wasFollowing ? -1 : 1)),
+          },
+        };
+      });
+    },
     onError: (err, wasFollowing) => {
       setFollowing(wasFollowing);
+      if (viewerProfileKey) {
+        queryClient.setQueryData<UserProfile>(viewerProfileKey, (current) =>
+          current
+            ? {
+                ...current,
+                counts: {
+                  ...current.counts,
+                  following: Math.max(
+                    0,
+                    current.counts.following + (wasFollowing ? 1 : -1),
+                  ),
+                },
+              }
+            : current,
+        );
+      }
       toast.error(errorMessage(err));
     },
     onSuccess: (result) => setFollowing(result.isFollowing),
+    onSettled: () => {
+      if (viewerProfileKey) {
+        void queryClient.invalidateQueries({ queryKey: viewerProfileKey, exact: true });
+      }
+      void queryClient.invalidateQueries({ queryKey: sidebarKey, exact: true });
+    },
   });
 
   function toggle() {
