@@ -839,9 +839,10 @@ Completed on `fix/better-ux` on 2026-07-23:
   404 behavior while Saved remains functional;
 - reduced L types to the approved six values across schema, metadata, create/edit/profile UI, API,
   OpenAPI, and PostgreSQL;
-- applied both forward migrations to the guarded `linkedout_test` database and verified schema
-  parity. Representative pre-migration `CHECKPOINT` and `LESSON` rows were preserved and became
-  `L`;
+- added a CI upgrade rehearsal that builds the previous schema in an isolated disposable database,
+  seeds representative `CHECKPOINT`/`LESSON` rows with relations and counters, applies both forward
+  migrations, and proves the rows become `L` without losing identity, timestamps, reactions,
+  comments, or active reputation data;
 - shipped the approved **Current chapter** control below Edit profile on self-profiles, with no
   control on other profiles or in Settings. It uses the existing `{ status }` profile mutation,
   supports clearing, replaces the exact profile cache, invalidates other principal-owned views,
@@ -854,8 +855,8 @@ Final verification at the branch tip:
 
 - root and web typecheck/lint: passed;
 - backend build and production Next builds in both legacy and handoff modes: passed;
-- API unit: 172/172 passed;
-- web unit/component: 302/302 passed across 45 files;
+- API unit: 174/174 passed across 32 files;
+- web unit/component: 306/306 passed across 46 files;
 - real-Postgres HTTP integration: 359/359 passed across 30 suites;
 - legacy Playwright: 63/63 passed, including Current chapter set/clear persistence; and
 - handoff Playwright: 12/12 passed.
