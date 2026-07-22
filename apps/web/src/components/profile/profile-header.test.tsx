@@ -1,4 +1,4 @@
-import { beforeEach, describe, expect, it, vi } from "vitest";
+import { beforeAll, beforeEach, describe, expect, it, vi } from "vitest";
 import { act, screen, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import type { UserProfile } from "@linkedout/contracts";
@@ -13,11 +13,13 @@ vi.mock("@/lib/api", async (importOriginal) => {
     getProfile: vi.fn(),
     follow: vi.fn(),
     unfollow: vi.fn(),
+    patchMe: vi.fn(),
   };
 });
 
 import { ProfileHeader } from "@/components/profile/profile-header";
-import { follow, getProfile } from "@/lib/api";
+import { follow, getProfile, patchMe } from "@/lib/api";
+import { queryKeys } from "@/lib/query-keys";
 
 const loggedIn: Session = { status: "authenticated", user: mockUser, needsOnboarding: false };
 const profile: UserProfile = {
@@ -29,6 +31,21 @@ const profile: UserProfile = {
   viewer: { isFollowing: false, isSelf: false },
 };
 
+beforeAll(() => {
+  vi.stubGlobal(
+    "ResizeObserver",
+    class ResizeObserver {
+      observe() {}
+      unobserve() {}
+      disconnect() {}
+    },
+  );
+  Object.defineProperty(HTMLElement.prototype, "scrollIntoView", {
+    configurable: true,
+    value() {},
+  });
+});
+
 beforeEach(() => {
   vi.clearAllMocks();
   vi.mocked(getProfile).mockResolvedValue(profile);
@@ -36,6 +53,7 @@ beforeEach(() => {
     isFollowing: true,
     counts: { followers: 11, following: 4 },
   });
+  vi.mocked(patchMe).mockResolvedValue(mockUser);
 });
 
 describe("ProfileHeader follow state", () => {
@@ -44,6 +62,7 @@ describe("ProfileHeader follow state", () => {
 
     expect(screen.getByText(/Ls Shared/i)).toBeInTheDocument();
     expect(screen.queryByText(/Builders Helped/i)).not.toBeInTheDocument();
+    expect(screen.queryByRole("combobox", { name: "Current chapter" })).not.toBeInTheDocument();
   });
 
   it("uses the fresh RSC profile without a mount refetch and still honors invalidation", async () => {
@@ -79,5 +98,58 @@ describe("ProfileHeader follow state", () => {
     expect(follow).toHaveBeenCalledWith(mockUser.id, "sam");
     expect(await screen.findByRole("button", { name: "Following" })).toBeInTheDocument();
     expect(screen.getByText(/11 followers/)).toHaveTextContent("11 followers · 4 following");
+  });
+});
+
+describe("ProfileHeader current chapter", () => {
+  it("shows the control directly after Edit profile on the owner's profile", () => {
+    renderWithProviders(<ProfileHeader profile={mockUser} />, { session: loggedIn });
+
+    const editProfile = screen.getByRole("link", { name: "Edit profile" });
+    const chapter = screen.getByRole("combobox", { name: "Current chapter" });
+
+    expect(editProfile.compareDocumentPosition(chapter)).toBe(Node.DOCUMENT_POSITION_FOLLOWING);
+    expect(chapter).toHaveTextContent("Building");
+  });
+
+  it("sets a chapter and reconciles every other cache owned by the principal", async () => {
+    const user = userEvent.setup();
+    const refresh = vi.fn();
+    const updated = { ...mockUser, status: "WORKING" as const };
+    vi.mocked(patchMe).mockResolvedValue(updated);
+    const { queryClient } = renderWithProviders(<ProfileHeader profile={mockUser} />, {
+      session: loggedIn,
+      router: { refresh },
+    });
+    const profileKey = queryKeys.profiles.detail(mockUser.id, mockUser.username);
+    const sidebarKey = queryKeys.feedSidebar.detail(mockUser.id);
+    const searchKey = queryKeys.search.preview.users(mockUser.id, "sam");
+    queryClient.setQueryData(sidebarKey, { people: [] });
+    queryClient.setQueryData(searchKey, { items: [] });
+
+    screen.getByRole("combobox", { name: "Current chapter" }).focus();
+    await user.keyboard("{ArrowDown}");
+    await user.click(await screen.findByRole("option", { name: /Working/ }));
+
+    await waitFor(() => {
+      expect(patchMe).toHaveBeenCalledWith(mockUser.id, { status: "WORKING" });
+      expect(queryClient.getQueryData(profileKey)).toEqual(updated);
+      expect(queryClient.getQueryState(sidebarKey)?.isInvalidated).toBe(true);
+      expect(queryClient.getQueryState(searchKey)?.isInvalidated).toBe(true);
+      expect(refresh).toHaveBeenCalledOnce();
+    });
+    expect(queryClient.getQueryState(profileKey)?.isInvalidated).toBe(false);
+  });
+
+  it("clears the chapter with an explicit null", async () => {
+    const user = userEvent.setup();
+    vi.mocked(patchMe).mockResolvedValue({ ...mockUser, status: null });
+    renderWithProviders(<ProfileHeader profile={mockUser} />, { session: loggedIn });
+
+    screen.getByRole("combobox", { name: "Current chapter" }).focus();
+    await user.keyboard("{ArrowDown}");
+    await user.click(await screen.findByRole("option", { name: "Not set" }));
+
+    await waitFor(() => expect(patchMe).toHaveBeenCalledWith(mockUser.id, { status: null }));
   });
 });
