@@ -54,19 +54,6 @@ export const lDetailSchema = lCoreSchema.extend({
 });
 export type LDetail = z.infer<typeof lDetailSchema>;
 
-/** One node on the L Journey timeline. */
-export const journeyNodeSchema = z.object({
-  id: ulidSchema,
-  title: z.string(),
-  type: lTypeSchema,
-  createdAt: isoTimestampSchema,
-  isAnonymous: z.boolean(),
-  resolvedAt: isoTimestampSchema.nullable(),
-  reactionTotal: z.number().int(),
-  commentCount: z.number().int(),
-}).strict();
-export type JourneyNode = z.infer<typeof journeyNodeSchema>;
-
 // ─── Inputs ────────────────────────────────────────────────────────────────────
 
 export const createLInputSchema = z

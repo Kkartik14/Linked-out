@@ -3,8 +3,6 @@ import {
   lTypeSchema,
   type CreateLInput,
   type FeedQuery,
-  type JourneyNode,
-  type JourneyQuery,
   type LCard,
   type LDetail,
   type LType,
@@ -18,7 +16,6 @@ import {
 
 import { AppErrors } from '../../common/errors/app-exception';
 import { decodeCursor } from '../../common/pagination/cursor';
-import { mapPage } from '../../common/pagination/paginate';
 import {
   groupViewerReactions,
   lAudiencePolicy,
@@ -32,7 +29,6 @@ import {
 } from './ls.repository';
 import type {
   FeedPageCursor,
-  JourneyPageCursor,
   LUpdatePlans,
   UpdateLData,
   WriteLData,
@@ -42,7 +38,7 @@ import {
   reputationDeltaForTypeChange,
   reputationForType,
 } from './ls.write-plan';
-import { toJourneyNode, toLCard, toLDetail } from './ls.mapper';
+import { toLCard, toLDetail } from './ls.mapper';
 
 function normalizeCreate(input: CreateLInput): WriteLData {
   return {
@@ -98,17 +94,6 @@ function feedCursor(sort: FeedQuery['sort'], cursor: string | undefined): FeedPa
 function cursorField(cursor: string | undefined, field: string): string | undefined {
   if (cursor === undefined) return undefined;
   return cursorString(decodeCursor(cursor)[field]);
-}
-
-function journeyCursor(cursor: string | undefined): JourneyPageCursor | undefined {
-  if (cursor === undefined) return undefined;
-  const payload = decodeCursor(cursor);
-  const createdAt = cursorString(payload.createdAt);
-  const parsed = new Date(createdAt);
-  if (Number.isNaN(parsed.getTime()) || parsed.toISOString() !== createdAt) {
-    throw AppErrors.badCursor();
-  }
-  return { createdAt, id: cursorString(payload.id) };
 }
 
 function updatePlans(input: UpdateLInput): LUpdatePlans {
@@ -186,30 +171,6 @@ export class LsService {
     viewerId: string | undefined,
   ): Promise<Paginated<LCard>> {
     return this.getUserLs(await this.requireAuthorId(username), query, viewerId);
-  }
-
-  async getJourney(
-    authorId: string,
-    query: JourneyQuery,
-    viewerId: string | undefined,
-  ): Promise<Paginated<JourneyNode>> {
-    const visibilities = await this.allowedVisibilities(viewerId, authorId);
-    const page = await this.repo.journey({
-      authorId,
-      visibilities,
-      includeAnonymous: viewerId === authorId,
-      limit: query.limit,
-      cursor: journeyCursor(query.cursor),
-    });
-    return mapPage(page, toJourneyNode);
-  }
-
-  async getJourneyByUsername(
-    username: string,
-    query: JourneyQuery,
-    viewerId: string | undefined,
-  ): Promise<Paginated<JourneyNode>> {
-    return this.getJourney(await this.requireAuthorId(username), query, viewerId);
   }
 
   async getSaved(userId: string, query: PaginationQuery): Promise<Paginated<LCard>> {

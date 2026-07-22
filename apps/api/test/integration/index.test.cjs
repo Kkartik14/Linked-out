@@ -45,7 +45,7 @@ assert.deepEqual(subparts, [
   'subparts/11-notifications.cjs',
   'subparts/12-search.cjs',
   'subparts/13-users-profile.cjs',
-  'subparts/14-journey-saved.cjs',
+  'subparts/14-saved.cjs',
   'subparts/16-uploads.cjs',
   'subparts/17-anonymity.cjs',
   'subparts/18-contract-invariants.cjs',

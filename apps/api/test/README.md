@@ -99,9 +99,9 @@ deterministically between tests.
 | `11-notifications` | Folding via `dedupeKey`, server-composed copy, read state |
 | `12-search` | Postgres FTS/user ranking, visibility, strict queries, hostile queries |
 | `13-users-profile` | Profile, `PATCH /users/me`, username rules, avatar-URL ownership |
-| `14-journey-saved` | Created-at journeys and `/me/saved` visibility/pagination |
+| `14-saved` | `/me/saved` visibility and pagination |
 | `16-uploads` | Presign shape, size/type limits, `UPLOADS_DISABLED` |
-| `17-anonymity` | Strong anonymity: no author, profile/journey, or collection attribution path |
+| `17-anonymity` | Strong anonymity: no author, profile, or collection attribution path |
 | `18-contract-invariants` | Envelopes, cursors, ULIDs, ISO timestamps, CORS, error codes |
 | `19-rate-limit` | 120 reads/min, 30 writes/min, `Retry-After`, per-identity buckets |
 | `20-concurrency-edges` | Counter integrity under concurrent writes; coercion edges |

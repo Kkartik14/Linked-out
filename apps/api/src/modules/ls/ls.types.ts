@@ -39,11 +39,6 @@ export type FeedPageCursor =
   | { sort: 'popular'; id: string; score: number }
   | { sort: 'helpful'; id: string; count: number };
 
-export interface JourneyPageCursor {
-  createdAt: string;
-  id: string;
-}
-
 export type OwnedLWriteResult<T> =
   | { status: 'ok'; row: T }
   | { status: 'not_found' }

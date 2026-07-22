@@ -16,7 +16,6 @@ import type {
   FeedSort as ContractFeedSort,
   FollowResult,
   ForgotPasswordInput,
-  JourneyNode,
   LCard,
   LDetail,
   LType,
@@ -228,8 +227,6 @@ export const patchMe = (principal: ComposedPrincipal, body: UpdateUserInput) =>
   mutate<UserProfile>(principal, "/users/me", { method: "PATCH", ...json(body) });
 export const getUserLs = (username: string, type?: LType, cursor?: string, limit?: number) =>
   apiFetch<Paginated<LCard>>(`/users/${username}/ls${qs({ type, cursor, limit })}`);
-export const getJourney = (username: string, cursor?: string, limit?: number) =>
-  apiFetch<Paginated<JourneyNode>>(`/users/${username}/journey${qs({ cursor, limit })}`);
 export const getUserCollections = (username: string, cursor?: string, limit?: number) =>
   apiFetch<Paginated<Collection>>(`/users/${username}/collections${qs({ cursor, limit })}`);
 export const follow = (principal: ComposedPrincipal, username: string) =>

@@ -4,7 +4,6 @@ const assert = require('node:assert/strict');
 const { beforeEach, describe, test } = require('node:test');
 const {
   collectionDetailSchema,
-  journeyNodeSchema,
   lCardSchema,
   lDetailSchema,
   metaEnumsResponseSchema,
@@ -15,7 +14,6 @@ const h = require('../_harness.cjs');
 
 const REMOVED_L_KEYS = ['category', 'company', 'tags', 'eventDate'];
 const lPageSchema = paginatedSchema(lCardSchema);
-const journeyPageSchema = paginatedSchema(journeyNodeSchema);
 
 function assertCleanL(value) {
   for (const key of REMOVED_L_KEYS) {
@@ -95,25 +93,10 @@ describe('22 · consolidated public API', () => {
     );
   });
 
-  test('user Ls are clean and journey orders exclusively by createdAt', async () => {
-    const later = await h.createL(author.id, { title: 'Published later' });
-    const earlier = await h.createL(author.id, { title: 'Published earlier' });
-    await h.ctx.prisma.l.update({
-      where: { id: earlier.id },
-      data: { createdAt: new Date('2025-01-01T00:00:00.000Z') },
-    });
-    await h.ctx.prisma.l.update({
-      where: { id: later.id },
-      data: { createdAt: new Date('2025-01-02T00:00:00.000Z') },
-    });
-
+  test('user Ls are clean and the removed journey route is unavailable', async () => {
+    await h.createL(author.id, { title: 'A profile L' });
     h.expectShape(await h.get('/users/author/ls'), lPageSchema).data.forEach(assertCleanL);
-    const journey = h.expectShape(await h.get('/users/author/journey'), journeyPageSchema);
-    assert.deepEqual(journey.data.map((node) => node.id), [earlier.id, later.id]);
-    assert.deepEqual(
-      journey.data.map((node) => node.createdAt),
-      ['2025-01-01T00:00:00.000Z', '2025-01-02T00:00:00.000Z'],
-    );
+    h.expectError(await h.get('/users/author/journey'), 404, 'NOT_FOUND');
   });
 
   test('metadata and OpenAPI expose only the consolidated v1 surface', async () => {
@@ -125,6 +108,7 @@ describe('22 · consolidated public API', () => {
     assert.deepEqual(document.servers, [{ url: '/v1' }]);
     assert.ok(document.paths['/feed/sidebar']);
     assert.equal(document.paths['/tags/popular'], undefined);
+    assert.equal(document.paths['/users/{username}/journey'], undefined);
 
   });
 

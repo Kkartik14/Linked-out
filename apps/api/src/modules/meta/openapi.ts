@@ -1,7 +1,6 @@
 import { z } from 'zod';
 import {
   feedQuerySchema,
-  journeyQuerySchema,
   paginationQuerySchema,
   PRINCIPAL_BINDING_HEADER,
   reactionTypeSchema,
@@ -129,7 +128,6 @@ function applyContracts(paths: Record<string, Record<string, Operation>>) {
 }
 
 const pagination = queryParameters(paginationQuerySchema());
-const journeyPagination = queryParameters(journeyQuerySchema);
 const optionalAuth: JsonObject[] = [{}, { accessCookie: [] }];
 const usernamePath = () => parameter('username', 'path', schemaObject(usernameInputSchema));
 const idPath = (name = 'id') => parameter(name, 'path', schemaObject(ulidSchema));
@@ -237,9 +235,6 @@ export function buildOpenApiDocument(): OpenApiDocument {
           security: optionalAuth,
           parameters: [usernamePath(), ...queryParameters(userLsQuerySchema)],
         },
-      },
-      '/users/{username}/journey': {
-        get: { security: optionalAuth, parameters: [usernamePath(), ...journeyPagination] },
       },
       '/users/{username}/collections': {
         get: { security: optionalAuth, parameters: [usernamePath(), ...pagination] },

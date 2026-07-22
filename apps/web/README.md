@@ -50,8 +50,7 @@ The app speaks the sole **v1 API**. Runtime types and validation come from
 `NEXT_PUBLIC_API_BASE_URL` carries the `/v1` prefix and there is no second base URL.
 
 The public L contract has **no `category`, `company`, `tags`, or `eventDate`**, there is no category
-filter on the feed or search, and `/tags/popular` does not exist. `JourneyNode` carries
-`createdAt` and the journey is ordered by `(createdAt, id)`.
+filter on the feed or search, and `/tags/popular` does not exist.
 
 ### Rejected credentials
 

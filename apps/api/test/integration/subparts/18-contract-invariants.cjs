@@ -17,7 +17,6 @@ const LIST_ENDPOINTS = [
   { path: '/feed', auth: false },
   { path: '/feed/following', auth: true },
   { path: '/users/probe/ls', auth: false },
-  { path: '/users/probe/journey', auth: false, maxLimit: 100 },
   { path: '/users/probe/collections', auth: false },
   { path: '/users/probe/followers', auth: false },
   { path: '/users/probe/following', auth: false },

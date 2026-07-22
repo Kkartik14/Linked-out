@@ -61,14 +61,10 @@ describe('17 · anonymity is absolute across every surface (contract §3)', () =
   test('author-owned profile surfaces expose an anonymous L only to its author', async () => {
     const ownerLs = await h.get('/users/author/ls', { cookie: author.cookie });
     assert.equal(ownerLs.body.data.find((c) => c.id === anon.id).author, null);
-    const ownerJourney = await h.get('/users/author/journey', { cookie: author.cookie });
-    assert.ok(ownerJourney.body.data.some((node) => node.id === anon.id));
 
     for (const [who, cookie] of everyViewer().filter(([label]) => label !== 'the author themselves')) {
       const ls = await h.get('/users/author/ls', { cookie });
       assert.ok(!ls.body.data.some((card) => card.id === anon.id), `profile associated the anonymous L with ${who}`);
-      const journey = await h.get('/users/author/journey', { cookie });
-      assert.ok(!journey.body.data.some((node) => node.id === anon.id), `journey associated the anonymous L with ${who}`);
     }
   });
 

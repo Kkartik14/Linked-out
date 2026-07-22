@@ -29,7 +29,6 @@ import {
   errorEnvelopeSchema,
   feedSidebarResponseSchema,
   followResultSchema,
-  journeyNodeSchema,
   lCardSchema,
   lDetailSchema,
   metaEnumsResponseSchema,
@@ -51,7 +50,6 @@ const openApiDocumentSchema = z.record(z.string(), z.json());
 const redirectResponseSchema = z.void();
 
 const paginatedLCardSchema = paginatedSchema(lCardSchema);
-const paginatedJourneyNodeSchema = paginatedSchema(journeyNodeSchema);
 const paginatedCommentSchema = paginatedSchema(commentSchema);
 const paginatedCollectionSchema = paginatedSchema(collectionSchema);
 const paginatedUserSummarySchema = paginatedSchema(userSummarySchema);
@@ -100,7 +98,6 @@ export const API_COMPONENT_SCHEMAS = {
   OkResponse: okSchema,
   PaginatedCollection: paginatedCollectionSchema,
   PaginatedComment: paginatedCommentSchema,
-  PaginatedJourneyNode: paginatedJourneyNodeSchema,
   PaginatedLCard: paginatedLCardSchema,
   PaginatedNotification: paginatedNotificationSchema,
   PaginatedUserSummary: paginatedUserSummarySchema,
@@ -305,11 +302,6 @@ export const API_ROUTE_CONTRACTS = {
   ),
   userProfile: route('get /users/{username}', 200, jsonResponse('UserProfile')),
   userLs: route('get /users/{username}/ls', 200, jsonResponse('PaginatedLCard')),
-  userJourney: route(
-    'get /users/{username}/journey',
-    200,
-    jsonResponse('PaginatedJourneyNode'),
-  ),
   userCollections: route(
     'get /users/{username}/collections',
     200,

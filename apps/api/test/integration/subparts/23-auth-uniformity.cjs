@@ -43,7 +43,6 @@ describe('23 · authentication uniformity (contract §0)', () => {
       `/collections/${collection.id}`,
       '/users/author',
       '/users/author/ls',
-      '/users/author/journey',
       '/users/author/followers',
       '/users/author/following',
       '/users/author/collections',

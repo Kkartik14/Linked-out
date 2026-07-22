@@ -11,7 +11,6 @@ import {
 } from '../../common/read-models/l-read-model';
 import type {
   FeedPageCursor,
-  JourneyPageCursor,
   LDeletePlan,
   LUpdatePlans,
   OwnedLWriteResult,
@@ -202,38 +201,6 @@ export class LsRepository {
     });
     const page = buildPage(reactions, limit, (row) => encodeCursor({ rid: row.id }));
     return { rows: page.rows.map((r) => r.l), nextCursor: page.nextCursor };
-  }
-
-  /** Journey timeline ordered by publication time ascending. */
-  async journey(params: {
-    authorId: string;
-    visibilities: Visibility[];
-    includeAnonymous: boolean;
-    limit: number;
-    cursor?: JourneyPageCursor;
-  }): Promise<EntityPage<LWithAuthor>> {
-    const cursorWhere: Prisma.LWhereInput | undefined = params.cursor
-      ? {
-          OR: [
-            { createdAt: { gt: new Date(params.cursor.createdAt) } },
-            { createdAt: new Date(params.cursor.createdAt), id: { gt: params.cursor.id } },
-          ],
-        }
-      : undefined;
-    const rows = await this.prisma.db.l.findMany({
-      where: {
-        authorId: params.authorId,
-        visibility: { in: params.visibilities },
-        ...(params.includeAnonymous ? {} : { isAnonymous: false }),
-        ...(cursorWhere ? { AND: [cursorWhere] } : {}),
-      },
-      include: L_AUTHOR_INCLUDE,
-      orderBy: [{ createdAt: 'asc' }, { id: 'asc' }],
-      take: params.limit + 1,
-    });
-    return buildPage(rows, params.limit, (row) =>
-      encodeCursor({ createdAt: row.createdAt.toISOString(), id: row.id }),
-    );
   }
 
   /** Does the viewer follow the author? Used for FOLLOWERS-visibility checks. */
