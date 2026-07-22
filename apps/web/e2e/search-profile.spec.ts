@@ -1,6 +1,6 @@
 import { expect, test } from "@playwright/test";
 
-import { disconnect, seedWorld, signIn, type World } from "./helpers";
+import { db, disconnect, seedWorld, signIn, type World } from "./helpers";
 
 let world: World;
 
@@ -124,6 +124,36 @@ test.describe("profiles", () => {
 
     await expect(page.getByRole("link", { name: "Edit profile" })).toBeVisible();
     await expect(page.getByText(world.privateL.title)).toBeVisible();
+  });
+
+  test("the owner can set and clear Current chapter from their profile", async ({
+    page,
+    context,
+  }) => {
+    await signIn(context, world.kartik);
+    await page.goto("/u/kartik");
+
+    const chapter = page.getByRole("combobox", { name: "Current chapter" });
+    await expect(chapter).toContainText("Building");
+    await chapter.click();
+    await page.getByRole("option", { name: /Working/ }).click();
+
+    await expect(page.getByText("Current chapter updated.")).toBeVisible();
+    await expect(chapter).toContainText("Working");
+    await expect.poll(async () => (await db().user.findUniqueOrThrow({
+      where: { id: world.kartik.id },
+    })).status).toBe("WORKING");
+
+    await chapter.click();
+    await page.getByRole("option", { name: "Not set" }).click();
+    await expect(chapter).toHaveText("Not set");
+    await expect.poll(async () => (await db().user.findUniqueOrThrow({
+      where: { id: world.kartik.id },
+    })).status).toBeNull();
+
+    await page.goto("/settings");
+    await expect(page.getByRole("combobox", { name: "Current chapter" })).toHaveCount(0);
+    await expect(page.getByText("Journey status")).toHaveCount(0);
   });
 
   test("an unknown profile is a 404", async ({ page }) => {
