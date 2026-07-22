@@ -22,9 +22,7 @@ enum LType {
   STORY
   SCAR
   PLOT_TWIST
-  CHECKPOINT
   BATTLE
-  LESSON
 }
 
 enum Visibility {
@@ -79,7 +77,6 @@ model User {
 
   // Denormalized reputation counters. Updated in the same tx as the triggering write.
   storiesShared Int @default(0)
-  lessonsShared Int @default(0)
   lsShared      Int @default(0)
 
   // Denormalized social-graph degree. PostgreSQL Follow triggers maintain both

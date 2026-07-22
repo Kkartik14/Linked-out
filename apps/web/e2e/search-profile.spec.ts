@@ -123,7 +123,6 @@ test.describe("profiles", () => {
     await page.goto("/u/kartik");
 
     await expect(page.getByRole("link", { name: "Edit profile" })).toBeVisible();
-    await page.getByRole("tab", { name: "Lessons" }).click();
     await expect(page.getByText(world.privateL.title)).toBeVisible();
   });
 

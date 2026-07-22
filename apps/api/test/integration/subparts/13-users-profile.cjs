@@ -33,7 +33,6 @@ describe('13 · users & profiles (contract §4.2)', () => {
     const res = await h.get('/users/mine');
     assert.deepEqual(res.body.reputation, {
       storiesShared: 0,
-      lessonsShared: 0,
       lsShared: 0,
     });
     assert.equal('buildersHelped' in res.body.reputation, false);
@@ -256,8 +255,11 @@ describe('13 · users & profiles (contract §4.2)', () => {
   });
 
   test('every LType is a valid profile-section filter', async () => {
-    for (const type of ['L', 'WIN', 'STORY', 'SCAR', 'PLOT_TWIST', 'CHECKPOINT', 'BATTLE', 'LESSON']) {
+    for (const type of ['L', 'WIN', 'STORY', 'SCAR', 'PLOT_TWIST', 'BATTLE']) {
       h.expectShape(await h.get(`/users/mine/ls?type=${type}`), lsSchema);
+    }
+    for (const type of ['CHECKPOINT', 'LESSON']) {
+      h.expectError(await h.get(`/users/mine/ls?type=${type}`), 400, 'VALIDATION_ERROR');
     }
   });
 

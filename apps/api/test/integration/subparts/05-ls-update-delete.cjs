@@ -128,20 +128,29 @@ describe('05 · PATCH & DELETE /ls/:id (contract §4.3)', () => {
 
   // ─── Reputation bookkeeping on type change ─────────────────────────────────
 
-  test('changing type moves reputation between storiesShared and lessonsShared', async () => {
+  test('changing away from STORY withdraws storiesShared without changing lsShared', async () => {
     const created = await h.post('/ls', {
       cookie: owner.cookie,
       body: { title: 't', story: 's', type: 'STORY' },
     });
     let profile = await h.get('/users/owner');
     assert.equal(profile.body.reputation.storiesShared, 1);
-    assert.equal(profile.body.reputation.lessonsShared, 0);
 
-    await h.patch(`/ls/${created.body.id}`, { cookie: owner.cookie, body: { type: 'LESSON' } });
+    await h.patch(`/ls/${created.body.id}`, { cookie: owner.cookie, body: { type: 'L' } });
     profile = await h.get('/users/owner');
     assert.equal(profile.body.reputation.storiesShared, 0, 'STORY credit is withdrawn');
-    assert.equal(profile.body.reputation.lessonsShared, 1, 'LESSON credit is granted');
     assert.equal(profile.body.reputation.lsShared, 1, 'lsShared is unchanged by a type change');
+  });
+
+  test('rejects retired CHECKPOINT and LESSON types', async () => {
+    const l = await h.createL(owner.id);
+    for (const type of ['CHECKPOINT', 'LESSON']) {
+      h.expectError(
+        await h.patch(`/ls/${l.id}`, { cookie: owner.cookie, body: { type } }),
+        400,
+        'VALIDATION_ERROR',
+      );
+    }
   });
 
   // ─── Delete ────────────────────────────────────────────────────────────────

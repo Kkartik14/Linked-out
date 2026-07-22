@@ -20,7 +20,6 @@ export function toUserProfile(
     status: user.status,
     reputation: {
       storiesShared: user.storiesShared,
-      lessonsShared: user.lessonsShared,
       lsShared: user.lsShared,
     },
     counts: {

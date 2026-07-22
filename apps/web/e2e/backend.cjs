@@ -270,7 +270,7 @@ async function seedWorld() {
       authorId: kartik.id,
       title: 'A private leadership lesson from a missed deadline',
       story: 'Only I can see this one.',
-      type: 'LESSON',
+      type: 'L',
       visibility: 'PRIVATE',
     },
   });

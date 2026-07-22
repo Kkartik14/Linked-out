@@ -49,14 +49,15 @@ describe('01 · meta & discovery (contract §4.12)', () => {
     const { body } = await h.get('/meta/enums');
     assert.equal(body.reactionType.find((r) => r.value === 'BEEN_THERE').emoji, '💔');
     assert.equal(body.journeyStatus.find((s) => s.value === 'BUILDING').dot, '🔵');
-    assert.equal(
-      body.lType.find((t) => t.value === 'LESSON').sectionLabel,
-      'Character Development',
+    assert.deepEqual(
+      body.lType.map((type) => type.value),
+      ['L', 'WIN', 'STORY', 'SCAR', 'PLOT_TWIST', 'BATTLE'],
     );
     assert.equal(
       body.reputation.some((r) => r.key === 'buildersHelped'),
       false,
     );
+    assert.equal(body.reputation.some((r) => r.key === 'lessonsShared'), false);
   });
 
   test('GET /openapi.json is served and describes the v1 surface', async () => {

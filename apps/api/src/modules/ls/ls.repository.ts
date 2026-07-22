@@ -291,8 +291,5 @@ function incrementReputation(
   if (delta.storiesShared !== undefined) {
     update.storiesShared = { increment: sign * delta.storiesShared };
   }
-  if (delta.lessonsShared !== undefined) {
-    update.lessonsShared = { increment: sign * delta.lessonsShared };
-  }
   return update;
 }
