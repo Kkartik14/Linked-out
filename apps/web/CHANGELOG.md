@@ -7,6 +7,8 @@ This file covers `apps/web` only. Its executable API contract is
 
 ## [Unreleased]
 
+## [1.1.4] — 2026-07-23
+
 ### Profile cleanup
 
 - Profiles now expose exactly L, Wins, Stories, Scars, Plot Twists, and Battles, defaulting to L.
