@@ -7,7 +7,7 @@ import { toast } from "sonner";
 import type { UserProfile } from "@linkedout/contracts";
 
 import { errorMessage, follow, unfollow } from "@/lib/api";
-import { markFollowGraphQueriesStale } from "@/lib/follow-cache";
+import { reconcileFollowGraph } from "@/lib/follow-cache";
 import { queryKeys } from "@/lib/query-keys";
 import {
   assertComposedPrincipal,
@@ -45,7 +45,6 @@ export function DirectoryFollowButton({
   const viewerProfileKey = viewer
     ? queryKeys.profiles.detail(principal, viewer.username)
     : null;
-  const sidebarKey = queryKeys.feedSidebar.detail(principal);
 
   const mutation = useMutation({
     mutationFn: (wasFollowing: boolean) =>
@@ -88,21 +87,16 @@ export function DirectoryFollowButton({
     },
     onSuccess: (result) => {
       setFollowing(result.isFollowing);
-      if (viewer) {
-        void markFollowGraphQueriesStale({
-          queryClient,
-          principal,
-          viewerUsername: viewer.username,
-          targetUsername: username,
-          currentDirectoryKey: directoryQueryKey,
-        });
-      }
     },
     onSettled: () => {
-      if (viewerProfileKey) {
-        void queryClient.invalidateQueries({ queryKey: viewerProfileKey, exact: true });
-      }
-      void queryClient.invalidateQueries({ queryKey: sidebarKey, exact: true });
+      if (!viewer) return;
+      void reconcileFollowGraph({
+        queryClient,
+        principal,
+        viewerUsername: viewer.username,
+        targetUsername: username,
+        currentDirectoryKey: directoryQueryKey,
+      });
     },
   });
 

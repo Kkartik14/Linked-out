@@ -1,6 +1,6 @@
 import { expect, test } from "@playwright/test";
 
-import { disconnect, seedWorld, signIn, type World } from "./helpers";
+import { db, disconnect, seedWorld, signIn, type World } from "./helpers";
 
 let world: World;
 
@@ -179,6 +179,40 @@ test.describe("feed & L detail", () => {
     await page.getByRole("link", { name: /Nadia Ray/ }).first().click();
     await expect(page).toHaveURL(/\/u\/nadia$/);
     await expect(page.getByRole("link", { name: "1 following" })).toBeVisible();
+  });
+
+  test("following reconciles a warmed Following feed and followers-only profile Ls", async ({
+    page,
+    context,
+  }) => {
+    await signIn(context, world.nadia);
+    const followersOnly = await db().l.create({
+      data: {
+        authorId: world.kartik.id,
+        title: "The part I only share with followers",
+        story: "This should become visible as soon as the follow succeeds.",
+        type: "STORY",
+        visibility: "FOLLOWERS",
+      },
+    });
+    await page.goto("/");
+
+    const people = page.getByRole("region", { name: "People to follow" });
+    await people.getByRole("link", { name: "Kartik Gupta" }).click();
+    await expect(page.getByText(followersOnly.title)).toHaveCount(0);
+    await page.goBack();
+
+    await page.getByRole("tab", { name: "Following" }).click();
+    await expect(page.getByText("Follow some builders")).toBeVisible();
+    await page.getByRole("tab", { name: "Global" }).click();
+
+    await people.getByRole("button", { name: "Follow Kartik Gupta" }).click();
+    await page.getByRole("tab", { name: "Following" }).click();
+    await expect(page.getByText(followersOnly.title)).toBeVisible();
+
+    await page.getByRole("link", { name: "Kartik Gupta" }).first().click();
+    await expect(page).toHaveURL(/\/u\/kartik$/);
+    await expect(page.getByText(followersOnly.title)).toBeVisible();
   });
 
   test("Top Ls ranks only the Ls that were actually interacted with this week", async ({ page }) => {

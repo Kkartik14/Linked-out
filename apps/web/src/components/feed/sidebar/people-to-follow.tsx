@@ -10,7 +10,7 @@ import type {
 } from "@linkedout/contracts";
 
 import { errorMessage, follow } from "@/lib/api";
-import { markFollowGraphQueriesStale } from "@/lib/follow-cache";
+import { reconcileFollowGraph } from "@/lib/follow-cache";
 import { queryKeys } from "@/lib/query-keys";
 import { assertComposedPrincipal, useComposedPrincipal, usePrincipal } from "@/components/session-provider";
 import { statusOption, useMeta } from "@/components/meta-provider";
@@ -193,21 +193,18 @@ export function PeopleToFollow({
       }
       toast.error(errorMessage(err, "Could not follow that builder."));
     },
-    onSuccess: (_result, username) => {
+    onSettled: (_result, _error, username) => {
+      // Every path reconciles against the server: on success the backend ranks a
+      // replacement into the vacated slot, and on failure this confirms what the rollback
+      // above reconstructed. The rails never poll (see `feed-sidebar`), so a follow is the
+      // only thing that refreshes them.
       if (!viewerUsername) return;
-      void markFollowGraphQueriesStale({
+      void reconcileFollowGraph({
         queryClient,
         principal,
         viewerUsername,
         targetUsername: username,
       });
-    },
-    onSettled: () => {
-      // Every path reconciles against the server: on success the backend ranks a
-      // replacement into the vacated slot, and on failure this confirms what the rollback
-      // above reconstructed. The rails never poll (see `feed-sidebar`), so a follow is the
-      // only thing that refreshes them.
-      void queryClient.invalidateQueries({ queryKey: sidebarKey, exact: true });
     },
   });
 
