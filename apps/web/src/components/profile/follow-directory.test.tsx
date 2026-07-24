@@ -4,6 +4,7 @@ import userEvent from "@testing-library/user-event";
 import type { FollowListUser, FollowResult, Paginated } from "@linkedout/contracts";
 
 import { mockUser, renderWithProviders } from "@/test/utils";
+import { createQueryClient } from "@/lib/query-client";
 import type { Session } from "@/components/session-provider";
 
 vi.mock("@/lib/api", async (importOriginal) => {
@@ -192,6 +193,44 @@ describe("FollowDirectory", () => {
 
     expect(unfollow).toHaveBeenCalledWith(mockUser.id, "bob");
     expect(await screen.findByRole("button", { name: "Follow" })).toBeInTheDocument();
+  });
+
+  it("reconciles a successful unfollow after leaving and reopening the directory", async () => {
+    const user = userEvent.setup();
+    const directoryBefore = page([
+      row({
+        id: "01ARZ3NDEKTSV4RRFFQ69G5FB9",
+        username: "nadia",
+        name: "Nadia",
+        isFollowing: true,
+      }),
+    ]);
+    vi.mocked(getFollowing).mockResolvedValue(page([]));
+    vi.mocked(unfollow).mockResolvedValue({
+      isFollowing: false,
+      counts: { followers: 0, following: 0 },
+    });
+
+    const { rerender } = renderWithProviders(
+      <FollowDirectory
+        username={mockUser.username}
+        variant="following"
+        initial={directoryBefore}
+      />,
+      { session: loggedIn, queryClient: createQueryClient() },
+    );
+
+    await user.click(await screen.findByRole("button", { name: "Following" }));
+    expect(await screen.findByRole("button", { name: "Follow" })).toBeInTheDocument();
+    expect(screen.getByText("Nadia")).toBeInTheDocument();
+
+    rerender(<div>Profile</div>);
+    rerender(
+      <FollowDirectory username={mockUser.username} variant="following" initial={page([])} />,
+    );
+
+    expect(await screen.findByText("Not following anyone yet.")).toBeInTheDocument();
+    expect(screen.queryByText("Nadia")).not.toBeInTheDocument();
   });
 
   it("sends a signed-out viewer to login instead of mutating", async () => {

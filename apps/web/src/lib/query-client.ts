@@ -1,7 +1,7 @@
 import { QueryClient, isServer } from "@tanstack/react-query";
 import { isApiError } from "@/lib/api";
 
-function makeQueryClient(): QueryClient {
+export function createQueryClient(): QueryClient {
   return new QueryClient({
     defaultOptions: {
       queries: {
@@ -30,7 +30,7 @@ let browserQueryClient: QueryClient | undefined;
  * (so navigations reuse the cache). Standard TanStack Query + App Router setup.
  */
 export function getQueryClient(): QueryClient {
-  if (isServer) return makeQueryClient();
-  if (!browserQueryClient) browserQueryClient = makeQueryClient();
+  if (isServer) return createQueryClient();
+  if (!browserQueryClient) browserQueryClient = createQueryClient();
   return browserQueryClient;
 }

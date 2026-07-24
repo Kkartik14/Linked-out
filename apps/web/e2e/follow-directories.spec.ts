@@ -50,23 +50,30 @@ test.describe("follower / following directories", () => {
       .toBe(1);
   });
 
-  test("an already-followed row shows Following and can be unfollowed", async ({
+  test("unfollow stays reversible until the directory is reopened", async ({
     page,
     context,
   }) => {
-    // kartik already follows nadia, so on his own following list she is an already-followed row.
+    // Start from the profile so browser Back exercises the same cached navigation path as a user.
     await signIn(context, world.kartik);
-    await page.goto("/u/kartik/following");
+    await page.goto("/u/kartik");
+    await page.getByRole("link", { name: "1 following" }).click();
 
     await expect(page.getByText("Nadia Ray")).toBeVisible();
     await page.getByRole("button", { name: "Following" }).click();
 
+    // Current-open behavior is deliberate: keep the row so an accidental unfollow is reversible.
     await expect(page.getByRole("button", { name: "Follow" })).toBeVisible();
-    await expect
-      .poll(() =>
-        db().follow.count({ where: { followerId: world.kartik.id, followingId: world.nadia.id } }),
-      )
-      .toBe(0);
+    await expect(page.getByText("Nadia Ray")).toBeVisible();
+
+    await page.goBack();
+    await expect(page).toHaveURL(/\/u\/kartik$/);
+    await expect(page.getByRole("link", { name: "0 following" })).toBeVisible();
+
+    await page.getByRole("link", { name: "0 following" }).click();
+    await expect(page).toHaveURL(/\/u\/kartik\/following$/);
+    await expect(page.getByText("Not following anyone yet.")).toBeVisible();
+    await expect(page.getByText("Nadia Ray")).toHaveCount(0);
   });
 
   test("the viewer's own row carries no follow control", async ({ page, context }) => {

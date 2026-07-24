@@ -1,6 +1,7 @@
 "use client";
 
 import Link from "next/link";
+import type { QueryKey } from "@tanstack/react-query";
 import type { FollowListUser, Paginated } from "@linkedout/contracts";
 
 import { getFollowers, getFollowing } from "@/lib/api";
@@ -49,7 +50,7 @@ export function FollowDirectory({
       queryFn={(cursor) => fetchPage(username, cursor)}
       initial={initial}
       getItemKey={(item) => item.user.id}
-      renderItem={(item) => <FollowDirectoryRow item={item} />}
+      renderItem={(item) => <FollowDirectoryRow item={item} directoryQueryKey={queryKey} />}
       empty={<EmptyState description={EMPTY_COPY[variant]} />}
       skeleton={
         <>
@@ -64,7 +65,13 @@ export function FollowDirectory({
   );
 }
 
-function FollowDirectoryRow({ item }: { item: FollowListUser }) {
+function FollowDirectoryRow({
+  item,
+  directoryQueryKey,
+}: {
+  item: FollowListUser;
+  directoryQueryKey: QueryKey;
+}) {
   const meta = useMeta();
   const { user, viewer } = item;
   const status = statusOption(meta, user.status);
@@ -91,7 +98,11 @@ function FollowDirectoryRow({ item }: { item: FollowListUser }) {
         </div>
       </Link>
       {viewer.isSelf ? null : (
-        <DirectoryFollowButton username={user.username} initialFollowing={viewer.isFollowing} />
+        <DirectoryFollowButton
+          username={user.username}
+          initialFollowing={viewer.isFollowing}
+          directoryQueryKey={directoryQueryKey}
+        />
       )}
     </div>
   );
