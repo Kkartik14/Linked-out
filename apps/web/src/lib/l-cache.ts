@@ -2,6 +2,12 @@ import type { QueryClient, QueryKey } from "@tanstack/react-query";
 
 import { queryKeys } from "@/lib/query-keys";
 
+function isSharedLList(key: QueryKey, principal: string): boolean {
+  if (key[1] !== principal) return false;
+  if (key[0] === "feed" || key[0] === "feed-sidebar" || key[0] === "saved") return true;
+  return key[0] === "search" && key[3] === "ls";
+}
+
 /**
  * Reconcile every retained read model that embeds an L or derives author metrics from L writes.
  *
@@ -24,11 +30,11 @@ export async function reconcileLWrite({
   deleted?: boolean;
 }): Promise<void> {
   const isAffected = (key: QueryKey) => {
+    if (isSharedLList(key, principal)) return true;
     if (key[1] !== principal) return false;
-    if (key[0] === "feed" || key[0] === "feed-sidebar" || key[0] === "saved") return true;
     if (key[0] === "user-ls") return key[2] === authorUsername;
     if (key[0] === "profiles") return key[2] === authorUsername;
-    return key[0] === "search" && key[3] === "ls";
+    return false;
   };
 
   await queryClient.invalidateQueries({
@@ -47,4 +53,35 @@ export async function reconcileLWrite({
     );
     for (const queryKey of removed) queryClient.removeQueries({ queryKey, exact: true });
   }
+}
+
+/**
+ * Mark every retained L list stale after a reaction or comment changes its embedded card and may
+ * change backend-owned ranking. The currently open surface keeps its optimistic/canonical state;
+ * lists reconcile when revisited instead of reordering under the reader.
+ */
+export function reconcileLEngagement({
+  queryClient,
+  principal,
+  savedChanged = false,
+}: {
+  queryClient: QueryClient;
+  principal: string;
+  savedChanged?: boolean;
+}): Promise<void> {
+  const staleLists = queryClient.invalidateQueries({
+    predicate: (query) =>
+      isSharedLList(query.queryKey, principal) ||
+      (query.queryKey[0] === "user-ls" && query.queryKey[1] === principal),
+    refetchType: "none",
+  });
+  if (!savedChanged) return staleLists;
+  return Promise.all([
+    staleLists,
+    queryClient.refetchQueries({
+      queryKey: queryKeys.saved.all(principal),
+      exact: true,
+      type: "active",
+    }),
+  ]).then(() => undefined);
 }

@@ -23,6 +23,7 @@ import { ConfirmDialog } from "@/components/confirm-dialog";
 import { CommentForm } from "@/components/comments/comment-form";
 import { Button } from "@/components/ui/button";
 import { timeAgo } from "@/lib/format";
+import { reconcileLEngagement } from "@/lib/l-cache";
 
 function CommentBody({
   comment,
@@ -78,6 +79,7 @@ function CommentBody({
       );
       queryClient.setQueryData<number>(commentCountKey, (current) => (current ?? 0) + 1);
       void queryClient.invalidateQueries({ queryKey: repliesKey, exact: true });
+      void reconcileLEngagement({ queryClient, principal });
     },
   });
 
@@ -123,6 +125,7 @@ function CommentBody({
           Math.max(0, (current ?? 0) - 1 - comment.replyCount),
         );
       }
+      void reconcileLEngagement({ queryClient, principal });
     },
     onError: (err) => toast.error(errorMessage(err)),
   });

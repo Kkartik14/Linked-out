@@ -97,18 +97,61 @@ test.describe("write actions against the real API", () => {
       .toBe(0);
   });
 
+  test("an engagement change reranks a warmed Popular feed on return", async ({ page }) => {
+    await db().l.update({ where: { id: world.startup.id }, data: { popularityScore: 2 } });
+    await page.goto("/?sort=popular");
+    const feed = page.getByRole("region", { name: "The Feed" });
+    await expect
+      .poll(() => feed.getByRole("heading", { level: 2 }).allTextContents())
+      .toEqual([world.google.title, world.startup.title, world.nadiaPublic.title, world.anonymous.title]);
+
+    await feed.getByRole("link", { name: world.nadiaPublic.title }).click();
+    await expect(page).toHaveURL(new RegExp(`/ls/${world.nadiaPublic.id}$`));
+    const detail = page.getByRole("article");
+    await detail.getByRole("button", { name: "Add reaction" }).click();
+    await page.getByRole("menuitemcheckbox", { name: "Helpful" }).click();
+    await expect(page.getByRole("button", { name: /Helpful, 1/ })).toHaveAttribute(
+      "aria-pressed",
+      "true",
+    );
+
+    await page.goBack();
+    await expect(page).toHaveURL(/\?sort=popular$/);
+    await expect
+      .poll(() => feed.getByRole("heading", { level: 2 }).allTextContents())
+      .toEqual([world.google.title, world.nadiaPublic.title, world.startup.title, world.anonymous.title]);
+  });
+
   test("saving an L adds it to /saved", async ({ page }) => {
-    await page.goto(`/ls/${world.nadiaPublic.id}`);
+    await page.goto("/");
+    const feed = page.getByRole("region", { name: "The Feed" });
+    await feed.getByRole("link", { name: world.nadiaPublic.title }).click();
+    await expect(page).toHaveURL(new RegExp(`/ls/${world.nadiaPublic.id}$`));
+    const detail = page.getByRole("article");
 
-    await page.getByRole("button", { name: "Save", exact: true }).click();
-    await expect(page.getByRole("button", { name: "Remove from saved" })).toBeVisible();
+    await detail.getByRole("button", { name: "Save", exact: true }).click();
+    await expect(detail.getByRole("button", { name: "Remove from saved" })).toBeVisible();
 
-    await page.goto("/saved");
+    await page.getByRole("link", { name: "Back to the feed" }).click();
+    await expect(feed.getByRole("button", { name: "Remove from saved" })).toBeVisible();
+
+    await page
+      .getByRole("navigation", { name: "Explore" })
+      .getByRole("link", { name: "Saved" })
+      .click();
     await expect(page.getByText(world.nadiaPublic.title)).toBeVisible();
+
+    await page.getByRole("button", { name: "Remove from saved" }).click();
+    await expect(page.getByText("Nothing saved yet.", { exact: false })).toBeVisible();
   });
 
   test("commenting persists and updates the comment count", async ({ page }) => {
-    await page.goto(`/ls/${world.google.id}`);
+    await db().l.update({ where: { id: world.google.id }, data: { popularityScore: 1 } });
+    await db().l.update({ where: { id: world.startup.id }, data: { popularityScore: 2 } });
+    await page.goto("/?sort=popular");
+    const feed = page.getByRole("region", { name: "The Feed" });
+    await expect(feed.getByRole("heading", { level: 2 }).first()).toHaveText(world.startup.title);
+    await feed.getByRole("link", { name: world.google.title }).click();
 
     const body = "This is exactly the kind of feedback loop I need.";
     await page.getByLabel("Write a comment").fill(body);
@@ -117,6 +160,10 @@ test.describe("write actions against the real API", () => {
     await expect(page.getByText(body)).toBeVisible();
     await expect(page.getByRole("heading", { name: /2 comments/i })).toBeVisible();
     await expect.poll(() => db().comment.count({ where: { lId: world.google.id } })).toBe(2);
+
+    await page.goBack();
+    await expect(feed.getByRole("heading", { level: 2 }).first()).toHaveText(world.google.title);
+    await expect(feed.getByRole("link", { name: "2 comments" })).toBeVisible();
   });
 
   test("the author can edit their own L, and the change persists", async ({ page }) => {

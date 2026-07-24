@@ -19,6 +19,7 @@ import {
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
 import { cn } from "@/lib/utils";
+import { reconcileLEngagement } from "@/lib/l-cache";
 
 const COUNT_KEY: Record<ReactionType, keyof ReactionsSummary> = {
   BEEN_THERE: "beenThere",
@@ -124,9 +125,11 @@ export function ReactionBar({
     },
     onSuccess: (result, { type }) => {
       queryClient.setQueryData(reactionKey, result);
-      if (type === "SAVED") {
-        void queryClient.invalidateQueries({ queryKey: queryKeys.saved.all(principal) });
-      }
+      void reconcileLEngagement({
+        queryClient,
+        principal,
+        savedChanged: type === "SAVED",
+      });
     },
   });
 
@@ -138,15 +141,19 @@ export function ReactionBar({
     reconciledServerSnapshot.current = serverSnapshot;
     if (queryClient.isMutating({ mutationKey }) > 0) return;
     if (isInitialSnapshot) {
-      const observers =
-        queryClient
-          .getQueryCache()
-          .find({ queryKey: reactionKey, exact: true })
-          ?.getObserversCount() ?? 0;
+      const canonical = queryClient
+        .getQueryCache()
+        .find({ queryKey: reactionKey, exact: true });
+      const observers = canonical?.getObserversCount() ?? 0;
       // `initialData` seeds an empty key. If another view already observes this key, its
       // canonical cache may contain a navigation or mutation successor; a late sibling's
       // older props have no revision with which to prove otherwise and must not replace it.
       if (observers > 1) return;
+      // A retained key with multiple writes has already moved past its first server seed. This
+      // is the normal Back-navigation shape after a mutation: the remounted card still carries
+      // its list's older props, while the canonical cache carries the mutation response. A later
+      // list refetch changes these props on the mounted instance and reconciles below.
+      if ((canonical?.state.dataUpdateCount ?? 0) > 1) return;
     }
     // RSC/API reads are no-store. Reconcile a newer navigation snapshot into the shared
     // cache when this mounted view receives changed props. A sole remount may also refresh

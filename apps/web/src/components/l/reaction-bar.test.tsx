@@ -302,6 +302,34 @@ describe("ReactionBar", () => {
     });
   });
 
+  it("does not let a retained list's stale card revert a completed reaction on remount", async () => {
+    const user = userEvent.setup();
+    const stale = reactionSummary({ total: 3, beenThere: 3, helpful: 2, saved: 1 });
+    const first = renderReactionBar({ reactions: stale });
+
+    await user.click(screen.getByRole("button", { name: /been there/i }));
+    await waitFor(() => {
+      expect(screen.getByRole("button", { name: /been there/i })).toHaveTextContent("4");
+      expect(screen.getByRole("button", { name: /been there/i })).toHaveAttribute(
+        "aria-pressed",
+        "true",
+      );
+    });
+
+    const queryClient = first.queryClient;
+    first.unmount();
+    renderReactionBar({ reactions: stale }, { queryClient });
+    await act(async () => {
+      await new Promise((resolve) => setTimeout(resolve, 0));
+    });
+
+    expect(screen.getByRole("button", { name: /been there/i })).toHaveTextContent("4");
+    expect(screen.getByRole("button", { name: /been there/i })).toHaveAttribute(
+      "aria-pressed",
+      "true",
+    );
+  });
+
   it("updates every mounted view of an L through its canonical reaction cache", async () => {
     const user = userEvent.setup();
     renderWithProviders(
