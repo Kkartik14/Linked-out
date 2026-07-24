@@ -62,6 +62,7 @@ export default defineConfig({
       timeout: 60_000,
       env: {
         NODE_ENV: "test",
+        OAUTH_SESSION_MODE: "legacy",
         PORT: apiPort,
         API_BASE_URL: `http://localhost:${apiPort}`,
         WEB_URL: webBaseUrl,
@@ -93,7 +94,10 @@ export default defineConfig({
       // NEXT_PUBLIC_* is inlined at build time, so the `test:e2e` script is what actually
       // decides this. Repeated here so a hand-run `playwright test` against an
       // already-built app agrees with the build rather than silently differing.
-      env: { NEXT_PUBLIC_API_BASE_URL: apiBaseUrl },
+      env: {
+        OAUTH_SESSION_MODE: "legacy",
+        NEXT_PUBLIC_API_BASE_URL: apiBaseUrl,
+      },
     },
   ],
   projects: [{ name: "chromium", use: { ...devices["Desktop Chrome"] } }],
