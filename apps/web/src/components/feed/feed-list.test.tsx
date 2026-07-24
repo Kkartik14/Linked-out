@@ -12,6 +12,7 @@ vi.mock("@/lib/api", async (importOriginal) => {
 });
 
 import { FeedList } from "@/components/feed/feed-list";
+import { getFeed } from "@/lib/api";
 
 function card(id: string, title: string): LCardType {
   // Parsed, not asserted: the contract is the oracle, so a fixture that drifts from `LCard`
@@ -46,14 +47,14 @@ describe("FeedList", () => {
   // Synchronously, with no `waitFor`: the server already fetched this page, so it must paint
   // from `initial` rather than flashing a skeleton while the client re-fetches it.
   //
-  // Deliberately not asserted: that `getFeed` is never called. Under the app's real
-  // `staleTime: 60_000` it wouldn't be — but `renderWithProviders` builds its own QueryClient
-  // carrying only `retry: false`, so tests run at `staleTime: 0` and always refetch on mount.
-  // That assertion would pin the harness's defaults, not the app's.
   it("paints the server's first page immediately", () => {
     renderWithProviders(<FeedList initial={page([FIRST])} scope="global" sort="latest" />);
 
     expect(screen.getByText("Rejected after the final round")).toBeInTheDocument();
+    // The production client treats this just-fetched server page as fresh for one minute.
+    // The shared test harness must preserve that behavior or it masks retained-cache bugs with
+    // refetches that the real app does not perform.
+    expect(getFeed).not.toHaveBeenCalled();
   });
 
   it("tells a signed-out reader the global feed is empty", () => {

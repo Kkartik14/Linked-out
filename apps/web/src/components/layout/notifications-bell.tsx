@@ -3,18 +3,17 @@
 import Link from "next/link";
 import { useState } from "react";
 import { Bell, CheckCheck } from "lucide-react";
-import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
+import { useQuery } from "@tanstack/react-query";
 
 import {
   getNotifications,
   getUnreadCount,
-  markAllNotificationsRead,
-  markNotificationRead,
 } from "@/lib/api";
 import { timeAgo } from "@/lib/format";
 import { cn } from "@/lib/utils";
 import { queryKeys } from "@/lib/query-keys";
-import { assertComposedPrincipal, useComposedPrincipal, usePrincipal } from "@/components/session-provider";
+import { usePrincipal } from "@/components/session-provider";
+import { useNotificationReadActions } from "@/components/notifications/use-notification-read-actions";
 import { Button } from "@/components/ui/button";
 import {
   DropdownMenu,
@@ -28,10 +27,9 @@ export function notificationPollIntervalMs(random = Math.random): number {
 }
 
 export function NotificationsBell() {
-  const queryClient = useQueryClient();
   const principal = usePrincipal();
-  const composedAs = useComposedPrincipal();
   const [open, setOpen] = useState(false);
+  const { markAll, markOne } = useNotificationReadActions();
 
   const unread = useQuery({
     queryKey: queryKeys.notifications.unreadCount(principal),
@@ -46,19 +44,6 @@ export function NotificationsBell() {
     queryKey: queryKeys.notifications.preview(principal),
     queryFn: () => getNotifications(undefined, 5),
     enabled: open,
-  });
-
-  const invalidateAll = () =>
-    queryClient.invalidateQueries({ queryKey: queryKeys.notifications.all(principal) });
-
-  const markAll = useMutation({
-    mutationFn: () => markAllNotificationsRead(assertComposedPrincipal(composedAs)),
-    onSuccess: () => void invalidateAll(),
-  });
-
-  const markOne = useMutation({
-    mutationFn: (id: string) => markNotificationRead(assertComposedPrincipal(composedAs), id),
-    onSuccess: () => void invalidateAll(),
   });
 
   const count = unread.data?.count ?? 0;
