@@ -224,7 +224,10 @@ test.describe("saved, notifications & settings", () => {
 
   test("settings saves changes and returns to the edited profile", async ({ page, context }) => {
     await signIn(context, world.kartik);
-    await page.goto("/settings");
+    // Warm the profile's React Query entry, then reach Settings through the real UI. A direct
+    // visit starts with an empty browser cache and cannot catch a stale return navigation.
+    await page.goto("/u/kartik");
+    await page.getByRole("link", { name: "Edit profile" }).click();
 
     await expect(page.getByRole("heading", { name: "Settings" })).toBeVisible();
     await page.getByRole("textbox", { name: "Name", exact: true }).fill("Kartik G");

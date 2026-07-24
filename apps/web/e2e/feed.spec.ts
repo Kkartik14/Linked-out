@@ -186,10 +186,11 @@ test.describe("feed & L detail", () => {
     context,
   }) => {
     await signIn(context, world.nadia);
-    const followersOnly = await db().l.create({
+    const followersOnlyTitle = "The part I only share with followers";
+    await db().l.create({
       data: {
         authorId: world.kartik.id,
-        title: "The part I only share with followers",
+        title: followersOnlyTitle,
         story: "This should become visible as soon as the follow succeeds.",
         type: "STORY",
         visibility: "FOLLOWERS",
@@ -199,7 +200,7 @@ test.describe("feed & L detail", () => {
 
     const people = page.getByRole("region", { name: "People to follow" });
     await people.getByRole("link", { name: "Kartik Gupta" }).click();
-    await expect(page.getByText(followersOnly.title)).toHaveCount(0);
+    await expect(page.getByText(followersOnlyTitle)).toHaveCount(0);
     await page.goBack();
 
     await page.getByRole("tab", { name: "Following" }).click();
@@ -208,11 +209,11 @@ test.describe("feed & L detail", () => {
 
     await people.getByRole("button", { name: "Follow Kartik Gupta" }).click();
     await page.getByRole("tab", { name: "Following" }).click();
-    await expect(page.getByText(followersOnly.title)).toBeVisible();
+    await expect(page.getByText(followersOnlyTitle)).toBeVisible();
 
     await page.getByRole("link", { name: "Kartik Gupta" }).first().click();
     await expect(page).toHaveURL(/\/u\/kartik$/);
-    await expect(page.getByText(followersOnly.title)).toBeVisible();
+    await expect(page.getByText(followersOnlyTitle)).toBeVisible();
   });
 
   test("Top Ls ranks only the Ls that were actually interacted with this week", async ({ page }) => {
