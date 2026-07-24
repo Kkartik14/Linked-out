@@ -201,7 +201,11 @@ test.describe("feed & L detail", () => {
     const people = page.getByRole("region", { name: "People to follow" });
     await people.getByRole("link", { name: "Kartik Gupta" }).click();
     await expect(page.getByText(followersOnlyTitle)).toHaveCount(0);
-    await page.goBack();
+    // Use the product's client-side home link instead of browser history. The cache remains
+    // warm either way, while this gives the journey one deterministic destination even when
+    // Playwright's full suite has prior browser-history entries.
+    await page.getByRole("link", { name: "LinkedOut home" }).click();
+    await expect(page).toHaveURL(/\/$/);
 
     await page.getByRole("tab", { name: "Following" }).click();
     await expect(page.getByText("Follow some builders")).toBeVisible();
