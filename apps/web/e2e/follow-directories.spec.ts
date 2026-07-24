@@ -65,6 +65,11 @@ test.describe("follower / following directories", () => {
     // Current-open behavior is deliberate: keep the row so an accidental unfollow is reversible.
     await expect(page.getByRole("button", { name: "Follow" })).toBeVisible();
     await expect(page.getByText("Nadia Ray")).toBeVisible();
+    await expect
+      .poll(() =>
+        db().follow.count({ where: { followerId: world.kartik.id, followingId: world.nadia.id } }),
+      )
+      .toBe(0);
 
     await page.goBack();
     await expect(page).toHaveURL(/\/u\/kartik$/);
