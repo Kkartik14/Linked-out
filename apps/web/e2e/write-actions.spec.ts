@@ -123,26 +123,30 @@ test.describe("write actions against the real API", () => {
     expect(row.title).toBe("Rejected, and glad of it");
   });
 
-  test("following from a profile persists and flips the button", async ({ page }) => {
-    await page.goto("/u/nadia");
+  test("unfollowing from a profile reconciles the viewer's directory and profile", async ({
+    page,
+  }) => {
+    await page.goto("/u/kartik");
+    await page.getByRole("link", { name: "1 following" }).click();
+    await page.getByRole("link", { name: /Nadia Ray/ }).click();
 
-    // Seeded state: kartik already follows nadia.
-    const following = page.getByRole("button", { name: /Following|Unfollow/ });
-    await expect(following).toBeVisible();
-    await following.click();
+    const unfollowed = page.waitForResponse(
+      (response) =>
+        response.request().method() === "DELETE" &&
+        response.url().endsWith("/v1/users/nadia/follow") &&
+        response.ok(),
+    );
+    await page.getByRole("button", { name: "Following" }).click();
+    await unfollowed;
+    await expect(page.getByRole("button", { name: "Follow" })).toBeVisible();
 
-    await expect(page.getByRole("button", { name: /^Follow$/ })).toBeVisible();
-    await expect
-      .poll(() =>
-        db().follow.count({ where: { followerId: world.kartik.id, followingId: world.nadia.id } }),
-      )
-      .toBe(0);
+    await page.goBack();
+    await expect(page).toHaveURL(/\/u\/kartik\/following$/);
+    await expect(page.getByText("Not following anyone yet.")).toBeVisible();
+    await expect(page.getByText("Nadia Ray")).toHaveCount(0);
 
-    await page.getByRole("button", { name: /^Follow$/ }).click();
-    await expect
-      .poll(() =>
-        db().follow.count({ where: { followerId: world.kartik.id, followingId: world.nadia.id } }),
-      )
-      .toBe(1);
+    await page.goBack();
+    await expect(page).toHaveURL(/\/u\/kartik$/);
+    await expect(page.getByRole("link", { name: "0 following" })).toBeVisible();
   });
 });

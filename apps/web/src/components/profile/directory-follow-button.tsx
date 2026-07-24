@@ -2,11 +2,12 @@
 
 import { useState } from "react";
 import { usePathname, useRouter } from "next/navigation";
-import { useMutation, useQueryClient } from "@tanstack/react-query";
+import { useMutation, useQueryClient, type QueryKey } from "@tanstack/react-query";
 import { toast } from "sonner";
 import type { UserProfile } from "@linkedout/contracts";
 
 import { errorMessage, follow, unfollow } from "@/lib/api";
+import { markFollowGraphQueriesStale } from "@/lib/follow-cache";
 import { queryKeys } from "@/lib/query-keys";
 import {
   assertComposedPrincipal,
@@ -20,16 +21,19 @@ import { Button } from "@/components/ui/button";
  * Row-local follow toggle for the follower/following directories.
  *
  * Each directory row owns its optimistic relationship state, so it intentionally remains visible
- * after unfollow and can be followed again immediately. The signed-in viewer's profile count is
- * shared across routes, however, so that cache is reconciled separately. A signed-out viewer is
- * sent to login with the directory as the return path.
+ * after unfollow and can be followed again immediately. A successful toggle marks the directory
+ * stale without refetching its active observer; reopening it then reconciles membership from the
+ * API. The signed-in viewer's profile count is shared across routes, so that cache is reconciled
+ * separately. A signed-out viewer is sent to login with the directory as the return path.
  */
 export function DirectoryFollowButton({
   username,
   initialFollowing,
+  directoryQueryKey,
 }: {
   username: string;
   initialFollowing: boolean;
+  directoryQueryKey: QueryKey;
 }) {
   const viewer = useViewer();
   const principal = usePrincipal();
@@ -82,7 +86,18 @@ export function DirectoryFollowButton({
       }
       toast.error(errorMessage(err));
     },
-    onSuccess: (result) => setFollowing(result.isFollowing),
+    onSuccess: (result) => {
+      setFollowing(result.isFollowing);
+      if (viewer) {
+        void markFollowGraphQueriesStale({
+          queryClient,
+          principal,
+          viewerUsername: viewer.username,
+          targetUsername: username,
+          currentDirectoryKey: directoryQueryKey,
+        });
+      }
+    },
     onSettled: () => {
       if (viewerProfileKey) {
         void queryClient.invalidateQueries({ queryKey: viewerProfileKey, exact: true });

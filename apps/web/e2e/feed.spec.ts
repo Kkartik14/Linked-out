@@ -140,6 +140,47 @@ test.describe("feed & L detail", () => {
     await expect(page.getByRole("region", { name: /people to follow/i })).toBeVisible();
   });
 
+  test("following from home stays consistent across the sidebar, directory, and profile", async ({
+    page,
+    context,
+  }) => {
+    await signIn(context, world.nadia);
+    await page.goto("/");
+
+    // Warm both destinations through client navigation. A cold route receives fresh server data;
+    // the reported bug appears when Next/React Query can reuse a previously visited result.
+    await page
+      .getByRole("region", { name: "Your profile" })
+      .getByRole("link", { name: "Following" })
+      .click();
+    await expect(page.getByText("Not following anyone yet.")).toBeVisible();
+    await page.goBack();
+    await expect(page).toHaveURL(/\/$/);
+
+    await page
+      .getByRole("region", { name: "Your profile" })
+      .getByRole("link", { name: "View profile" })
+      .click();
+    await expect(page.getByRole("link", { name: "0 following" })).toBeVisible();
+    await page.goBack();
+    await expect(page).toHaveURL(/\/$/);
+
+    const profileCard = page.getByRole("region", { name: "Your profile" });
+    const followingMetric = profileCard.locator("dl > div").filter({ hasText: "Following" });
+    const people = page.getByRole("region", { name: "People to follow" });
+
+    await people.getByRole("button", { name: "Follow Kartik Gupta" }).click();
+    await expect(followingMetric.getByText("1", { exact: true })).toBeVisible();
+
+    await profileCard.getByRole("link", { name: "Following" }).click();
+    await expect(page).toHaveURL(/\/u\/nadia\/following$/);
+    await expect(page.getByText("Kartik Gupta")).toBeVisible();
+
+    await page.getByRole("link", { name: /Nadia Ray/ }).first().click();
+    await expect(page).toHaveURL(/\/u\/nadia$/);
+    await expect(page.getByRole("link", { name: "1 following" })).toBeVisible();
+  });
+
   test("Top Ls ranks only the Ls that were actually interacted with this week", async ({ page }) => {
     await page.goto("/");
 

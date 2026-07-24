@@ -10,6 +10,7 @@ import type {
 } from "@linkedout/contracts";
 
 import { errorMessage, follow } from "@/lib/api";
+import { markFollowGraphQueriesStale } from "@/lib/follow-cache";
 import { queryKeys } from "@/lib/query-keys";
 import { assertComposedPrincipal, useComposedPrincipal, usePrincipal } from "@/components/session-provider";
 import { statusOption, useMeta } from "@/components/meta-provider";
@@ -136,6 +137,7 @@ export function PeopleToFollow({
   const queryClient = useQueryClient();
   const sidebarKey = queryKeys.feedSidebar.detail(principal);
   const followHref = permissionRoute(viewer);
+  const viewerUsername = viewer.state === "READY" ? viewer.profile.username : null;
 
   const mutation = useMutation({
     mutationFn: (username: string) => follow(assertComposedPrincipal(composedAs), username),
@@ -190,6 +192,15 @@ export function PeopleToFollow({
         });
       }
       toast.error(errorMessage(err, "Could not follow that builder."));
+    },
+    onSuccess: (_result, username) => {
+      if (!viewerUsername) return;
+      void markFollowGraphQueriesStale({
+        queryClient,
+        principal,
+        viewerUsername,
+        targetUsername: username,
+      });
     },
     onSettled: () => {
       // Every path reconciles against the server: on success the backend ranks a
