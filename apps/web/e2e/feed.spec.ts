@@ -211,7 +211,14 @@ test.describe("feed & L detail", () => {
     await expect(page.getByText("Follow some builders")).toBeVisible();
     await page.getByRole("tab", { name: "Global" }).click();
 
+    const followed = page.waitForResponse(
+      (response) =>
+        response.request().method() === "POST" &&
+        response.url().endsWith("/v1/users/kartik/follow") &&
+        response.ok(),
+    );
     await people.getByRole("button", { name: "Follow Kartik Gupta" }).click();
+    await followed;
     await page.getByRole("tab", { name: "Following" }).click();
     await expect(page.getByText(followersOnlyTitle)).toBeVisible();
 
