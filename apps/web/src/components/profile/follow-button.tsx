@@ -6,6 +6,7 @@ import { toast } from "sonner";
 import type { UserProfile } from "@linkedout/contracts";
 
 import { errorMessage, follow, unfollow } from "@/lib/api";
+import { markFollowGraphQueriesStale } from "@/lib/follow-cache";
 import { queryKeys } from "@/lib/query-keys";
 import { assertComposedPrincipal, useComposedPrincipal, usePrincipal, useViewer } from "@/components/session-provider";
 import { Button } from "@/components/ui/button";
@@ -60,6 +61,14 @@ export function FollowButton({
             }
           : current,
       );
+      if (user) {
+        void markFollowGraphQueriesStale({
+          queryClient,
+          principal,
+          viewerUsername: user.username,
+          targetUsername: username,
+        });
+      }
     },
     // The viewer card exposes the viewer's Following count on Feed, Search, and Saved. Reconcile
     // that shared aggregate after either outcome; a failed response may still follow a committed

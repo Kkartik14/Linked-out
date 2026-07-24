@@ -7,6 +7,7 @@ import { toast } from "sonner";
 import type { UserProfile } from "@linkedout/contracts";
 
 import { errorMessage, follow, unfollow } from "@/lib/api";
+import { markFollowGraphQueriesStale } from "@/lib/follow-cache";
 import { queryKeys } from "@/lib/query-keys";
 import {
   assertComposedPrincipal,
@@ -87,11 +88,15 @@ export function DirectoryFollowButton({
     },
     onSuccess: (result) => {
       setFollowing(result.isFollowing);
-      void queryClient.invalidateQueries({
-        queryKey: directoryQueryKey,
-        exact: true,
-        refetchType: "none",
-      });
+      if (viewer) {
+        void markFollowGraphQueriesStale({
+          queryClient,
+          principal,
+          viewerUsername: viewer.username,
+          targetUsername: username,
+          currentDirectoryKey: directoryQueryKey,
+        });
+      }
     },
     onSettled: () => {
       if (viewerProfileKey) {
