@@ -213,7 +213,7 @@ test.describe("feed & L detail", () => {
 
     const followed = page.waitForResponse(
       (response) =>
-        response.request().method() === "POST" &&
+        response.request().method() === "PUT" &&
         response.url().endsWith("/v1/users/kartik/follow") &&
         response.ok(),
     );
