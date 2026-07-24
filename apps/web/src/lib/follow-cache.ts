@@ -17,13 +17,11 @@ export async function reconcileFollowGraph({
   principal,
   viewerUsername,
   targetUsername,
-  currentDirectoryKey,
 }: {
   queryClient: QueryClient;
   principal: string;
   viewerUsername: string;
   targetUsername: string;
-  currentDirectoryKey?: QueryKey;
 }): Promise<void> {
   const exactKeys: QueryKey[] = [
     queryKeys.profiles.detail(principal, viewerUsername),
@@ -33,7 +31,6 @@ export async function reconcileFollowGraph({
     queryKeys.saved.all(principal),
     queryKeys.feedSidebar.detail(principal),
   ];
-  if (currentDirectoryKey) exactKeys.push(currentDirectoryKey);
 
   const isExactKey = (candidate: QueryKey) =>
     exactKeys.some(

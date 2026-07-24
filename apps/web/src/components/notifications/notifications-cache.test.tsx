@@ -26,7 +26,10 @@ vi.mock("@/lib/api", async (importOriginal) => {
       nextCursor: null,
     })),
     getUnreadCount: vi.fn(async () => ({ count: notificationState.readAt ? 0 : 1 })),
-    markNotificationRead: vi.fn(async () => ({ ok: true as const })),
+    markNotificationRead: vi.fn(async () => {
+      notificationState.readAt = "2026-07-25T00:00:00.000Z";
+      return { ok: true as const };
+    }),
     markAllNotificationsRead: vi.fn(async () => {
       notificationState.readAt = "2026-07-25T00:00:00.000Z";
       return { ok: true as const };
@@ -34,7 +37,11 @@ vi.mock("@/lib/api", async (importOriginal) => {
   };
 });
 
-import { getNotifications, markAllNotificationsRead } from "@/lib/api";
+import {
+  getNotifications,
+  markAllNotificationsRead,
+  markNotificationRead,
+} from "@/lib/api";
 import {
   NotificationsBell,
   notificationPollIntervalMs,
@@ -109,5 +116,21 @@ describe("notifications bell + page share a QueryClient without colliding", () =
       expect(page.queryByRole("button", { name: "Mark all read" })).not.toBeInTheDocument();
       expect(header.getByRole("button", { name: "Notifications" })).toBeInTheDocument();
     });
+  });
+
+  it("marks the opened notification read and reconciles the active page", async () => {
+    const user = userEvent.setup();
+    renderWithProviders(<NotificationsList />, {
+      session: { status: "authenticated", user: mockUser, needsOnboarding: false },
+    });
+
+    await user.click(
+      await screen.findByRole("link", { name: new RegExp(notification.message) }),
+    );
+
+    await waitFor(() => expect(markNotificationRead).toHaveBeenCalledWith(mockUser.id, "n_1"));
+    await waitFor(() =>
+      expect(screen.queryByRole("button", { name: "Mark all read" })).not.toBeInTheDocument(),
+    );
   });
 });

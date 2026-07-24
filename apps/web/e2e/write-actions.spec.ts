@@ -196,6 +196,7 @@ test.describe("write actions against the real API", () => {
 
     await expect(page).toHaveURL(/\/$/);
     await expect(feed.getByRole("link", { name: world.google.title })).toHaveCount(0);
+    await expect.poll(() => db().l.count({ where: { id: world.google.id } })).toBe(0);
   });
 
   test("resolving a Battle updates its badge in a warmed feed", async ({ page }) => {
@@ -210,6 +211,9 @@ test.describe("write actions against the real API", () => {
 
     await expect(feed.getByText("Resolved", { exact: true })).toBeVisible();
     await expect(feed.getByText("Ongoing", { exact: true })).toHaveCount(0);
+    await expect
+      .poll(async () => (await db().l.findUnique({ where: { id: world.google.id } }))?.resolvedAt)
+      .toBeTruthy();
   });
 
   test("unfollowing from a profile reconciles the viewer's directory and profile", async ({

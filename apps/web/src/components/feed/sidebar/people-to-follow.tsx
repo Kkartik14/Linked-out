@@ -198,6 +198,8 @@ export function PeopleToFollow({
       // replacement into the vacated slot, and on failure this confirms what the rollback
       // above reconstructed. The rails never poll (see `feed-sidebar`), so a follow is the
       // only thing that refreshes them.
+      // Only READY viewers can reach this mutation (`canFollow` is READY-only), so a missing
+      // username means there is no authenticated follow graph to reconcile.
       if (!viewerUsername) return;
       void reconcileFollowGraph({
         queryClient,

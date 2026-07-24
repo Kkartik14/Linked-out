@@ -45,7 +45,7 @@ export function SettingsForm({ user }: { user: UserProfile }) {
         name: name.trim() || null,
         bio: bio.trim() || null,
       });
-      await reconcileOwnProfile(queryClient, principal, updated);
+      void reconcileOwnProfile(queryClient, principal, updated);
       toast.success("Profile updated.");
       // Return to the (possibly renamed) profile. Not router.back(): a direct visit to Settings
       // has no reliable profile entry in history. Leave `saving` set through the navigation so the
@@ -82,7 +82,7 @@ export function SettingsForm({ user }: { user: UserProfile }) {
       });
       if (!put.ok) throw new Error("Upload failed. Please try again.");
       const updated = await patchMe(assertComposedPrincipal(composedAs), { image: presign.publicUrl });
-      await reconcileOwnProfile(queryClient, principal, updated);
+      void reconcileOwnProfile(queryClient, principal, updated);
       setImage(updated.image ?? presign.publicUrl);
       toast.success("Avatar updated.");
       router.refresh();

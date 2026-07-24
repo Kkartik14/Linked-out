@@ -10,7 +10,6 @@ describe("reconcileFollowGraph", () => {
     const principal = "viewer-id";
     const viewerUsername = "viewer";
     const targetUsername = "target";
-    const currentDirectoryKey = queryKeys.users.followers(principal, viewerUsername);
     const affected: QueryKey[] = [
       queryKeys.profiles.detail(principal, viewerUsername),
       queryKeys.profiles.detail(principal, targetUsername),
@@ -18,7 +17,6 @@ describe("reconcileFollowGraph", () => {
       queryKeys.users.followers(principal, targetUsername),
       queryKeys.users.followers(principal, "mutual-friend"),
       queryKeys.users.following(principal, "another-builder"),
-      currentDirectoryKey,
       queryKeys.feed.infinite(principal, "global", "latest"),
       queryKeys.feed.infinite(principal, "following", "popular"),
       queryKeys.users.ls(principal, targetUsername, "ALL"),
@@ -42,7 +40,6 @@ describe("reconcileFollowGraph", () => {
       principal,
       viewerUsername,
       targetUsername,
-      currentDirectoryKey,
     });
 
     for (const key of affected) {

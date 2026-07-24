@@ -1,7 +1,7 @@
 import { screen, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { beforeEach, describe, expect, it, vi } from "vitest";
-import { QueryClient } from "@tanstack/react-query";
+import { QueryClient, useQuery } from "@tanstack/react-query";
 
 import { SettingsForm } from "@/components/settings/settings-form";
 import { patchMe } from "@/lib/api";
@@ -100,6 +100,40 @@ describe("SettingsForm", () => {
 
     await waitFor(() => expect(push).toHaveBeenCalledWith("/u/kartik-new"));
     expect(screen.getByRole("button", { name: "Saving…" })).toBeDisabled();
+  });
+
+  it("returns to the profile without waiting for unrelated active cache refetches", async () => {
+    const user = userEvent.setup();
+    const push = vi.fn();
+    let finishRefetch!: () => void;
+    const refetch = vi.fn(
+      () => new Promise<{ count: number }>((resolve) => {
+        finishRefetch = () => resolve({ count: 0 });
+      }),
+    );
+
+    function ActiveUnrelatedQuery() {
+      useQuery({
+        queryKey: queryKeys.notifications.unreadCount(mockUser.id),
+        queryFn: refetch,
+        initialData: { count: 1 },
+      });
+      return null;
+    }
+
+    renderWithProviders(
+      <>
+        <ActiveUnrelatedQuery />
+        <SettingsForm user={mockUser} />
+      </>,
+      { session, router: { push } },
+    );
+
+    await user.click(screen.getByRole("button", { name: "Save changes" }));
+
+    await waitFor(() => expect(refetch).toHaveBeenCalledTimes(1));
+    expect(push).toHaveBeenCalledWith(`/u/${mockUser.username}`);
+    finishRefetch();
   });
 
   it("stays on Settings and re-enables saving when the save fails", async () => {

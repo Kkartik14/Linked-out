@@ -2,7 +2,7 @@
 
 import { useState } from "react";
 import { usePathname, useRouter } from "next/navigation";
-import { useMutation, useQueryClient, type QueryKey } from "@tanstack/react-query";
+import { useMutation, useQueryClient } from "@tanstack/react-query";
 import { toast } from "sonner";
 import type { UserProfile } from "@linkedout/contracts";
 
@@ -29,11 +29,9 @@ import { Button } from "@/components/ui/button";
 export function DirectoryFollowButton({
   username,
   initialFollowing,
-  directoryQueryKey,
 }: {
   username: string;
   initialFollowing: boolean;
-  directoryQueryKey: QueryKey;
 }) {
   const viewer = useViewer();
   const principal = usePrincipal();
@@ -95,7 +93,6 @@ export function DirectoryFollowButton({
         principal,
         viewerUsername: viewer.username,
         targetUsername: username,
-        currentDirectoryKey: directoryQueryKey,
       });
     },
   });

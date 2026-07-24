@@ -220,6 +220,24 @@ test.describe("feed & L detail", () => {
     await expect(page.getByText(followersOnlyTitle)).toBeVisible();
   });
 
+  test("following from the sidebar refreshes an already-open Following feed", async ({
+    page,
+    context,
+  }) => {
+    await signIn(context, world.nadia);
+    await page.goto("/?scope=following");
+
+    await expect(page.getByText("Follow some builders and their Ls will show up here.")).toBeVisible();
+    await page
+      .getByRole("region", { name: "People to follow" })
+      .getByRole("button", { name: "Follow Kartik Gupta" })
+      .click();
+
+    await expect(
+      page.getByRole("region", { name: "The Feed" }).getByText(world.google.title),
+    ).toBeVisible();
+  });
+
   test("Top Ls ranks only the Ls that were actually interacted with this week", async ({ page }) => {
     await page.goto("/");
 

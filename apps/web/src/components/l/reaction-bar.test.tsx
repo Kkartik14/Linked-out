@@ -2,10 +2,12 @@ import type { ComponentProps } from "react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { act, fireEvent, screen, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
+import { useQuery } from "@tanstack/react-query";
 import type { ReactionsSummary } from "@linkedout/contracts";
 
 import { mockUser, renderWithProviders } from "@/test/utils";
 import type { Session } from "@/components/session-provider";
+import { queryKeys } from "@/lib/query-keys";
 
 vi.mock("@/lib/api", async (importOriginal) => {
   const actual = await importOriginal<typeof import("@/lib/api")>();
@@ -305,7 +307,34 @@ describe("ReactionBar", () => {
   it("does not let a retained list's stale card revert a completed reaction on remount", async () => {
     const user = userEvent.setup();
     const stale = reactionSummary({ total: 3, beenThere: 3, helpful: 2, saved: 1 });
-    const first = renderReactionBar({ reactions: stale });
+
+    function RetainedFeedCard() {
+      const feed = useQuery({
+        queryKey: queryKeys.feed.infinite(mockUser.id, "global", "latest"),
+        queryFn: async () => ({ pages: [], pageParams: [] }),
+        initialData: {
+          pages: [
+            {
+              data: [{ id: "l1", reactions: stale, viewer: { reactions: [] } }],
+              nextCursor: null,
+            },
+          ],
+          pageParams: [undefined],
+        },
+        enabled: false,
+        staleTime: Infinity,
+      });
+      const item = feed.data.pages[0]!.data[0]!;
+      return (
+        <ReactionBar
+          {...DEFAULT_PROPS}
+          reactions={item.reactions}
+          viewerReactions={item.viewer.reactions}
+        />
+      );
+    }
+
+    const first = renderWithProviders(<RetainedFeedCard />, { session: loggedIn });
 
     await user.click(screen.getByRole("button", { name: /been there/i }));
     await waitFor(() => {
@@ -318,7 +347,7 @@ describe("ReactionBar", () => {
 
     const queryClient = first.queryClient;
     first.unmount();
-    renderReactionBar({ reactions: stale }, { queryClient });
+    renderWithProviders(<RetainedFeedCard />, { session: loggedIn, queryClient });
     await act(async () => {
       await new Promise((resolve) => setTimeout(resolve, 0));
     });
@@ -327,6 +356,33 @@ describe("ReactionBar", () => {
     expect(screen.getByRole("button", { name: /been there/i })).toHaveAttribute(
       "aria-pressed",
       "true",
+    );
+  });
+
+  it("accepts a fresh server snapshot after an earlier reaction mutation", async () => {
+    const user = userEvent.setup();
+    const before = reactionSummary({ total: 2, helpful: 2 });
+    vi.mocked(addReaction).mockResolvedValueOnce({
+      reactions: reactionSummary({ total: 3, beenThere: 1, helpful: 2 }),
+      viewer: { reactions: ["BEEN_THERE"] },
+    });
+    const first = renderReactionBar({ reactions: before });
+
+    await user.click(screen.getByRole("button", { name: "Add reaction" }));
+    await user.click(screen.getByRole("menuitemcheckbox", { name: /been there/i }));
+    await waitFor(() =>
+      expect(screen.getByRole("button", { name: /been there/i })).toHaveTextContent("1"),
+    );
+
+    const queryClient = first.queryClient;
+    first.unmount();
+    renderReactionBar(
+      { reactions: reactionSummary({ total: 10, beenThere: 1, helpful: 9 }) },
+      { queryClient },
+    );
+
+    await waitFor(() =>
+      expect(screen.getByRole("button", { name: /helpful/i })).toHaveTextContent("9"),
     );
   });
 
