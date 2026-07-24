@@ -1,6 +1,7 @@
 "use client";
 
 import { useRouter } from "next/navigation";
+import { useQueryClient } from "@tanstack/react-query";
 import { useForm, useWatch } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { toast } from "sonner";
@@ -25,7 +26,13 @@ import {
 } from "@/components/ui/form";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
-import { assertComposedPrincipal, useComposedPrincipal } from "@/components/session-provider";
+import {
+  assertComposedPrincipal,
+  useComposedPrincipal,
+  usePrincipal,
+  useViewer,
+} from "@/components/session-provider";
+import { reconcileLWrite } from "@/lib/l-cache";
 import { Button } from "@/components/ui/button";
 import { Switch } from "@/components/ui/switch";
 import {
@@ -78,7 +85,10 @@ const WIRE_DEFAULTS = createLInputSchema.parse({ title: "_", story: "_" });
 export function LComposer({ initial }: { initial?: LDetail }) {
   const meta = useMeta();
   const router = useRouter();
+  const viewer = useViewer();
+  const principal = usePrincipal();
   const composedAs = useComposedPrincipal();
+  const queryClient = useQueryClient();
 
   const form = useForm<FormValues>({
     resolver: zodResolver(formSchema),
@@ -102,6 +112,14 @@ export function LComposer({ initial }: { initial?: LDetail }) {
   async function onSubmit(values: FormValues) {
     try {
       const saved = initial ? await patchL(assertComposedPrincipal(composedAs), initial.id, values) : await createL(assertComposedPrincipal(composedAs), values);
+      if (viewer) {
+        await reconcileLWrite({
+          queryClient,
+          principal,
+          authorUsername: viewer.username,
+          lId: saved.id,
+        });
+      }
       toast.success(initial ? "Changes saved." : "Your L is live.");
       router.push(`/ls/${saved.id}`);
       router.refresh();

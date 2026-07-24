@@ -31,7 +31,8 @@ test.describe("write actions against the real API", () => {
   });
 
   test("creating an L persists it and lands on its detail page", async ({ page }) => {
-    await page.goto("/new");
+    await page.goto("/");
+    await page.getByRole("link", { name: "Share an L" }).click();
 
     const title = "A useful rejection from a systems interview";
     await page.getByLabel("Title").fill(title);
@@ -52,6 +53,14 @@ test.describe("write actions against the real API", () => {
     // Creating an L moves the author's reputation (contract §4.3).
     const author = await db().user.findUnique({ where: { id: world.kartik.id } });
     expect(author.lsShared).toBe(1);
+
+    await page.getByRole("link", { name: "Back to the feed" }).click();
+    await expect(page.getByRole("link", { name: title })).toBeVisible();
+    const viewerProfile = page.getByRole("region", { name: "Your profile" });
+    await expect(viewerProfile.locator("dl > div").first().getByText("1", { exact: true })).toBeVisible();
+
+    await viewerProfile.getByRole("link", { name: "View profile" }).click();
+    await expect(page.getByRole("link", { name: title })).toBeVisible();
   });
 
   test("an anonymous L never renders its author, even to the author", async ({ page }) => {
@@ -111,7 +120,10 @@ test.describe("write actions against the real API", () => {
   });
 
   test("the author can edit their own L, and the change persists", async ({ page }) => {
-    await page.goto(`/ls/${world.google.id}/edit`);
+    await page.goto("/");
+    const feed = page.getByRole("region", { name: "The Feed" });
+    await feed.getByRole("link", { name: world.google.title }).click();
+    await page.getByRole("link", { name: "Edit" }).click();
 
     await page.getByLabel("Title").fill("Rejected, and glad of it");
     await page.getByRole("button", { name: "Save changes" }).click();
@@ -121,6 +133,36 @@ test.describe("write actions against the real API", () => {
 
     const row = await db().l.findUnique({ where: { id: world.google.id } });
     expect(row.title).toBe("Rejected, and glad of it");
+
+    await page.getByRole("link", { name: "Back to the feed" }).click();
+    await expect(feed.getByRole("link", { name: "Rejected, and glad of it" })).toBeVisible();
+    await expect(feed.getByRole("link", { name: world.google.title })).toHaveCount(0);
+  });
+
+  test("deleting an L removes it from a warmed feed without a refresh", async ({ page }) => {
+    await page.goto("/");
+    const feed = page.getByRole("region", { name: "The Feed" });
+    await feed.getByRole("link", { name: world.google.title }).click();
+
+    await page.getByRole("button", { name: "Delete" }).click();
+    await page.getByRole("dialog", { name: "Delete this L?" }).getByRole("button", { name: "Delete" }).click();
+
+    await expect(page).toHaveURL(/\/$/);
+    await expect(feed.getByRole("link", { name: world.google.title })).toHaveCount(0);
+  });
+
+  test("resolving a Battle updates its badge in a warmed feed", async ({ page }) => {
+    await db().l.update({ where: { id: world.google.id }, data: { type: "BATTLE" } });
+    await page.goto("/");
+    const feed = page.getByRole("region", { name: "The Feed" });
+    await feed.getByRole("link", { name: world.google.title }).click();
+
+    await page.getByRole("button", { name: "Mark resolved" }).click();
+    await expect(page.getByRole("button", { name: "Reopen" })).toBeVisible();
+    await page.getByRole("link", { name: "Back to the feed" }).click();
+
+    await expect(feed.getByText("Resolved", { exact: true })).toBeVisible();
+    await expect(feed.getByText("Ongoing", { exact: true })).toHaveCount(0);
   });
 
   test("unfollowing from a profile reconciles the viewer's directory and profile", async ({

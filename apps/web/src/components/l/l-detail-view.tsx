@@ -4,7 +4,7 @@ import * as React from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { CircleCheck, Pencil, RotateCcw, Trash2 } from "lucide-react";
-import { useMutation } from "@tanstack/react-query";
+import { useMutation, useQueryClient } from "@tanstack/react-query";
 import { toast } from "sonner";
 import type { LDetail } from "@linkedout/contracts";
 
@@ -14,14 +14,23 @@ import { UserAvatar } from "@/components/user-avatar";
 import { ReactionBar } from "@/components/l/reaction-bar";
 import { ConfirmDialog } from "@/components/confirm-dialog";
 import { Badge } from "@/components/ui/badge";
-import { assertComposedPrincipal, useComposedPrincipal } from "@/components/session-provider";
+import {
+  assertComposedPrincipal,
+  useComposedPrincipal,
+  usePrincipal,
+  useViewer,
+} from "@/components/session-provider";
 import { Button } from "@/components/ui/button";
 import { timeAgo } from "@/lib/format";
+import { reconcileLWrite } from "@/lib/l-cache";
 
 export function LDetailView({ l }: { l: LDetail }) {
   const meta = useMeta();
   const router = useRouter();
+  const viewer = useViewer();
+  const principal = usePrincipal();
   const composedAs = useComposedPrincipal();
+  const queryClient = useQueryClient();
 
   const [resolvedAt, setResolvedAt] = React.useState(l.resolvedAt);
   const [confirmDelete, setConfirmDelete] = React.useState(false);
@@ -31,7 +40,16 @@ export function LDetailView({ l }: { l: LDetail }) {
 
   const del = useMutation({
     mutationFn: () => deleteL(assertComposedPrincipal(composedAs), l.id),
-    onSuccess: () => {
+    onSuccess: async () => {
+      if (viewer) {
+        await reconcileLWrite({
+          queryClient,
+          principal,
+          authorUsername: viewer.username,
+          lId: l.id,
+          deleted: true,
+        });
+      }
       toast.success("Your L was deleted.");
       router.push("/");
       router.refresh();
@@ -41,8 +59,16 @@ export function LDetailView({ l }: { l: LDetail }) {
 
   const resolve = useMutation({
     mutationFn: (on: boolean) => patchL(assertComposedPrincipal(composedAs), l.id, { resolvedAt: on ? new Date() : null }),
-    onSuccess: (updated) => {
+    onSuccess: async (updated) => {
       setResolvedAt(updated.resolvedAt);
+      if (viewer) {
+        await reconcileLWrite({
+          queryClient,
+          principal,
+          authorUsername: viewer.username,
+          lId: updated.id,
+        });
+      }
       toast.success(updated.resolvedAt ? "Marked as resolved." : "Reopened.");
     },
     onError: (err) => toast.error(errorMessage(err)),

@@ -49,6 +49,7 @@ interface TestModel {
   findFirst(args?: unknown): Promise<Row>;
   findUnique(args?: unknown): Promise<Row>;
   create(args: unknown): Promise<Row>;
+  update(args: unknown): Promise<Row>;
 }
 
 type TestDb = Record<
