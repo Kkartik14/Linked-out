@@ -19,6 +19,7 @@ import {
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
 import { cn } from "@/lib/utils";
+import { reconcileReactionResult } from "@/lib/l-cache";
 
 const COUNT_KEY: Record<ReactionType, keyof ReactionsSummary> = {
   BEEN_THERE: "beenThere",
@@ -123,10 +124,13 @@ export function ReactionBar({
       toast.error(errorMessage(err, "Could not save your reaction."));
     },
     onSuccess: (result, { type }) => {
-      queryClient.setQueryData(reactionKey, result);
-      if (type === "SAVED") {
-        void queryClient.invalidateQueries({ queryKey: queryKeys.saved.all(principal) });
-      }
+      void reconcileReactionResult({
+        queryClient,
+        principal,
+        lId,
+        result,
+        savedChanged: type === "SAVED",
+      });
     },
   });
 
@@ -138,11 +142,10 @@ export function ReactionBar({
     reconciledServerSnapshot.current = serverSnapshot;
     if (queryClient.isMutating({ mutationKey }) > 0) return;
     if (isInitialSnapshot) {
-      const observers =
-        queryClient
-          .getQueryCache()
-          .find({ queryKey: reactionKey, exact: true })
-          ?.getObserversCount() ?? 0;
+      const canonical = queryClient
+        .getQueryCache()
+        .find({ queryKey: reactionKey, exact: true });
+      const observers = canonical?.getObserversCount() ?? 0;
       // `initialData` seeds an empty key. If another view already observes this key, its
       // canonical cache may contain a navigation or mutation successor; a late sibling's
       // older props have no revision with which to prove otherwise and must not replace it.

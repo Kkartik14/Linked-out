@@ -2,21 +2,21 @@
 
 import Link from "next/link";
 import { CheckCheck } from "lucide-react";
-import { useInfiniteQuery, useMutation, useQueryClient } from "@tanstack/react-query";
+import { useInfiniteQuery } from "@tanstack/react-query";
 
-import { getNotifications, markAllNotificationsRead, markNotificationRead } from "@/lib/api";
+import { getNotifications } from "@/lib/api";
 import { EmptyState } from "@/components/empty-state";
 import { Button } from "@/components/ui/button";
 import { Skeleton } from "@/components/ui/skeleton";
 import { timeAgo } from "@/lib/format";
 import { cn } from "@/lib/utils";
 import { queryKeys } from "@/lib/query-keys";
-import { assertComposedPrincipal, useComposedPrincipal, usePrincipal } from "@/components/session-provider";
+import { usePrincipal } from "@/components/session-provider";
+import { useNotificationReadActions } from "@/components/notifications/use-notification-read-actions";
 
 export function NotificationsList() {
-  const queryClient = useQueryClient();
   const principal = usePrincipal();
-  const composedAs = useComposedPrincipal();
+  const { markAll, markOne } = useNotificationReadActions();
 
   // Infinite page — a DISTINCT key from the header's finite preview query (FRONTEND-01).
   const query = useInfiniteQuery({
@@ -24,19 +24,6 @@ export function NotificationsList() {
     queryFn: ({ pageParam }) => getNotifications(pageParam),
     initialPageParam: undefined as string | undefined,
     getNextPageParam: (last) => last.nextCursor ?? undefined,
-  });
-
-  const invalidateAll = () =>
-    queryClient.invalidateQueries({ queryKey: queryKeys.notifications.all(principal) });
-
-  const markAll = useMutation({
-    mutationFn: () => markAllNotificationsRead(assertComposedPrincipal(composedAs)),
-    onSuccess: () => void invalidateAll(),
-  });
-
-  const markOne = useMutation({
-    mutationFn: (id: string) => markNotificationRead(assertComposedPrincipal(composedAs), id),
-    onSuccess: () => void invalidateAll(),
   });
 
   const items = query.data?.pages.flatMap((p) => p.data) ?? [];

@@ -1,9 +1,11 @@
 import { screen, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { beforeEach, describe, expect, it, vi } from "vitest";
+import { QueryClient, useQuery } from "@tanstack/react-query";
 
 import { SettingsForm } from "@/components/settings/settings-form";
 import { patchMe } from "@/lib/api";
+import { queryKeys } from "@/lib/query-keys";
 import { mockUser, renderWithProviders } from "@/test/utils";
 
 vi.mock("@/lib/api", async (importOriginal) => {
@@ -60,6 +62,30 @@ describe("SettingsForm", () => {
     expect(refresh).toHaveBeenCalled();
   });
 
+  it("publishes the saved profile and stales every other viewer cache before returning", async () => {
+    const user = userEvent.setup();
+    const queryClient = new QueryClient();
+    const updated = { ...mockUser, name: "Kartik G", bio: "Building carefully." };
+    const profileKey = queryKeys.profiles.detail(mockUser.id, mockUser.username);
+    const sidebarKey = queryKeys.feedSidebar.detail(mockUser.id);
+    const searchKey = queryKeys.search.preview.users(mockUser.id, "kartik");
+    queryClient.setQueryData(profileKey, mockUser);
+    queryClient.setQueryData(sidebarKey, { viewer: mockUser });
+    queryClient.setQueryData(searchKey, { data: [mockUser], nextCursor: null });
+    vi.mocked(patchMe).mockResolvedValue(updated);
+
+    renderWithProviders(<SettingsForm user={mockUser} />, { session, queryClient });
+
+    await user.clear(screen.getByRole("textbox", { name: "Name" }));
+    await user.type(screen.getByRole("textbox", { name: "Name" }), updated.name);
+    await user.type(screen.getByRole("textbox", { name: "Bio" }), updated.bio);
+    await user.click(screen.getByRole("button", { name: "Save changes" }));
+
+    await waitFor(() => expect(queryClient.getQueryData(profileKey)).toEqual(updated));
+    expect(queryClient.getQueryState(sidebarKey)?.isInvalidated).toBe(true);
+    expect(queryClient.getQueryState(searchKey)?.isInvalidated).toBe(true);
+  });
+
   it("keeps the button disabled through a successful navigation", async () => {
     const user = userEvent.setup();
     const push = vi.fn();
@@ -74,6 +100,40 @@ describe("SettingsForm", () => {
 
     await waitFor(() => expect(push).toHaveBeenCalledWith("/u/kartik-new"));
     expect(screen.getByRole("button", { name: "Saving…" })).toBeDisabled();
+  });
+
+  it("returns to the profile without waiting for unrelated active cache refetches", async () => {
+    const user = userEvent.setup();
+    const push = vi.fn();
+    let finishRefetch!: () => void;
+    const refetch = vi.fn(
+      () => new Promise<{ count: number }>((resolve) => {
+        finishRefetch = () => resolve({ count: 0 });
+      }),
+    );
+
+    function ActiveUnrelatedQuery() {
+      useQuery({
+        queryKey: queryKeys.notifications.unreadCount(mockUser.id),
+        queryFn: refetch,
+        initialData: { count: 1 },
+      });
+      return null;
+    }
+
+    renderWithProviders(
+      <>
+        <ActiveUnrelatedQuery />
+        <SettingsForm user={mockUser} />
+      </>,
+      { session, router: { push } },
+    );
+
+    await user.click(screen.getByRole("button", { name: "Save changes" }));
+
+    await waitFor(() => expect(refetch).toHaveBeenCalledTimes(1));
+    expect(push).toHaveBeenCalledWith(`/u/${mockUser.username}`);
+    finishRefetch();
   });
 
   it("stays on Settings and re-enables saving when the save fails", async () => {

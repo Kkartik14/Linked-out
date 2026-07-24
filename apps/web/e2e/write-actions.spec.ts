@@ -31,7 +31,8 @@ test.describe("write actions against the real API", () => {
   });
 
   test("creating an L persists it and lands on its detail page", async ({ page }) => {
-    await page.goto("/new");
+    await page.goto("/");
+    await page.getByRole("link", { name: "Share an L" }).click();
 
     const title = "A useful rejection from a systems interview";
     await page.getByLabel("Title").fill(title);
@@ -52,6 +53,14 @@ test.describe("write actions against the real API", () => {
     // Creating an L moves the author's reputation (contract §4.3).
     const author = await db().user.findUnique({ where: { id: world.kartik.id } });
     expect(author.lsShared).toBe(1);
+
+    await page.getByRole("link", { name: "Back to the feed" }).click();
+    await expect(page.getByRole("link", { name: title })).toBeVisible();
+    const viewerProfile = page.getByRole("region", { name: "Your profile" });
+    await expect(viewerProfile.locator("dl > div").first().getByText("1", { exact: true })).toBeVisible();
+
+    await viewerProfile.getByRole("link", { name: "View profile" }).click();
+    await expect(page.getByRole("link", { name: title })).toBeVisible();
   });
 
   test("an anonymous L never renders its author, even to the author", async ({ page }) => {
@@ -88,18 +97,61 @@ test.describe("write actions against the real API", () => {
       .toBe(0);
   });
 
+  test("an engagement change reranks a warmed Popular feed on return", async ({ page }) => {
+    await db().l.update({ where: { id: world.startup.id }, data: { popularityScore: 2 } });
+    await page.goto("/?sort=popular");
+    const feed = page.getByRole("region", { name: "The Feed" });
+    await expect
+      .poll(() => feed.getByRole("heading", { level: 2 }).allTextContents())
+      .toEqual([world.google.title, world.startup.title, world.nadiaPublic.title, world.anonymous.title]);
+
+    await feed.getByRole("link", { name: world.nadiaPublic.title }).click();
+    await expect(page).toHaveURL(new RegExp(`/ls/${world.nadiaPublic.id}$`));
+    const detail = page.getByRole("article");
+    await detail.getByRole("button", { name: "Add reaction" }).click();
+    await page.getByRole("menuitemcheckbox", { name: "Helpful" }).click();
+    await expect(page.getByRole("button", { name: /Helpful, 1/ })).toHaveAttribute(
+      "aria-pressed",
+      "true",
+    );
+
+    await page.goBack();
+    await expect(page).toHaveURL(/\?sort=popular$/);
+    await expect
+      .poll(() => feed.getByRole("heading", { level: 2 }).allTextContents())
+      .toEqual([world.google.title, world.nadiaPublic.title, world.startup.title, world.anonymous.title]);
+  });
+
   test("saving an L adds it to /saved", async ({ page }) => {
-    await page.goto(`/ls/${world.nadiaPublic.id}`);
+    await page.goto("/");
+    const feed = page.getByRole("region", { name: "The Feed" });
+    await feed.getByRole("link", { name: world.nadiaPublic.title }).click();
+    await expect(page).toHaveURL(new RegExp(`/ls/${world.nadiaPublic.id}$`));
+    const detail = page.getByRole("article");
 
-    await page.getByRole("button", { name: "Save", exact: true }).click();
-    await expect(page.getByRole("button", { name: "Remove from saved" })).toBeVisible();
+    await detail.getByRole("button", { name: "Save", exact: true }).click();
+    await expect(detail.getByRole("button", { name: "Remove from saved" })).toBeVisible();
 
-    await page.goto("/saved");
+    await page.getByRole("link", { name: "Back to the feed" }).click();
+    await expect(feed.getByRole("button", { name: "Remove from saved" })).toBeVisible();
+
+    await page
+      .getByRole("navigation", { name: "Explore" })
+      .getByRole("link", { name: "Saved" })
+      .click();
     await expect(page.getByText(world.nadiaPublic.title)).toBeVisible();
+
+    await page.getByRole("button", { name: "Remove from saved" }).click();
+    await expect(page.getByText("Nothing saved yet.", { exact: false })).toBeVisible();
   });
 
   test("commenting persists and updates the comment count", async ({ page }) => {
-    await page.goto(`/ls/${world.google.id}`);
+    await db().l.update({ where: { id: world.google.id }, data: { popularityScore: 1 } });
+    await db().l.update({ where: { id: world.startup.id }, data: { popularityScore: 2 } });
+    await page.goto("/?sort=popular");
+    const feed = page.getByRole("region", { name: "The Feed" });
+    await expect(feed.getByRole("heading", { level: 2 }).first()).toHaveText(world.startup.title);
+    await feed.getByRole("link", { name: world.google.title }).click();
 
     const body = "This is exactly the kind of feedback loop I need.";
     await page.getByLabel("Write a comment").fill(body);
@@ -108,10 +160,17 @@ test.describe("write actions against the real API", () => {
     await expect(page.getByText(body)).toBeVisible();
     await expect(page.getByRole("heading", { name: /2 comments/i })).toBeVisible();
     await expect.poll(() => db().comment.count({ where: { lId: world.google.id } })).toBe(2);
+
+    await page.goBack();
+    await expect(feed.getByRole("heading", { level: 2 }).first()).toHaveText(world.google.title);
+    await expect(feed.getByRole("link", { name: "2 comments" })).toBeVisible();
   });
 
   test("the author can edit their own L, and the change persists", async ({ page }) => {
-    await page.goto(`/ls/${world.google.id}/edit`);
+    await page.goto("/");
+    const feed = page.getByRole("region", { name: "The Feed" });
+    await feed.getByRole("link", { name: world.google.title }).click();
+    await page.getByRole("link", { name: "Edit" }).click();
 
     await page.getByLabel("Title").fill("Rejected, and glad of it");
     await page.getByRole("button", { name: "Save changes" }).click();
@@ -121,6 +180,40 @@ test.describe("write actions against the real API", () => {
 
     const row = await db().l.findUnique({ where: { id: world.google.id } });
     expect(row.title).toBe("Rejected, and glad of it");
+
+    await page.getByRole("link", { name: "Back to the feed" }).click();
+    await expect(feed.getByRole("link", { name: "Rejected, and glad of it" })).toBeVisible();
+    await expect(feed.getByRole("link", { name: world.google.title })).toHaveCount(0);
+  });
+
+  test("deleting an L removes it from a warmed feed without a refresh", async ({ page }) => {
+    await page.goto("/");
+    const feed = page.getByRole("region", { name: "The Feed" });
+    await feed.getByRole("link", { name: world.google.title }).click();
+
+    await page.getByRole("button", { name: "Delete" }).click();
+    await page.getByRole("dialog", { name: "Delete this L?" }).getByRole("button", { name: "Delete" }).click();
+
+    await expect(page).toHaveURL(/\/$/);
+    await expect(feed.getByRole("link", { name: world.google.title })).toHaveCount(0);
+    await expect.poll(() => db().l.count({ where: { id: world.google.id } })).toBe(0);
+  });
+
+  test("resolving a Battle updates its badge in a warmed feed", async ({ page }) => {
+    await db().l.update({ where: { id: world.google.id }, data: { type: "BATTLE" } });
+    await page.goto("/");
+    const feed = page.getByRole("region", { name: "The Feed" });
+    await feed.getByRole("link", { name: world.google.title }).click();
+
+    await page.getByRole("button", { name: "Mark resolved" }).click();
+    await expect(page.getByRole("button", { name: "Reopen" })).toBeVisible();
+    await page.getByRole("link", { name: "Back to the feed" }).click();
+
+    await expect(feed.getByText("Resolved", { exact: true })).toBeVisible();
+    await expect(feed.getByText("Ongoing", { exact: true })).toHaveCount(0);
+    await expect
+      .poll(async () => (await db().l.findUnique({ where: { id: world.google.id } }))?.resolvedAt)
+      .toBeTruthy();
   });
 
   test("unfollowing from a profile reconciles the viewer's directory and profile", async ({

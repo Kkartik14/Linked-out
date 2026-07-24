@@ -2,6 +2,7 @@
 
 import * as React from "react";
 import { useRouter } from "next/navigation";
+import { useQueryClient } from "@tanstack/react-query";
 import { toast } from "sonner";
 import {
   avatarContentTypeSchema,
@@ -10,7 +11,12 @@ import {
 
 import { errorMessage, patchMe, presignAvatar } from "@/lib/api";
 import { UserAvatar } from "@/components/user-avatar";
-import { assertComposedPrincipal, useComposedPrincipal } from "@/components/session-provider";
+import {
+  assertComposedPrincipal,
+  useComposedPrincipal,
+  usePrincipal,
+} from "@/components/session-provider";
+import { reconcileOwnProfile } from "@/lib/profile-cache";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -20,7 +26,9 @@ const MAX_BYTES = 5 * 1024 * 1024;
 
 export function SettingsForm({ user }: { user: UserProfile }) {
   const router = useRouter();
+  const principal = usePrincipal();
   const composedAs = useComposedPrincipal();
+  const queryClient = useQueryClient();
 
   const [name, setName] = React.useState(user.name ?? "");
   const [bio, setBio] = React.useState(user.bio ?? "");
@@ -37,6 +45,7 @@ export function SettingsForm({ user }: { user: UserProfile }) {
         name: name.trim() || null,
         bio: bio.trim() || null,
       });
+      void reconcileOwnProfile(queryClient, principal, updated);
       toast.success("Profile updated.");
       // Return to the (possibly renamed) profile. Not router.back(): a direct visit to Settings
       // has no reliable profile entry in history. Leave `saving` set through the navigation so the
@@ -73,6 +82,7 @@ export function SettingsForm({ user }: { user: UserProfile }) {
       });
       if (!put.ok) throw new Error("Upload failed. Please try again.");
       const updated = await patchMe(assertComposedPrincipal(composedAs), { image: presign.publicUrl });
+      void reconcileOwnProfile(queryClient, principal, updated);
       setImage(updated.image ?? presign.publicUrl);
       toast.success("Avatar updated.");
       router.refresh();

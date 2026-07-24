@@ -2,12 +2,12 @@
 
 import { useState } from "react";
 import { usePathname, useRouter } from "next/navigation";
-import { useMutation, useQueryClient, type QueryKey } from "@tanstack/react-query";
+import { useMutation, useQueryClient } from "@tanstack/react-query";
 import { toast } from "sonner";
 import type { UserProfile } from "@linkedout/contracts";
 
 import { errorMessage, follow, unfollow } from "@/lib/api";
-import { markFollowGraphQueriesStale } from "@/lib/follow-cache";
+import { reconcileFollowGraph } from "@/lib/follow-cache";
 import { queryKeys } from "@/lib/query-keys";
 import {
   assertComposedPrincipal,
@@ -29,11 +29,9 @@ import { Button } from "@/components/ui/button";
 export function DirectoryFollowButton({
   username,
   initialFollowing,
-  directoryQueryKey,
 }: {
   username: string;
   initialFollowing: boolean;
-  directoryQueryKey: QueryKey;
 }) {
   const viewer = useViewer();
   const principal = usePrincipal();
@@ -45,7 +43,6 @@ export function DirectoryFollowButton({
   const viewerProfileKey = viewer
     ? queryKeys.profiles.detail(principal, viewer.username)
     : null;
-  const sidebarKey = queryKeys.feedSidebar.detail(principal);
 
   const mutation = useMutation({
     mutationFn: (wasFollowing: boolean) =>
@@ -88,21 +85,15 @@ export function DirectoryFollowButton({
     },
     onSuccess: (result) => {
       setFollowing(result.isFollowing);
-      if (viewer) {
-        void markFollowGraphQueriesStale({
-          queryClient,
-          principal,
-          viewerUsername: viewer.username,
-          targetUsername: username,
-          currentDirectoryKey: directoryQueryKey,
-        });
-      }
     },
     onSettled: () => {
-      if (viewerProfileKey) {
-        void queryClient.invalidateQueries({ queryKey: viewerProfileKey, exact: true });
-      }
-      void queryClient.invalidateQueries({ queryKey: sidebarKey, exact: true });
+      if (!viewer) return;
+      void reconcileFollowGraph({
+        queryClient,
+        principal,
+        viewerUsername: viewer.username,
+        targetUsername: username,
+      });
     },
   });
 

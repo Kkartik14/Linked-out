@@ -7,6 +7,24 @@ This file covers `apps/web` only. Its executable API contract is
 
 ## [Unreleased]
 
+### Cache consistency
+
+- Follow and unfollow actions now reconcile profile counts, follower/following directories,
+  Following feeds, followers-only profile Ls, discovery rails, Saved, and search across retained
+  client-side routes while preserving the deliberate in-place **Follow back** recovery row.
+- Profile edits and L create/edit/delete/resolve actions now invalidate every retained projection
+  that can embed the changed user or L, so returning through client navigation does not show an
+  obsolete profile, card, count, or Battle status.
+- Reaction, comment, and Saved mutations now publish their authoritative response into retained L
+  cards and refresh backend-owned ranking/membership on revisit. Notification read actions share
+  one reconciliation policy across the header bell and full notification page.
+
+### Regression coverage
+
+- Frontend unit tests now use the production QueryClient freshness policy. Added warmed-route
+  browser journeys for follow visibility, profile edits, L lifecycle writes, engagement reranking,
+  Saved membership, and persistence through the real API/Postgres.
+
 ## [1.1.4] — 2026-07-23
 
 ### Profile cleanup

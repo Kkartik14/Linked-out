@@ -11,6 +11,7 @@ import { CommentForm } from "@/components/comments/comment-form";
 import { CommentItem } from "@/components/comments/comment-item";
 import { Button } from "@/components/ui/button";
 import { Skeleton } from "@/components/ui/skeleton";
+import { reconcileLEngagement } from "@/lib/l-cache";
 
 function CommentSkeleton() {
   return (
@@ -63,6 +64,7 @@ export function CommentsSection({ lId, commentCount }: { lId: string; commentCou
       if (!context.hadData) {
         void queryClient.invalidateQueries({ queryKey: commentsKey, exact: true });
       }
+      void reconcileLEngagement({ queryClient, principal });
     },
   });
 

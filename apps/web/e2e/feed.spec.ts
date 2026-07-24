@@ -1,6 +1,6 @@
 import { expect, test } from "@playwright/test";
 
-import { disconnect, seedWorld, signIn, type World } from "./helpers";
+import { db, disconnect, seedWorld, signIn, type World } from "./helpers";
 
 let world: World;
 
@@ -179,6 +179,70 @@ test.describe("feed & L detail", () => {
     await page.getByRole("link", { name: /Nadia Ray/ }).first().click();
     await expect(page).toHaveURL(/\/u\/nadia$/);
     await expect(page.getByRole("link", { name: "1 following" })).toBeVisible();
+  });
+
+  test("following reconciles a warmed Following feed and followers-only profile Ls", async ({
+    page,
+    context,
+  }) => {
+    await signIn(context, world.nadia);
+    const followersOnlyTitle = "The part I only share with followers";
+    await db().l.create({
+      data: {
+        authorId: world.kartik.id,
+        title: followersOnlyTitle,
+        story: "This should become visible as soon as the follow succeeds.",
+        type: "STORY",
+        visibility: "FOLLOWERS",
+      },
+    });
+    await page.goto("/");
+
+    const people = page.getByRole("region", { name: "People to follow" });
+    await people.getByRole("link", { name: "Kartik Gupta" }).click();
+    await expect(page.getByText(followersOnlyTitle)).toHaveCount(0);
+    // Use the product's client-side home link instead of browser history. The cache remains
+    // warm either way, while this gives the journey one deterministic destination even when
+    // Playwright's full suite has prior browser-history entries.
+    await page.getByRole("link", { name: "LinkedOut home" }).click();
+    await expect(page).toHaveURL(/\/$/);
+
+    await page.getByRole("tab", { name: "Following" }).click();
+    await expect(page.getByText("Follow some builders")).toBeVisible();
+    await page.getByRole("tab", { name: "Global" }).click();
+
+    const followed = page.waitForResponse(
+      (response) =>
+        response.request().method() === "PUT" &&
+        response.url().endsWith("/v1/users/kartik/follow") &&
+        response.ok(),
+    );
+    await people.getByRole("button", { name: "Follow Kartik Gupta" }).click();
+    await followed;
+    await page.getByRole("tab", { name: "Following" }).click();
+    await expect(page.getByText(followersOnlyTitle)).toBeVisible();
+
+    await page.getByRole("link", { name: "Kartik Gupta" }).first().click();
+    await expect(page).toHaveURL(/\/u\/kartik$/);
+    await expect(page.getByText(followersOnlyTitle)).toBeVisible();
+  });
+
+  test("following from the sidebar refreshes an already-open Following feed", async ({
+    page,
+    context,
+  }) => {
+    await signIn(context, world.nadia);
+    await page.goto("/?scope=following");
+
+    await expect(page.getByText("Follow some builders and their Ls will show up here.")).toBeVisible();
+    await page
+      .getByRole("region", { name: "People to follow" })
+      .getByRole("button", { name: "Follow Kartik Gupta" })
+      .click();
+
+    await expect(
+      page.getByRole("region", { name: "The Feed" }).getByText(world.google.title),
+    ).toBeVisible();
   });
 
   test("Top Ls ranks only the Ls that were actually interacted with this week", async ({ page }) => {

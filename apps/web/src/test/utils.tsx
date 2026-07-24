@@ -15,6 +15,7 @@ import { DEFAULT_META } from "@/lib/meta-fallback";
 import { MetaProvider } from "@/components/meta-provider";
 import { SessionProvider, type Session } from "@/components/session-provider";
 import { TooltipProvider } from "@/components/ui/tooltip";
+import { createQueryClient } from "@/lib/query-client";
 
 export const mockUser: UserProfile = {
   // A real ULID: `id` is `ulidSchema` on the wire, so a placeholder like "u_kartik" fails
@@ -43,6 +44,16 @@ const mockRouter: AppRouterInstance = {
   prefetch() {},
 };
 
+function createTestQueryClient(): QueryClient {
+  const queryClient = createQueryClient();
+  const defaults = queryClient.getDefaultOptions();
+  queryClient.setDefaultOptions({
+    ...defaults,
+    queries: { ...defaults.queries, retry: false },
+  });
+  return queryClient;
+}
+
 export function renderWithProviders(
   ui: React.ReactElement,
   opts?: {
@@ -63,7 +74,7 @@ export function renderWithProviders(
   } = opts ?? {};
   const queryClient =
     providedQueryClient ??
-    new QueryClient({ defaultOptions: { queries: { retry: false } } });
+    createTestQueryClient();
   const value: Session = session ?? { status: "guest" };
   const routerValue = { ...mockRouter, ...router };
 

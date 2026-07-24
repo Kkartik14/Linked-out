@@ -1,5 +1,5 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
-import { screen, waitFor } from "@testing-library/react";
+import { screen, waitFor, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import type { Notification } from "@linkedout/contracts";
 
@@ -15,18 +15,33 @@ const notification: Notification = {
   createdAt: "2026-07-01T00:00:00.000Z",
 };
 
+const notificationState = vi.hoisted(() => ({ readAt: null as string | null }));
+
 vi.mock("@/lib/api", async (importOriginal) => {
   const actual = await importOriginal<typeof import("@/lib/api")>();
   return {
     ...actual,
-    getNotifications: vi.fn(async () => ({ data: [notification], nextCursor: null })),
-    getUnreadCount: vi.fn(async () => ({ count: 1 })),
-    markNotificationRead: vi.fn(async () => ({ ok: true as const })),
-    markAllNotificationsRead: vi.fn(async () => ({ ok: true as const })),
+    getNotifications: vi.fn(async () => ({
+      data: [{ ...notification, readAt: notificationState.readAt }],
+      nextCursor: null,
+    })),
+    getUnreadCount: vi.fn(async () => ({ count: notificationState.readAt ? 0 : 1 })),
+    markNotificationRead: vi.fn(async () => {
+      notificationState.readAt = "2026-07-25T00:00:00.000Z";
+      return { ok: true as const };
+    }),
+    markAllNotificationsRead: vi.fn(async () => {
+      notificationState.readAt = "2026-07-25T00:00:00.000Z";
+      return { ok: true as const };
+    }),
   };
 });
 
-import { getNotifications } from "@/lib/api";
+import {
+  getNotifications,
+  markAllNotificationsRead,
+  markNotificationRead,
+} from "@/lib/api";
 import {
   NotificationsBell,
   notificationPollIntervalMs,
@@ -38,7 +53,10 @@ import { NotificationsList } from "@/components/notifications/notifications-list
 // both mount together; the collision could crash the infinite list's `.pages.flatMap`. With
 // distinct principal-scoped keys they coexist. This renders both under one QueryClient to prove it.
 describe("notifications bell + page share a QueryClient without colliding", () => {
-  beforeEach(() => vi.clearAllMocks());
+  beforeEach(() => {
+    notificationState.readAt = null;
+    vi.clearAllMocks();
+  });
 
   it("loads the preview lazily and keeps it distinct from the infinite page", async () => {
     const user = userEvent.setup();
@@ -67,5 +85,52 @@ describe("notifications bell + page share a QueryClient without colliding", () =
     expect(notificationPollIntervalMs(() => 0)).toBe(40_000);
     expect(notificationPollIntervalMs(() => 0.5)).toBe(45_000);
     expect(notificationPollIntervalMs(() => 0.999_999)).toBe(50_000);
+  });
+
+  it("reconciles mark-all-read across the page, bell preview, and unread count", async () => {
+    const user = userEvent.setup();
+    renderWithProviders(
+      <>
+        <section aria-label="Header notifications">
+          <NotificationsBell />
+        </section>
+        <section aria-label="Page notifications">
+          <NotificationsList />
+        </section>
+      </>,
+      { session: { status: "authenticated", user: mockUser, needsOnboarding: false } },
+    );
+
+    const header = within(screen.getByRole("region", { name: "Header notifications" }));
+    const page = within(screen.getByRole("region", { name: "Page notifications" }));
+
+    expect(await page.findByText(notification.message)).toBeInTheDocument();
+    await user.click(await header.findByRole("button", { name: "Notifications, 1 unread" }));
+    expect(await screen.findAllByText(notification.message)).toHaveLength(2);
+
+    await user.click(screen.getByRole("menuitem", { name: "Mark all read" }));
+
+    await waitFor(() => expect(markAllNotificationsRead).toHaveBeenCalledTimes(1));
+    await user.keyboard("{Escape}");
+    await waitFor(() => {
+      expect(page.queryByRole("button", { name: "Mark all read" })).not.toBeInTheDocument();
+      expect(header.getByRole("button", { name: "Notifications" })).toBeInTheDocument();
+    });
+  });
+
+  it("marks the opened notification read and reconciles the active page", async () => {
+    const user = userEvent.setup();
+    renderWithProviders(<NotificationsList />, {
+      session: { status: "authenticated", user: mockUser, needsOnboarding: false },
+    });
+
+    await user.click(
+      await screen.findByRole("link", { name: new RegExp(notification.message) }),
+    );
+
+    await waitFor(() => expect(markNotificationRead).toHaveBeenCalledWith(mockUser.id, "n_1"));
+    await waitFor(() =>
+      expect(screen.queryByRole("button", { name: "Mark all read" })).not.toBeInTheDocument(),
+    );
   });
 });
