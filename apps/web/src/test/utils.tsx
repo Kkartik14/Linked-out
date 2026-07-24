@@ -50,10 +50,20 @@ export function renderWithProviders(
     router?: Partial<AppRouterInstance>;
     pathname?: string;
     searchParams?: URLSearchParams;
+    queryClient?: QueryClient;
   } & Omit<RenderOptions, "wrapper">,
 ) {
-  const { session, router, pathname = "/", searchParams, ...rest } = opts ?? {};
-  const queryClient = new QueryClient({ defaultOptions: { queries: { retry: false } } });
+  const {
+    session,
+    router,
+    pathname = "/",
+    searchParams,
+    queryClient: providedQueryClient,
+    ...rest
+  } = opts ?? {};
+  const queryClient =
+    providedQueryClient ??
+    new QueryClient({ defaultOptions: { queries: { retry: false } } });
   const value: Session = session ?? { status: "guest" };
   const routerValue = { ...mockRouter, ...router };
 
