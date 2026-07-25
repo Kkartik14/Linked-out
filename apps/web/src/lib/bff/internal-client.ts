@@ -8,7 +8,7 @@ import { relatedApiOrigin } from "./related-api-origin";
 const VERCEL_PROTECTION_BYPASS_HEADER = "x-vercel-protection-bypass";
 
 /**
- * The shared BFF → private-Nest client (ADR 0001 §4.2).
+ * The shared BFF → private-Nest client.
  *
  * One module owns the purpose-scoped caller signer, the validated internal origin, and the
  * fail-closed POST that every session-lifecycle call uses (resolve, revoke, handoff exchange).
@@ -16,7 +16,7 @@ const VERCEL_PROTECTION_BYPASS_HEADER = "x-vercel-protection-bypass";
  * where the copies would drift.
  *
  * **Server only.** The `server-only` marker rejects Client Component imports at build time; the
- * runtime guard is defense in depth. `BFF_CALLER_SECRET` proves only "the BFF is calling" — it is
+ * runtime guard is defense in depth. `BFF_CALLER_SECRET` proves only "the BFF is calling" - it is
  * never the Nest API-assertion key and cannot mint a user identity.
  */
 
@@ -37,7 +37,7 @@ let config: InternalClientConfig | null = null;
 /**
  * Built once and memoised: the signer only holds the secret, and re-validating the origin on
  * every request buys nothing. Constructed lazily so importing this module never requires the
- * secret to be present — only calling it does.
+ * secret to be present - only calling it does.
  */
 function getConfig(): InternalClientConfig {
   if (config) return config;

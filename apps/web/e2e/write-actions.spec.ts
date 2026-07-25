@@ -50,7 +50,7 @@ test.describe("write actions against the real API", () => {
     expect(row.authorId).toBe(world.kartik.id);
     expect(row.visibility).toBe("PUBLIC");
 
-    // Creating an L moves the author's reputation (contract §4.3).
+    // Creating an L moves the author's reputation.
     const author = await db().user.findUnique({ where: { id: world.kartik.id } });
     expect(author.lsShared).toBe(1);
 

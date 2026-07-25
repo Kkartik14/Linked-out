@@ -24,8 +24,8 @@ export default async function HomePage({
 
   const [initial, sidebar] = await Promise.all([
     getFeed({ scope, sort, limit: 20 }),
-    // Ancillary: the rails fail independently of the feed (public contract §2). A rejection
-    // leaves the page whole, and the rails retry client-side from their own query.
+    // Ancillary by contract: the rails fail independently of the feed. A rejection leaves the
+    // page whole, and the rails retry client-side from their own query.
     getFeedSidebar().catch(() => undefined),
   ]).catch((err: unknown) => publicReadFailure(err, "/"));
 

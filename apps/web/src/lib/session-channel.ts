@@ -2,10 +2,9 @@
  * Cross-tab notification that the session snapshot may be stale.
  *
  * Cookies are shared by every tab on the origin, but each tab's view of *who it is* is a
- * snapshot — the `session` prop the root layout rendered. Signing in as B in one tab
+ * snapshot - the `session` prop the root layout rendered. Signing in as B in one tab
  * replaces the cookies for all of them, and the other tabs never find out: they keep
- * rendering A, keep A's private cache, and a stale submit executes under B's cookies
- * (ADR 0001 §1.6, AUTH-03/FRONTEND-24).
+ * rendering A, keep A's private cache, and a stale submit executes under B's cookies.
  *
  * The channel carries an **invalidation signal, not an identity**. Two reasons, and they are
  * the whole design:
@@ -17,14 +16,14 @@
  *     produced its original snapshot. One authority, not two.
  *  2. *It is untrusted input.* Any same-origin script can post here, so the payload is
  *     unauthenticated and unattributable. A message carrying an identity would have to be
- *     believed to be useful — making an untrusted channel authoritative over who the viewer
+ *     believed to be useful - making an untrusted channel authoritative over who the viewer
  *     is, a hole this would introduce rather than close. Carrying nothing to believe, a
  *     forged message degrades to a wasted refresh. (Confidentiality is the weaker argument
  *     and not the reason: a same-origin script able to read this channel already holds the
  *     cookies, so the id would leak nothing it does not have.)
  *
  * Per the WHATWG spec a `BroadcastChannel` never delivers to the object that posted, but it
- * *does* deliver to sibling objects in the same tab — `postMessage()` removes only `source`
+ * *does* deliver to sibling objects in the same tab - `postMessage()` removes only `source`
  * from its destination set, not the source's document. So publish and subscribe deliberately
  * share one module-level channel: that is what makes "other tabs, never me" true, rather
  * than a tab id filter bolted on afterwards. Verified against jsdom, which implements the
@@ -56,7 +55,7 @@ function getChannel(): BroadcastChannel | null {
 
 /**
  * Tell every *other* tab its session snapshot is stale. Call after any transition that
- * rewrites the shared cookies — sign-in, sign-out — not after an ordinary profile edit,
+ * rewrites the shared cookies - sign-in, sign-out - not after an ordinary profile edit,
  * which changes the viewer's data but not which principal the cookies name.
  */
 export function publishSessionChanged(): void {
@@ -89,10 +88,10 @@ let expiryScheduled = false;
 
 /**
  * An authenticated request was rejected (`401`) and the session is no longer live. Publish **one**
- * debounced session-expiry invalidation (the TODO's "one debounced session-expiry invalidation …
- * a burst of failed requests must not create a cross-tab refresh storm"). Other tabs re-derive via
- * the shared channel; this tab re-derives via a local event, since a `BroadcastChannel` does not
- * deliver to the document that posted. A no-op on the server.
+ * debounced session-expiry invalidation: a burst of failed requests must not turn into a cross-tab
+ * refresh storm, so the leading edge fires and the rest of the window is dropped. Other tabs
+ * re-derive via the shared channel; this tab re-derives via a local event, since a
+ * `BroadcastChannel` does not deliver to the document that posted. A no-op on the server.
  */
 export function publishSessionExpired(): void {
   if (typeof window === "undefined" || expiryScheduled) return;

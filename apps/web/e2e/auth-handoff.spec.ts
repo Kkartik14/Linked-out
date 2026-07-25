@@ -17,7 +17,7 @@ import {
 } from "./helpers";
 
 /**
- * Handoff-mode acceptance (ADR 0001 §6). The app runs with OAUTH_SESSION_MODE=handoff and a
+ * Handoff-mode acceptance. The app runs with OAUTH_SESSION_MODE=handoff and a
  * relative NEXT_PUBLIC base URL, so the browser holds only `lo_sid`, proxy.ts + the /v1 route
  * handler resolve it, and Server Components self-hop through /v1. These are the criteria that could
  * not run against the legacy access-cookie lifecycle.

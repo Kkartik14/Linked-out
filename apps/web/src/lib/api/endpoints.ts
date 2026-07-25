@@ -43,10 +43,10 @@ import { apiFetch, type ApiFetchInit } from "./client";
  * Request bodies are the schema's INPUT type, not `z.infer` (which is the *output*).
  *
  * `createLInputSchema` gives `type`, `visibility` and `isAnonymous` a `.default()`, so on
- * the output side all three are required — and typing a body with `z.infer` would oblige
- * this client to send values the backend is supposed to choose (public contract §1 documents
- * them as optional). A dumb client does not pick the privacy default; it omits the field
- * and lets the server apply `PUBLIC`.
+ * the output side all three are required - and typing a body with `z.infer` would oblige
+ * this client to send values the backend is supposed to choose (the API documents all three as
+ * optional). A dumb client does not pick the privacy default; it omits the field and lets the
+ * server apply `PUBLIC`.
  */
 type CreateLBody = z.input<typeof createLInputSchema>;
 type UpdateLBody = z.input<typeof updateLInputSchema>;
@@ -54,7 +54,7 @@ type UpdateLBody = z.input<typeof updateLInputSchema>;
 /**
  * Verify/login bodies are the schema INPUT type: `returnTo` carries a `.default('/')`, so on the
  * output side it is required, but a caller may legitimately omit it and let the server apply the
- * default — the same reasoning as {@link CreateLBody}.
+ * default - the same reasoning as {@link CreateLBody}.
  */
 type EmailVerifyBody = z.input<typeof emailOtpVerifyInputSchema>;
 type EmailLoginBody = z.input<typeof emailLoginInputSchema>;
@@ -81,7 +81,7 @@ function json(body: unknown): { body: string } {
  * Every authenticated mutation, and the only way to make one.
  *
  * The API refuses an authenticated unsafe method that does not declare the principal its
- * view was composed under (`409 PRINCIPAL_MISMATCH`) — a missing header is a mismatch, not
+ * view was composed under (`409 PRINCIPAL_MISMATCH`) - a missing header is a mismatch, not
  * an exemption. Routing all of them through here, with `principal` a required leading
  * argument of the branded type, is what makes forgetting it a compile error rather than a
  * write that fails in production. A new mutation cannot silently skip the declaration; it
@@ -110,8 +110,8 @@ export function oauthLoginUrl(provider: "google" | "github", returnTo = "/"): st
 
 // ── Email + password auth ──────────────────────────────────────────────────────
 /**
- * The email-auth surface (backend feature 1.1.3). These are **guest** POSTs — no session, no
- * `X-LinkedOut-Principal` — so they go through `apiFetch` directly rather than {@link mutate};
+ * The email-auth surface (backend feature 1.1.3). These are **guest** POSTs - no session, no
+ * `X-LinkedOut-Principal` - so they go through `apiFetch` directly rather than {@link mutate};
  * the API treats them as anonymous unsafe requests. Responses are deliberately generic
  * (enumeration-safe `202`s); `verify`/`login` alone return a one-time session handoff, which the
  * caller completes through the existing OAuth handoff exchange (see `@/lib/email-auth`).
@@ -160,7 +160,7 @@ export type FeedSort = ContractFeedSort;
  *
  * `scope` picks the route (`/feed` vs `/feed/following`), so it is genuinely a frontend
  * concern and has to live somewhere. It does not live in a hand-written twin of
- * `FeedQuery` — that name is already taken by the contract one import path away, and
+ * `FeedQuery` - that name is already taken by the contract one import path away, and
  * re-declaring `sort`/`cursor`/`limit` here is how the two silently drift. `Partial` because
  * this is the *request* side: the contract's type is the parsed output, where `sort` and
  * `limit` are already defaulted, and a dumb client omits them rather than choosing them.
@@ -177,10 +177,10 @@ export function getFeed(opts: FeedRequest = {}): Promise<Paginated<LCard>> {
 }
 
 /**
- * The feed page's discovery rails: viewer, people to follow, Top Ls, L of the day
- * (public contract §2). One optional-auth aggregate; the wire does not encode left/right.
+ * The feed page's discovery rails: viewer, people to follow, Top Ls, L of the day.
+ * One optional-auth aggregate; the wire does not encode left/right.
  *
- * Fails independently of the centre feed — callers hide the rails rather than the page.
+ * Fails independently of the centre feed - callers hide the rails rather than the page.
  * That is only true if it actually fails: a shorter budget than the default keeps a slow
  * backend from holding the feed page open for something the page is allowed to drop.
  */

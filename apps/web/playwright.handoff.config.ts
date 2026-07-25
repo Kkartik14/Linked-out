@@ -1,13 +1,13 @@
 import { defineConfig, devices } from "@playwright/test";
 
 /**
- * Handoff-mode acceptance config (ADR 0001 §6). The legacy `playwright.config.ts` proves the app
+ * Handoff-mode acceptance config. The legacy `playwright.config.ts` proves the app
  * works when the browser talks to Nest directly with `lo_access`; this one proves the one-origin
  * BFF path: the browser holds only `lo_sid`, `proxy.ts` + the `/v1` route handler resolve it, and a
  * protected render survives with no 15-minute access boundary to fall off (AUTH-01).
  *
  * The web must be BUILT with a relative `NEXT_PUBLIC_API_BASE_URL=/v1` (so the browser calls its own
- * origin) — the `test:e2e:handoff` script does that build. The web SERVER then runs with
+ * origin) - the `test:e2e:handoff` script does that build. The web SERVER then runs with
  * `OAUTH_SESSION_MODE=handoff` so the proxy, route handlers, and RSC self-hop go live.
  */
 

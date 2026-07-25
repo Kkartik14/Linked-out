@@ -24,17 +24,18 @@ import { isPrivateApiPath } from "@/lib/bff/public-route-policy";
 import { resolveBffSession } from "@/lib/bff/session-resolver";
 
 /**
- * The one-origin BFF for ordinary `/v1/*` traffic (ADR 0001 §4.2).
+ * The one-origin BFF for ordinary `/v1/*` traffic.
  *
  * The browser calls `/v1/*` on this public origin; it never sees the private Nest origin or a Nest
  * credential. For each request this handler runs the CSRF check, resolves `lo_sid` against the
  * private session API, injects the short-lived `X-Internal-Auth` assertion Nest returns, and
  * forwards to Nest. An absent cookie is forwarded anonymously; a rejected credential is cleared at
- * the edge and answered `401` rather than downgraded to a guest (contract §0). OAuth start/callback
- * are `/v1/auth/*` paths that flow through here too and are relayed faithfully (`redirect: manual`).
+ * the edge and answered `401` rather than downgraded to a guest - the API contract requires that a
+ * presented-but-invalid credential never reads as a clean guest. OAuth start/callback are
+ * `/v1/auth/*` paths that flow through here too and are relayed faithfully (`redirect: manual`).
  *
- * Inert until the cutover: in legacy mode the browser talks to Nest directly, so this origin
- * exposes no `/v1` surface and the handler answers `404`.
+ * Legacy mode has no BFF: the browser talks to Nest directly, so this origin exposes no `/v1`
+ * surface and the handler answers `404`.
  */
 
 /** Cleared with the same host-only attributes the exchange set it with, so the browser drops it. */
@@ -122,7 +123,7 @@ async function handle(request: NextRequest): Promise<NextResponse> {
     return jsonError("CSRF_REJECTED", `Cross-site ${rejection} rejected.`, 403);
   }
 
-  // OAuth start/callback establish a NEW session — never resolve the OLD lo_sid for them, or a
+  // OAuth start/callback establish a NEW session - never resolve the OLD lo_sid for them, or a
   // stale cookie would 401 the request meant to sign the user back in. Forward anonymously; the
   // handler still relays the `lo_oauth_state` nonce (upstream) and Nest's 302 (downstream).
   if (isOAuthRelayPath(request.nextUrl.pathname)) {
@@ -139,7 +140,7 @@ async function handle(request: NextRequest): Promise<NextResponse> {
   try {
     resolved = await resolveBffSession(cookie);
   } catch {
-    // The introspection call failed — an outage, not a sign-out (AUTH-06). Keep the cookie.
+    // The introspection call failed - an outage, not a sign-out (AUTH-06). Keep the cookie.
     return jsonError("SESSION_UNAVAILABLE", "Could not verify your session right now.", 503);
   }
 
@@ -147,7 +148,7 @@ async function handle(request: NextRequest): Promise<NextResponse> {
     return forwardToNest(request, resolved.assertion);
   }
 
-  // Presented but invalid/expired/revoked: a rejected credential, never a guest (contract §0).
+  // Presented but invalid/expired/revoked: a rejected credential, never a guest.
   // Clear the broken cookie at the edge so the session heals without a per-page redirect.
   const response = jsonError("SESSION_REJECTED", "Your session is no longer valid.", 401);
   clearSidCookie(response);

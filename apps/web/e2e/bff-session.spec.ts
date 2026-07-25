@@ -18,10 +18,10 @@ import {
 } from "./helpers";
 
 /**
- * The one-origin BFF lifecycle fixture (ADR 0001 §4.2–4.3), proven end-to-end against the real
+ * The one-origin BFF lifecycle fixture, proven end-to-end against the real
  * API before any Next BFF handler exists. `createBrowserSession` writes a real `BrowserSession`
  * row and hands back the opaque `lo_sid`; this suite confirms that cookie is one the production
- * `POST /v1/auth/sessions/resolve` endpoint actually accepts — so the acceptance suite
+ * `POST /v1/auth/sessions/resolve` endpoint actually accepts - so the acceptance suite
  * (AUTH-01/02/05/03) can build on a session lifecycle that matches production, not a
  * hand-minted access cookie.
  */
@@ -38,7 +38,7 @@ test.afterAll(async () => {
 
 /**
  * Resolve a cookie through the real private endpoint, authenticated with a purpose-scoped
- * caller assertion — the exact protocol `src/lib/bff/session-resolver.ts` uses. The response is
+ * caller assertion - the exact protocol `src/lib/bff/session-resolver.ts` uses. The response is
  * parsed with the shared contract schema, so a wire drift fails loudly here rather than being
  * silently mis-read.
  */
@@ -94,7 +94,7 @@ test.describe("BFF session fixture (lo_sid lifecycle)", () => {
 
   test("a well-formed but unknown lo_sid resolves to unauthenticated", async () => {
     // 43 base64url chars: passes the opaque-cookie shape check and reaches the store lookup,
-    // which finds no row — the "presented but invalid" credential the contract rejects.
+    // which finds no row - the "presented but invalid" credential the contract rejects.
     const { body } = await resolve("A".repeat(43));
 
     expect(body.status).toBe("unauthenticated");
@@ -121,7 +121,7 @@ test.describe("BFF session fixture (lo_sid lifecycle)", () => {
     if (after.body.status === "unauthenticated") expect(after.body.reason).toBe("revoked");
   });
 
-  test("revoke is idempotent — repeats stay 200 even for an unknown cookie", async () => {
+  test("revoke is idempotent - repeats stay 200 even for an unknown cookie", async () => {
     const cookie = await createBrowserSession(world.kartik);
     expect(await revoke(cookie)).toBe(200);
     expect(await revoke(cookie)).toBe(200); // already revoked
@@ -140,7 +140,7 @@ test.describe("BFF session fixture (lo_sid lifecycle)", () => {
     expect((await resolve(exchanged.cookie)).body.status).toBe("authenticated");
   });
 
-  test("a handoff code is single-use — a second exchange is rejected", async () => {
+  test("a handoff code is single-use - a second exchange is rejected", async () => {
     const code = await createHandoff(world.kartik, "/");
     expect((await exchange(code)).status).toBe(200);
     expect((await exchange(code)).status).toBe(400); // consumed → INVALID_HANDOFF

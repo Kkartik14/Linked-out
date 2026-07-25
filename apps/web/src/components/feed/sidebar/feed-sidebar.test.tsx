@@ -36,8 +36,8 @@ const onboarding: Session = { status: "authenticated", user: mockUser, needsOnbo
  * These are absolute because the wire is absolute, and the suite pins `Date.now()` to
  * `GENERATED_AT` below rather than dating the fixture from the wall clock. Freshness is
  * derived from these two fields (see `feed-sidebar`), so a real `now` made the whole suite
- * time-dependent: run it more than `FRESH_MS` after 02:00Z — i.e. every day except during
- * one minute of it — and the initial data mounted stale, the rails refetched, and the
+ * time-dependent: run it more than `FRESH_MS` after 02:00Z - i.e. every day except during
+ * one minute of it - and the initial data mounted stale, the rails refetched, and the
  * member fixture was silently replaced by the guest one from `beforeEach`.
  */
 const GENERATED_AT = "2026-07-17T02:00:00.000Z";
@@ -122,7 +122,7 @@ function sidebar(me: AuthMeResponse): FeedSidebarResponse {
           interactionLabel: "34 builders interacted",
         },
         {
-          // Anonymous Ls are eligible for Top Ls and stay unattributed (contract §2).
+          // Anonymous Ls are eligible for Top Ls and stay unattributed.
           l: card({
             id: "01ARZ3NDEKTSV4RRFFQ69G5FB1",
             title: "I burned out and told nobody for seven months",
@@ -190,7 +190,7 @@ describe("rail freshness is derived from the response, not from a constant", () 
   /**
    * `staleTime` is `refreshAfter - generatedAt`, and the cache entry is dated from
    * `generatedAt` rather than from render time (see `feed-sidebar`). Every other test here
-   * runs with the clock pinned at `generatedAt`, where nothing is ever stale — so both
+   * runs with the clock pinned at `generatedAt`, where nothing is ever stale - so both
    * derivations were invisible, and replacing either with a constant changed no result.
    * These stand the clock on each side of the boundary, for two different windows: a
    * hardcoded `0`, `Infinity`, or `60_000` fails at least one of them.
@@ -225,7 +225,7 @@ describe("rail freshness is derived from the response, not from a constant", () 
   it("dates the cache entry from generatedAt, not from the moment it rendered", () => {
     const initial = memberSidebar();
     // Half a window late: still fresh, so nothing refetches and the entry keeps the
-    // timestamp it was seeded with — which must be the server's, not this moment's. Dating
+    // timestamp it was seeded with - which must be the server's, not this moment's. Dating
     // it `Date.now()` would restart the window at every mount and hold the response past
     // its own staleness boundary.
     vi.setSystemTime(Date.parse(initial.generatedAt) + FRESH_MS / 2);
@@ -240,7 +240,7 @@ describe("rail freshness is derived from the response, not from a constant", () 
   });
 });
 
-describe("FeedSidebarRight — Top Ls", () => {
+describe("FeedSidebarRight - Top Ls", () => {
   it("renders the backend's order verbatim and never re-ranks it", () => {
     const sidebar = guestSidebar();
     renderWithProviders(<FeedSidebarRight initial={sidebar} />, { session: signedOut });
@@ -249,7 +249,7 @@ describe("FeedSidebarRight — Top Ls", () => {
       .getAllByRole("listitem")
       .map((li) => li.textContent ?? "");
 
-    // `items` order is authoritative (public contract §2).
+    // `items` order is authoritative.
     sidebar.topLs.items.forEach((item, index) => {
       expect(rendered[index]).toContain(item.l.title);
     });
@@ -320,7 +320,7 @@ describe("FeedSidebarRight — Top Ls", () => {
   });
 });
 
-describe("FeedSidebarRight — L of the day", () => {
+describe("FeedSidebarRight - L of the day", () => {
   it("renders the attributed daily L with its author and verbatim label", () => {
     const sidebar = guestSidebar();
     const daily = sidebar.lOfTheDay!;
@@ -343,7 +343,7 @@ describe("FeedSidebarRight — L of the day", () => {
   });
 });
 
-describe("FeedSidebarLeft — viewer card", () => {
+describe("FeedSidebarLeft - viewer card", () => {
   it("invites a signed-out visitor to log in", () => {
     renderWithProviders(<FeedSidebarLeft initial={guestSidebar()} />, { session: signedOut });
 
@@ -442,7 +442,7 @@ describe("FeedSidebarLeft — viewer card", () => {
    * One card per viewer state, and only that card.
    *
    * `READY` used to be an implicit fallback after two `if`s, so *anything* that was not
-   * signed-out or onboarding rendered the signed-in profile card — a card for a viewer the
+   * signed-out or onboarding rendered the signed-in profile card - a card for a viewer the
    * union may say has no profile. The `never` in `viewer-card` now makes a fourth state a
    * compile error; this pins the three that exist at runtime, each excluding the others.
    */
@@ -487,7 +487,7 @@ describe("FeedSidebarLeft — viewer card", () => {
   });
 });
 
-describe("FeedSidebarLeft — static navigation", () => {
+describe("FeedSidebarLeft - static navigation", () => {
   it("places Search and Saved between the viewer card and People to Follow", () => {
     renderWithProviders(<FeedSidebarLeft initial={guestSidebar()} />, { session: signedOut });
 
@@ -526,7 +526,7 @@ describe("FeedSidebarLeft — static navigation", () => {
   });
 });
 
-describe("FeedSidebarLeft — people to follow", () => {
+describe("FeedSidebarLeft - people to follow", () => {
   it("renders each suggestion's reason text verbatim, on its own row", () => {
     const sidebar = memberSidebar();
     renderWithProviders(<FeedSidebarLeft initial={sidebar} />, { session: loggedIn });
@@ -568,8 +568,8 @@ describe("FeedSidebarLeft — people to follow", () => {
 
   it("sends an onboarding viewer to onboarding, not to log in, to acquire the permission", async () => {
     const data = sidebar({ user: mockUser, needsOnboarding: true });
-    // The two facts this test exists for: `personalized` — and with it `canFollow` — is
-    // true only for READY (contract §2), so an authenticated viewer who has not onboarded
+    // The two facts this test exists for: `personalized` - and with it `canFollow` - is
+    // true only for READY, so an authenticated viewer who has not onboarded
     // arrives carrying the same false flag a guest does. The flag cannot tell them apart;
     // only `viewer.state` can. /login is a dead end for someone already signed in.
     expect(data.viewer.state).toBe("ONBOARDING_REQUIRED");
@@ -675,7 +675,7 @@ describe("FeedSidebarLeft — people to follow", () => {
     // The failed follow comes back...
     await waitFor(() => expect(screen.getByText(failing.user.name!)).toBeInTheDocument());
     // ...and the one that succeeded stays gone. Restoring the list as this row snapshotted
-    // it — before the other follow had removed anyone — would put back a builder the
+    // it - before the other follow had removed anyone - would put back a builder the
     // viewer now genuinely follows, and offer to follow them again.
     expect(screen.queryByText(succeeding.user.name!)).not.toBeInTheDocument();
   });
@@ -691,8 +691,8 @@ describe("FeedSidebarLeft — people to follow", () => {
 
 describe("rails are hidden on narrow viewports", () => {
   // Regression guard. `cn` is tailwind-merge, so composing "hidden lg:flex" with a RAIL
-  // string that itself carried `flex` silently deleted the `hidden` — same conflict slot,
-  // later wins — and the rails rendered on mobile, under an infinite feed, where the
+  // string that itself carried `flex` silently deleted the `hidden` - same conflict slot,
+  // later wins - and the rails rendered on mobile, under an infinite feed, where the
   // layout never intended them. jsdom applies no CSS, so a visibility assertion cannot
   // see this; the merged class list is the only observable that can.
   it("keeps `hidden` on the left rail after class merging", () => {
@@ -715,7 +715,7 @@ describe("rails are hidden on narrow viewports", () => {
 describe("sidebar failure is independent of the feed", () => {
   // Asserted per rail: they are separate exports with their own early return, so the right
   // rail's test said nothing about the left one, and the left one could have rendered an
-  // empty aside — or an endless skeleton — with the same suite green.
+  // empty aside - or an endless skeleton - with the same suite green.
   it("renders nothing at all when the right rail's aggregate is unavailable", async () => {
     vi.mocked(getFeedSidebar).mockRejectedValue(new Error("500"));
     const { container } = renderWithProviders(<FeedSidebarRight initial={undefined} />, {

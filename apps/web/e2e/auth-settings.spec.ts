@@ -38,7 +38,7 @@ test.describe("auth surface", () => {
     }
   });
 
-  test("the auth callback routes a not-yet-onboarded user to onboarding (contract §1.1)", async ({
+  test("the auth callback routes a not-yet-onboarded user to onboarding", async ({
     page,
     context,
   }) => {
@@ -106,10 +106,10 @@ test.describe("auth surface", () => {
     expect(row.username).toBeNull();
   });
 
-  // A rejected credential must never be downgraded to a guest response. The public API deliberately does
-  // not (contract §2 — "not silently treated as guest"), so every optional-auth read 401s
-  // on a stale cookie, including the public feed. The app cannot clear an httpOnly cookie
-  // from a Server Component (ADR 0001 §1.1), so the only recoverable answer is to offer
+  // A rejected credential must never be downgraded to a guest response. The public API
+  // deliberately does not - a presented credential is never silently treated as a guest - so
+  // every optional-auth read 401s on a stale cookie, including the public feed. The app cannot
+  // clear an httpOnly cookie from a Server Component, so the only recoverable answer is to offer
   // re-authentication rather than render an error page.
   test("a rejected credential is sent to log in, not silently served as a guest", async ({
     page,
@@ -133,7 +133,7 @@ test.describe("auth surface", () => {
     ).toBeVisible();
   });
 
-  // AUTH-01 (ADR 0001 §6) is now a real, passing test in `auth-handoff.spec.ts`: a live `lo_sid`
+  // AUTH-01 is now a real, passing test in `auth-handoff.spec.ts`: a live `lo_sid`
   // authenticates a protected render and a client API call through the one-origin BFF, with no
   // 15-minute access boundary to fall off. The old `test.fixme` here modeled the wrong (access
   // cookie + refresh) lifecycle and has been removed now that the handoff path exists.

@@ -6,13 +6,13 @@ import { isApiError } from "@/lib/api";
 /**
  * How a public page translates an API failure into navigation.
  *
- * The public API's optional-auth reads do not downgrade a presented-but-invalid credential to a guest
- * response — they reject it with `401` (public contract §2, "not silently treated as guest").
- * A stale or corrupt `lo_access` cookie therefore fails even a public read.
+ * The public API's optional-auth reads do not downgrade a presented-but-invalid credential to a
+ * guest response - they reject it with `401`, by contract. A stale or corrupt `lo_access` cookie
+ * therefore fails even a public read.
  *
- * The frontend cannot clear an httpOnly cookie from a Server Component — there is no
- * routing boundary to set a response header (ADR 0001 §1.1) — so it cannot heal the
- * session itself. Sending the viewer to `/login` is the one recoverable answer: it does
+ * The frontend cannot clear an httpOnly cookie from a Server Component - there is no routing
+ * boundary on which to set a response header - so it cannot heal the session itself. Sending the
+ * viewer to `/login` is the one recoverable answer: it does
  * not pretend the credential is valid, and it does not quietly re-fetch as a guest, which
  * would just move the contract's forbidden downgrade into the client.
  *
@@ -20,7 +20,7 @@ import { isApiError } from "@/lib/api";
  * edge instead of at every page.
  *
  * `returnTo` is validated rather than trusted. Every caller passes a literal path today, so
- * this is defense-in-depth, not a live hole — but it is the same rule `oauthLoginUrl` and
+ * this is defense-in-depth, not a live hole - but it is the same rule `oauthLoginUrl` and
  * the login/onboarding/auth-callback pages already apply, and a returnTo that reaches a
  * redirect is exactly where an open redirect would appear if a caller ever interpolated
  * user input. Unsafe values fall back to `/` rather than throwing: this runs on a failure
