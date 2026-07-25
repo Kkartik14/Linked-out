@@ -85,7 +85,7 @@ export function LDetailView({ l }: { l: LDetail }) {
           // Decorative: the name below links to the same profile. Naming this one instead
           // would leave two identical tab stops; hiding it also fixes an empty accessible
           // name, since the avatar's `alt` is "" and the initials fallback unmounts once
-          // the image loads — leaving the link with no content to name it at all.
+          // the image loads - leaving the link with no content to name it at all.
           <Link href={`/u/${l.author.username}`} tabIndex={-1} aria-hidden>
             <UserAvatar
               name={l.author.name}

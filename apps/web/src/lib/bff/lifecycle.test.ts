@@ -44,7 +44,7 @@ describe("revokeBffSession", () => {
     expect(init?.method).toBe("POST");
     expect(JSON.parse(String(init?.body))).toEqual({ cookie: "A".repeat(43) });
 
-    // The minted token must be accepted for revoke and rejected for any other purpose — a
+    // The minted token must be accepted for revoke and rejected for any other purpose - a
     // cross-purpose token would let a resolve caller silently tombstone a session.
     const header = new Headers(init?.headers).get(INTERNAL_AUTH_HEADER);
     const verifier = new BffCallerAssertionVerifier(SECRET);
@@ -80,7 +80,7 @@ describe("exchangeOAuthHandoff", () => {
   });
 
   it("throws when the response does not match the contract", async () => {
-    // A malformed cookie is schema drift, not a session — it must be loud, never a bad cookie set.
+    // A malformed cookie is schema drift, not a session - it must be loud, never a bad cookie set.
     vi.mocked(fetch).mockResolvedValueOnce(jsonResponse({ cookie: "too-short" }));
     await expect(exchangeOAuthHandoff("C".repeat(43))).rejects.toThrow();
   });

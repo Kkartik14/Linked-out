@@ -45,7 +45,7 @@ function TabsContent({ className, ...props }: React.ComponentProps<typeof TabsPr
   return (
     <TabsPrimitive.Content
       data-slot="tabs-content"
-      // Radix renders Content with `tabIndex={0}`, so it is a real tab stop — `outline-none`
+      // Radix renders Content with `tabIndex={0}`, so it is a real tab stop - `outline-none`
       // alone left it focusable with no visible focus indicator at all (WCAG 2.4.7). The
       // ring restores one for keyboard users without painting it on pointer focus.
       className={cn(

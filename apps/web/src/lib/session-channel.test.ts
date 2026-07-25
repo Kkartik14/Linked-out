@@ -7,7 +7,7 @@ const CHANNEL_NAME = "linkedout:session";
 /** Delivery is queued as a task, so a message is never observable in the same tick. */
 const settle = () => new Promise((resolve) => setTimeout(resolve, 0));
 
-/** A `BroadcastChannel` this module did not create — i.e. what another tab looks like. */
+/** A `BroadcastChannel` this module did not create - i.e. what another tab looks like. */
 function otherTab() {
   const channel = new BroadcastChannel(CHANNEL_NAME);
   const received: unknown[] = [];
@@ -39,7 +39,7 @@ describe("session channel", () => {
   it("does not deliver a tab's own publish back to itself", async () => {
     // The load-bearing property. Publish and subscribe share one channel object precisely so
     // the spec's "never echo to the poster" rule does the filtering; if they ever drift onto
-    // separate objects, a sign-out would refresh the tab that just signed out — and, worse,
+    // separate objects, a sign-out would refresh the tab that just signed out - and, worse,
     // every tab would react to its own event as though it came from elsewhere.
     const handler = vi.fn();
     unsubscribes.push(subscribeSessionChanged(handler));

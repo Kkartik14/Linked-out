@@ -5,11 +5,11 @@ export function createQueryClient(): QueryClient {
   return new QueryClient({
     defaultOptions: {
       queries: {
-        staleTime: 60_000, // 1 min — feeds/profiles don't need to refetch constantly
+        staleTime: 60_000, // 1 min - feeds/profiles don't need to refetch constantly
         gcTime: 5 * 60_000,
         refetchOnWindowFocus: false,
         retry: (failureCount, error) => {
-          // Don't retry auth/permission/not-found errors — only transient ones.
+          // Don't retry auth/permission/not-found errors - only transient ones.
           if (isApiError(error) && error.status < 500 && error.status !== 429) return false;
           return failureCount < 2;
         },

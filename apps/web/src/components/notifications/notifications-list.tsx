@@ -18,7 +18,7 @@ export function NotificationsList() {
   const principal = usePrincipal();
   const { markAll, markOne } = useNotificationReadActions();
 
-  // Infinite page — a DISTINCT key from the header's finite preview query (FRONTEND-01).
+  // Infinite page - a DISTINCT key from the header's finite preview query (FRONTEND-01).
   const query = useInfiniteQuery({
     queryKey: queryKeys.notifications.infinite(principal),
     queryFn: ({ pageParam }) => getNotifications(pageParam),

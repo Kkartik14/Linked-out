@@ -10,7 +10,7 @@ export interface OtpInputProps {
   /** The digits entered so far, always left-packed and contiguous (0–8 chars). */
   value: string;
   onChange: (next: string) => void;
-  /** Fired once the eighth digit lands — lets a form auto-submit without a Verify click. */
+  /** Fired once the eighth digit lands - lets a form auto-submit without a Verify click. */
   onComplete?: (value: string) => void;
   disabled?: boolean;
   invalid?: boolean;
@@ -26,8 +26,8 @@ export interface OtpInputProps {
  *
  * The parent owns a single contiguous string; this component only ever emits a hole-free value.
  * That invariant is what keeps the interactions honest: focus can never land past the fill
- * frontier (`onFocus` redirects there), so typing or pasting into box `i` — where `i` is at most
- * `value.length` — can never leave an earlier box empty. Backspace deletes and closes up rather
+ * frontier (`onFocus` redirects there), so typing or pasting into box `i` - where `i` is at most
+ * `value.length` - can never leave an earlier box empty. Backspace deletes and closes up rather
  * than punching a gap. Everything a keyboard user expects works: digit entry advances, Backspace
  * retreats, arrows move, and a pasted code is split across the boxes. The first box advertises
  * `autocomplete="one-time-code"` so the platform can offer to fill a delivered code.
@@ -49,7 +49,7 @@ export function OtpInput({
   );
 
   const containerRef = React.useRef<HTMLDivElement>(null);
-  // The first empty box, clamped — the natural home for the caret after any edit.
+  // The first empty box, clamped - the natural home for the caret after any edit.
   const frontier = Math.min(value.length, LENGTH - 1);
 
   const focusBox = React.useCallback((index: number) => {
@@ -69,8 +69,8 @@ export function OtpInput({
   );
 
   // Advance/retreat the caret to the frontier *after* the value commits, not inside the input
-  // handler. A focus move made mid-keystroke is fragile — the surrounding key sequence can land
-  // the following event on the old box — so this reacts to the frontier moving instead. Guarded on
+  // handler. A focus move made mid-keystroke is fragile - the surrounding key sequence can land
+  // the following event on the old box - so this reacts to the frontier moving instead. Guarded on
   // "focus is already inside the widget" so it never yanks focus from elsewhere on the page.
   React.useEffect(() => {
     const container = containerRef.current;
@@ -80,7 +80,7 @@ export function OtpInput({
   }, [frontier]);
 
   function handleChange(i: number, raw: string) {
-    // Keep only the newest digit — typing over a filled box replaces it in place.
+    // Keep only the newest digit - typing over a filled box replaces it in place.
     const digit = raw.replace(/\D/g, "").slice(-1);
     if (!digit) return;
     const next = i < value.length ? value.slice(0, i) + digit + value.slice(i + 1) : value + digit;
@@ -136,7 +136,7 @@ export function OtpInput({
           onKeyDown={(e) => handleKeyDown(i, e)}
           onPaste={(e) => handlePaste(i, e)}
           onFocus={(e) => {
-            // Never let focus sit past the frontier — that is how a hole would be born.
+            // Never let focus sit past the frontier - that is how a hole would be born.
             if (i > value.length) focusBox(value.length);
             else e.currentTarget.select();
           }}

@@ -27,8 +27,8 @@ type Step = "request" | "reset" | "done";
  * Forgot/reset password over the OTP challenge, in three steps on one screen.
  *
  * `request` is enumeration-safe: the API returns the same generic `202` for a known and an unknown
- * address, so this always advances to the code step. Reset does not sign the user in — the backend
- * revokes every session as part of the change — so the terminal step routes back to login rather
+ * address, so this always advances to the code step. Reset does not sign the user in - the backend
+ * revokes every session as part of the change - so the terminal step routes back to login rather
  * than establishing one, which is also the honest thing to show after a credential change.
  */
 export function ForgotPasswordForm({ returnTo }: { returnTo: string }) {

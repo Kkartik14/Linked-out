@@ -106,7 +106,7 @@ export function OnboardingForm({
       ) : null}
 
       {/* Gated on `busy` alone. Gating on validity too made `handleSubmit`'s own
-          `if (!valid)` branch unreachable — a disabled default button suppresses implicit
+          `if (!valid)` branch unreachable - a disabled default button suppresses implicit
           submission as well, so Enter could not reach it either. The result was a dead
           button and total silence about why, which fails everyone, not only AT users. */}
       <Button type="submit" disabled={busy}>

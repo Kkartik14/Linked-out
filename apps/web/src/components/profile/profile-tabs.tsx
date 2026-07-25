@@ -49,7 +49,7 @@ export function ProfileTabs({
 }) {
   const meta = useMeta();
   const [tab, setTab] = React.useState<ProfileTab>(ALL_TAB);
-  const emptyMsg = isSelf ? "Nothing here yet — share your first L." : "Nothing here yet.";
+  const emptyMsg = isSelf ? "Nothing here yet - share your first L." : "Nothing here yet.";
   // `/meta/enums` is the source of truth for the LType set and its order.
   const sectionTypes = meta.lType.map((o) => o.value);
   const tabs: ProfileTab[] = [ALL_TAB, ...sectionTypes];

@@ -17,7 +17,7 @@ function emptyMessage(scope: FeedScope): string {
 }
 
 /**
- * The centre column. Everything about paging — the observer, the retry, the skeletons — is
+ * The centre column. Everything about paging - the observer, the retry, the skeletons - is
  * `InfiniteList`; the feed only supplies what is actually feed-specific: its query, its two
  * empty messages, and its end note.
  */
@@ -50,7 +50,7 @@ export function FeedList({
       errorFallback="Couldn't load the feed."
       endNote={
         <p className="text-muted-foreground py-8 text-center text-xs">
-          You&apos;ve reached the end — that&apos;s every L, for now.
+          You&apos;ve reached the end - that&apos;s every L, for now.
         </p>
       }
     />

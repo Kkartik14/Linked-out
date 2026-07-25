@@ -95,7 +95,7 @@ describe("FollowDirectory", () => {
     });
 
     await screen.findByText("Kartik");
-    // Exactly one Follow control — for Ann, never for the self row.
+    // Exactly one Follow control - for Ann, never for the self row.
     expect(screen.getAllByRole("button", { name: "Follow" })).toHaveLength(1);
   });
 

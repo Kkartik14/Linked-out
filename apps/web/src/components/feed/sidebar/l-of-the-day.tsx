@@ -12,8 +12,8 @@ type Daily = NonNullable<FeedSidebarResponse["lOfTheDay"]>;
 /**
  * The one L the backend picked for today, from the previous completed UTC day.
  *
- * Its author is guaranteed present by the contract — `AttributedFeaturedL` types
- * `isAnonymous` as `false` and `author` as non-null — so there is no anonymous branch to
+ * Its author is guaranteed present by the contract - `AttributedFeaturedL` types
+ * `isAnonymous` as `false` and `author` as non-null - so there is no anonymous branch to
  * handle here, unlike Top Ls. Absent means no candidate qualified; the slot is never
  * filled with something else.
  */

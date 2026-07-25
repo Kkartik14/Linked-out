@@ -33,7 +33,7 @@ describe("OnboardingForm", () => {
 
   it("explains a username that is too short instead of dying quietly", async () => {
     // The regression: `disabled={busy || !valid}` made the submit handler's own error branch
-    // unreachable — and a disabled default button suppresses implicit submission too, so
+    // unreachable - and a disabled default button suppresses implicit submission too, so
     // Enter could not reach it either. You got a dead button and no reason, forever.
     const user = userEvent.setup();
     render();

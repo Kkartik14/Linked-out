@@ -9,7 +9,7 @@
  *
  * Auth: OAuth cannot run headlessly, so we mint the same `lo_access` cookie the API's
  * TokenService issues (HS256 over the test JWT secret) and install it into the browser
- * context. Everything downstream — the guard, the JWT strategy, the DB user lookup — is
+ * context. Everything downstream - the guard, the JWT strategy, the DB user lookup - is
  * the production code path.
  */
 
@@ -19,7 +19,7 @@ const { createHmac, randomBytes } = require('node:crypto');
 const DB_ENTRY = path.resolve(__dirname, '../../../packages/db/dist/index.js');
 const { createPrismaClient } = require(DB_ENTRY);
 
-// The session authority is required by dist path — same as @linkedout/db — because it lives
+// The session authority is required by dist path - same as @linkedout/db - because it lives
 // outside this workspace's dependency graph. Creating a session through it writes the exact
 // BrowserSession row (hashed cookie, ULID sid) the production OAuth handoff would.
 const SESSION_AUTHORITY_ENTRY = path.resolve(

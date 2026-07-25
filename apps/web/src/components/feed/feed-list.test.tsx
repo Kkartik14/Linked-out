@@ -95,7 +95,7 @@ describe("FeedList", () => {
 
   // Not covered here: the "Couldn't load the feed." fallback and the retry button. Both only
   // appear once a *next-page* fetch rejects, and that fetch is triggered by the sentinel
-  // scrolling into view — which jsdom, having no layout, cannot do (see src/test/setup.ts).
+  // scrolling into view - which jsdom, having no layout, cannot do (see src/test/setup.ts).
   // Faking an intersection would assert the error UI against a scroll that never happened.
   // That path belongs in e2e/feed.spec.ts, against a real viewport.
 });

@@ -25,7 +25,7 @@ export function FeedCentre({
             The Feed
           </h1>
           <p className="text-muted-foreground text-sm">
-            Honest career stories — the Ls, and what they taught.
+            Honest career stories - the Ls, and what they taught.
           </p>
         </div>
       ) : null}

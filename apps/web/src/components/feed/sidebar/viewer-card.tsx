@@ -112,7 +112,7 @@ export function ViewerCard({ viewer }: { viewer: FeedSidebarViewer }) {
       return (
         <Prompt
           title="Join LinkedOut"
-          body="LinkedIn for your Ls. Share the rejections, the layoffs, the pivots — and what they taught you."
+          body="LinkedIn for your Ls. Share the rejections, the layoffs, the pivots - and what they taught you."
           action="Log in"
           href="/login"
         />

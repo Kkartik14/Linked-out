@@ -10,7 +10,7 @@ import { errorMessage, isApiError } from "@/lib/api";
  * session cookie, sets it HttpOnly, and redirects on to the server-bound `returnTo`. The code is
  * short-lived and single-use, exactly as it is when Nest redirects the browser here after OAuth.
  *
- * A full-document navigation is deliberate — the handoff is a server route handler, not a page, so
+ * A full-document navigation is deliberate - the handoff is a server route handler, not a page, so
  * `router.push` cannot run it. It is factored out as its own function so form components can be
  * unit-tested by mocking this module rather than the global `location`.
  */
@@ -22,7 +22,7 @@ export function completeEmailSession(code: string): void {
  * Present an email-auth failure. The backend owns the business copy, so the default is its own
  * message; a few codes get frontend-context copy the server cannot compose (e.g. pointing a user
  * at the OAuth alternatives when email delivery is switched off). Every branch stays account
- * enumeration-safe — the API already answers signup/forgot/login generically, and this never adds
+ * enumeration-safe - the API already answers signup/forgot/login generically, and this never adds
  * a distinction the wire withheld.
  */
 export function emailAuthErrorMessage(err: unknown): string {
@@ -32,7 +32,7 @@ export function emailAuthErrorMessage(err: unknown): string {
     case "INVALID_OTP":
       return "That code is incorrect or has expired. Request a new one and try again.";
     case "INVALID_CREDENTIALS":
-      // Same answer for "no such account" and "wrong password" — deliberately not distinguished.
+      // Same answer for "no such account" and "wrong password" - deliberately not distinguished.
       return "The email or password is incorrect.";
     case "PASSWORD_COMPROMISED":
       return "That password appears in known data breaches. Choose a different password.";

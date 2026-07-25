@@ -1,5 +1,5 @@
 /**
- * Mirrors the grid in `page.tsx` — same track sizes, same breakpoints, same rail visibility.
+ * Mirrors the grid in `page.tsx` - same track sizes, same breakpoints, same rail visibility.
  * A skeleton that doesn't resemble the page it stands in for is worse than none: this was a
  * single `max-w-2xl` column standing in for a three-column `max-w-[80rem]` grid, so the route
  * jumped sideways the moment it resolved.

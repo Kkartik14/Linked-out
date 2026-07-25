@@ -10,7 +10,7 @@ import { Header } from "@/components/layout/header";
 export const metadata: Metadata = {
   title: { default: "LinkedOut", template: "%s · LinkedOut" },
   description:
-    "LinkedIn for your Ls. The most honest professional network — document the rejections, layoffs, pivots, and the lessons that came from them.",
+    "LinkedIn for your Ls. The most honest professional network - document the rejections, layoffs, pivots, and the lessons that came from them.",
 };
 
 export default async function RootLayout({

@@ -40,7 +40,7 @@ export function UserMenu() {
   });
 
   if (session.status !== "authenticated") {
-    // A guest — or a rejected credential, which likewise needs sign-in — is offered "Log in".
+    // A guest - or a rejected credential, which likewise needs sign-in - is offered "Log in".
     // An `unavailable` session renders nothing at all: showing "Log in" would claim they are
     // signed out when the truth is only that we could not confirm the session, and a bare
     // header is the honest way to say "we don't know yet".

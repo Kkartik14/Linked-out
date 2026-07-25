@@ -2,19 +2,19 @@
  * Centralized, principal-scoped React Query keys.
  *
  * Two rules this factory enforces:
- *  1. **Principal-scoped** — every viewer-dependent key is prefixed with the current
+ *  1. **Principal-scoped** - every viewer-dependent key is prefixed with the current
  *     principal (the logged-in user's id, or `"anon"`), so under normal navigation one
  *     account's cache is not read under another account's key, and invalidation is scoped
  *     per-principal. This is NOT yet a full cross-tab guarantee: until the session lifecycle
  *     work lands (FRONTEND-02 / AUTH-03), a stale tab can still fetch with a replaced cookie
  *     and store another principal's response under the prior principal's key. Those issues
  *     stay open.
- *  2. **Distinct finite/infinite keys** — a finite `useQuery` and an `useInfiniteQuery`
+ *  2. **Distinct finite/infinite keys** - a finite `useQuery` and an `useInfiniteQuery`
  *     over the same resource store incompatible shapes (`Paginated<T>` vs
  *     `InfiniteData`). Sharing a key corrupts both (FRONTEND-01), so they get distinct
  *     leaves here by construction.
  *
- * Get the principal from `usePrincipal()` (see `components/session-provider`) — the `p`
+ * Get the principal from `usePrincipal()` (see `components/session-provider`) - the `p`
  * parameter every factory below takes. It is a plain `string`, deliberately: a `Principal`
  * alias for `string` read like a guarantee and enforced nothing, since any string is
  * assignable to it. Branding it would enforce something, but only if minted in
@@ -62,12 +62,12 @@ export const queryKeys = {
     all: (p: string) => ["saved", p] as const,
   },
   notifications: {
-    /** Root for a principal — invalidate this to refresh preview + page + unread count. */
+    /** Root for a principal - invalidate this to refresh preview + page + unread count. */
     all: (p: string) => ["notifications", p] as const,
     unreadCount: (p: string) => ["notifications", p, "unread-count"] as const,
     /** Header dropdown: a finite page. */
     preview: (p: string) => ["notifications", p, "preview"] as const,
-    /** Full page: an infinite query — deliberately distinct from `preview`. */
+    /** Full page: an infinite query - deliberately distinct from `preview`. */
     infinite: (p: string) => ["notifications", p, "infinite"] as const,
   },
 } as const;

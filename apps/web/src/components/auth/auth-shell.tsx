@@ -4,7 +4,7 @@ import * as React from "react";
  * The shared frame for the three auth entry points (`/login`, `/signup`, `/forgot-password`).
  *
  * Extracted so the pages cannot drift the way the login and callback copy once did: one logo, one
- * vertical rhythm, one place to change the heading treatment. Purely presentational — no hooks — so
+ * vertical rhythm, one place to change the heading treatment. Purely presentational - no hooks - so
  * it composes inside both the server pages and their client forms.
  */
 export function AuthShell({

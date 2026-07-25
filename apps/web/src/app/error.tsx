@@ -17,7 +17,7 @@ export default function ErrorBoundary({
 
   return (
     // The boundary swaps in over whatever the reader was on, and focus was inside the
-    // subtree it just destroyed — so focus falls to <body> and, without this, the page
+    // subtree it just destroyed - so focus falls to <body> and, without this, the page
     // silently becomes something else entirely. Safe on an unnamed <section>, which has
     // no implicit role to clobber.
     <section

@@ -70,7 +70,7 @@ test.describe("feed & L detail", () => {
   });
 
   // The public API has no category filter. A saved URL carrying one must still render the feed
-  // rather than 404 or empty out — the param is simply ignored now.
+  // rather than 404 or empty out - the param is simply ignored now.
   test("a removed category filter in the URL is ignored, not honoured", async ({ page }) => {
     await page.goto("/?filter=startups");
 
@@ -130,8 +130,8 @@ test.describe("feed & L detail", () => {
   });
 
   // These drive the real GET /feed/sidebar against the real ranking, over the interactions
-  // seeded in backend.cjs. They assert the rules the contract makes — ordering, anonymity,
-  // attribution, the daily exclusion — not a particular score.
+  // seeded in backend.cjs. They assert the rules the contract makes - ordering, anonymity,
+  // attribution, the daily exclusion - not a particular score.
   test("the feed renders both discovery rails", async ({ page }) => {
     await page.goto("/");
 
@@ -254,7 +254,7 @@ test.describe("feed & L detail", () => {
     await expect(rail.getByText(world.google.title)).toBeVisible();
     // `nadiaPublic` has no interaction, so it is not a candidate at all.
     await expect(rail.getByText(world.nadiaPublic.title)).toHaveCount(0);
-    // `startup` was interacted with, but it is the daily winner — excluded here so the
+    // `startup` was interacted with, but it is the daily winner - excluded here so the
     // right rail never shows the same L twice.
     await expect(rail.getByText(world.startup.title)).toHaveCount(0);
   });

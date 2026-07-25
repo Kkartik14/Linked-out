@@ -24,7 +24,7 @@ describe("rejected-session healer", () => {
     expect(res.headers.get("set-cookie")).toMatch(/lo_sid=;.*Max-Age=0/i);
   });
 
-  it("does NOT clear lo_sid for a cross-site subresource — logout-CSRF blocked (#3)", () => {
+  it("does NOT clear lo_sid for a cross-site subresource - logout-CSRF blocked (#3)", () => {
     const res = GET(req({ "sec-fetch-site": "cross-site" }));
     expect(res.headers.get("location")).toBe("http://localhost:3100/login?returnTo=%2Fsaved");
     expect(res.headers.get("set-cookie")).toBeNull();
