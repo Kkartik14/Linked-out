@@ -24,7 +24,7 @@ const LIST_ENDPOINTS = [
   { path: '/search?q=x&', auth: false, query: true },
 ];
 
-describe('18 · cross-cutting contract invariants (§1.5–§1.7)', () => {
+describe('18 · cross-cutting contract invariants', () => {
   let user;
 
   beforeEach(async () => {

@@ -6,7 +6,7 @@ const { lDetailSchema } = require('@linkedout/contracts');
 
 const h = require('../_harness.cjs');
 
-describe('05 · PATCH & DELETE /ls/:id (contract §4.3)', () => {
+describe('05 · PATCH & DELETE /ls/:id', () => {
   let owner;
   let stranger;
 

@@ -71,10 +71,9 @@ jobs:
         run: pnpm lint
 
   # ── Web static checks + unit tests. No database needed. ──────────────────────
-  # A separate job from `checks` on purpose: apps/web and the backend are owned by
-  # different teams (local/claude.md §0), and when they shared a job a backend lint error
-  # meant the frontend got no signal at all. It can start as soon as `checks` has uploaded
-  # the shared-package build artifact.
+  # A separate job from `checks` on purpose: apps/web and the backend are owned by different
+  # teams, and when they shared a job a backend lint error meant the frontend got no signal at
+  # all. It can start as soon as `checks` has uploaded the shared-package build artifact.
   web-checks:
     name: web-checks
     needs: checks

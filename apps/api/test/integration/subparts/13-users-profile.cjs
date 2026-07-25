@@ -8,7 +8,7 @@ const h = require('../_harness.cjs');
 
 const lsSchema = paginatedSchema(lCardSchema);
 
-describe('13 · users & profiles (contract §4.2)', () => {
+describe('13 · users & profiles', () => {
   let me;
   let other;
 

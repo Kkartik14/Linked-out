@@ -6,7 +6,7 @@ const { lDetailSchema } = require('@linkedout/contracts');
 
 const h = require('../_harness.cjs');
 
-describe('04 · GET /ls/:id — visibility matrix (contract §4.3)', () => {
+describe('04 · GET /ls/:id — visibility matrix', () => {
   let owner;
   let follower;
   let stranger;

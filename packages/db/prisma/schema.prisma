@@ -1,4 +1,4 @@
-// LinkedOut — "LinkedIn for your Ls". See ARCHITECTURE.md + contract.md.
+// LinkedOut — "LinkedIn for your Ls".
 // Boring-wins Postgres. ULID ids (assigned by the client extension in src/ulid.ts).
 // One `L` entity + enums. Denormalized counters. Postgres FTS via a tsvector column
 // (added in a raw migration — Prisma can't express generated columns).

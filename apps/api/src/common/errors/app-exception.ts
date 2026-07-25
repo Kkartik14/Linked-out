@@ -68,7 +68,12 @@ export function isAppExceptionBody(value: unknown): value is AppExceptionBody {
   );
 }
 
-/** The full catalogue of domain errors — codes mirror contract.md §1.7. */
+/**
+ * The full catalogue of domain errors. Every code here is also listed in `APP_ERROR_CODES` above,
+ * which the error filter and the generated OpenAPI both publish — so adding a case means adding
+ * its code there too. Codes are a stable public wire contract: rename one and every client that
+ * branches on it breaks silently.
+ */
 export const AppErrors = {
   validation: (details: FieldError[]): AppException =>
     new AppException(400, {

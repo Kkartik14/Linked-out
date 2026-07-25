@@ -18,7 +18,7 @@ const h = require('../_harness.cjs');
 const STATIC_METADATA_CACHE_CONTROL =
   'public, max-age=86400, stale-while-revalidate=604800';
 
-describe('01 · meta & discovery (contract §4.12)', () => {
+describe('01 · meta & discovery', () => {
   beforeEach(async () => {
     await h.resetDb();
   });

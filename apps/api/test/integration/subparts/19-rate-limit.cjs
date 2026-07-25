@@ -13,7 +13,7 @@ const { RateLimiter } = require('../../../dist/common/rate-limit/rate-limiter');
 const WRITE_LIMIT = 30;
 const READ_LIMIT = 120;
 
-describe('19 · rate limiting (contract §1.8)', () => {
+describe('19 · rate limiting', () => {
   let user;
 
   beforeEach(async () => {
@@ -39,7 +39,7 @@ describe('19 · rate limiting (contract §1.8)', () => {
     h.expectError(limited, 429, 'RATE_LIMITED');
 
     const retryAfter = limited.headers.get('retry-after');
-    assert.ok(retryAfter, 'a 429 must carry Retry-After (contract §1.8)');
+    assert.ok(retryAfter, 'a 429 must carry Retry-After');
     const seconds = Number(retryAfter);
     assert.ok(Number.isInteger(seconds) && seconds >= 1 && seconds <= 60, `bad Retry-After: ${retryAfter}`);
   });

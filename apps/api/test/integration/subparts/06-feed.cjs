@@ -9,7 +9,7 @@ const h = require('../_harness.cjs');
 const feedSchema = paginatedSchema(lCardSchema);
 const ids = (res) => res.body.data.map((c) => c.id);
 
-describe('06 · GET /feed — global feed (contract §4.4)', () => {
+describe('06 · GET /feed — global feed', () => {
   let author;
   let viewer;
 
@@ -169,7 +169,7 @@ describe('06 · GET /feed — global feed (contract §4.4)', () => {
   });
 });
 
-describe('06b · GET /feed/following (contract §4.4)', () => {
+describe('06b · GET /feed/following', () => {
   let me;
   let followed;
   let unfollowed;

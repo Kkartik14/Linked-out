@@ -11,7 +11,7 @@ const VALID = {
   story: 'Four rounds in, strong signals, and then the recruiter went silent.',
 };
 
-describe('03 · POST /ls — create (contract §4.3)', () => {
+describe('03 · POST /ls — create', () => {
   let author;
 
   beforeEach(async () => {
@@ -112,7 +112,7 @@ describe('03 · POST /ls — create (contract §4.3)', () => {
     const res = await h.post('/ls', { cookie: author.cookie, body: {} });
     const error = h.expectError(res, 400, 'VALIDATION_ERROR');
 
-    assert.ok(Array.isArray(error.details), 'details must be an array (contract §1.7)');
+    assert.ok(Array.isArray(error.details), 'details must be an array');
     const fields = error.details.map((d) => d.field).sort();
     assert.deepEqual(fields, ['story', 'title']);
     for (const detail of error.details) {

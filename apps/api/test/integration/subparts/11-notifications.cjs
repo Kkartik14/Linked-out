@@ -8,7 +8,7 @@ const h = require('../_harness.cjs');
 
 const listSchema = paginatedSchema(notificationSchema);
 
-describe('11 · notifications (contract §4.11)', () => {
+describe('11 · notifications', () => {
   let author;
   let actor;
   let l;

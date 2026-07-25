@@ -17,7 +17,7 @@ function optionalRead(pathname, cookie) {
   return h.get(pathname, { cookie });
 }
 
-describe('23 · authentication uniformity (contract §0)', () => {
+describe('23 · authentication uniformity', () => {
   beforeEach(async () => {
     await h.resetDb();
 

@@ -72,7 +72,7 @@ export function hasAtLeastOneField(value: object): boolean {
   return Object.keys(value).length > 0;
 }
 
-// ─── Error envelope (contract.md §1.7) ─────────────────────────────────────────
+// ─── Error envelope ────────────────────────────────────────────────────────────
 
 export const fieldErrorCodeSchema = z.enum([
   'required',
