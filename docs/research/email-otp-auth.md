@@ -3,7 +3,14 @@
 **Feature:** 1.1.3 email login
 **Target stack:** LinkedOut NestJS API, Prisma/PostgreSQL on Neon, Vercel Functions
 **Research date:** 2026-07-22
-**Status:** implementation guidance; the email provider remains intentionally replaceable
+**Status:** research input, now shipped. The email provider remains intentionally replaceable.
+
+> **One recommendation below was deliberately not adopted.** This document recommends that resend
+> mint a new code superseding the old one. LinkedOut instead **keeps the same active code for its
+> 10-minute window**, by product decision, so a person never holds two emails with conflicting
+> codes; a new code is minted only after expiry or attempt-exhaustion. That trade-off is recorded
+> in [`email-auth-backend.md`](../email-auth-backend.md). Everything else here was implemented as
+> written. Where this document and the shipped behavior disagree, the shipped contract wins.
 
 ## Decision summary
 
@@ -13,7 +20,7 @@ The recommended starting policy is:
 
 - Generate an **8-digit numeric OTP** with Node's cryptographically secure `crypto.randomInt(0, 100_000_000)`, retaining leading zeroes.
 - Bind verification to the tuple `(challengeId, canonicalEmail, purpose, code)`. Never find a challenge by code alone.
-- Keep an issued code valid for **10 minutes**, accept it once, allow at most **5 failed entries**, and make resend generate a new code that immediately supersedes the old one without resetting the subject's failure budget.
+- Keep an issued code valid for **10 minutes**, accept it once, and allow at most **5 failed entries**. *(Resend: this research recommended minting a superseding code; the shipped product deliberately re-sends the same active code instead — see the note at the top. After expiry or exhaustion a fresh code is minted, which does reset that challenge's failure budget; issuance is rate-limited to 10 per email per 10 minutes, so the aggregate online guess budget stays negligible against a 10⁸ space.)*
 - Persist an **HMAC-SHA-256 digest**, not the OTP. Keep the HMAC key outside PostgreSQL and version the key.
 - Hash passwords with **Argon2id**, initially at OWASP's minimum `m=19 MiB, t=2, p=1`, benchmarked in the deployed Vercel runtime and encoded as a PHC string so parameters can be upgraded.
 - Give request/login/reset endpoints uniform, non-enumerating responses and apply limits by normalized email, IP/network signal, and route. Do not permanently lock an account because someone requested or guessed reset codes.
