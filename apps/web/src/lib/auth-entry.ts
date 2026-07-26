@@ -5,7 +5,7 @@ import {
 } from "@linkedout/contracts";
 
 /**
- * Shared by the three auth entry points — `/login`, `/auth/callback`, `/onboarding` — each of
+ * Shared by the three auth entry points - `/login`, `/auth/callback`, `/onboarding` - each of
  * which reads a `returnTo` and an OAuth `error` code straight off the URL.
  *
  * They previously carried a private copy of both, and the copies had already drifted: the
@@ -13,7 +13,7 @@ import {
  */
 
 /**
- * A `returnTo` is attacker-supplied — it arrives as a query parameter — so an unvetted value
+ * A `returnTo` is attacker-supplied - it arrives as a query parameter - so an unvetted value
  * is an open redirect. `isSafeReturnTo` is the contract's own validator; the fallback keeps
  * the caller total, since every call site has to navigate somewhere.
  */
@@ -28,7 +28,7 @@ export function safeReturnTo(value: string | null | undefined): string {
  * Keyed off the `error` code, deliberately **not** the `message` the redirect also carries.
  * A query parameter is attacker-supplied: anyone can send a victim a link to the real
  * `/auth/callback?error=oauth_failed&message=…` and have our own sign-in page render their
- * words. React escapes markup so it is not XSS — but "Your account is locked, call
+ * words. React escapes markup so it is not XSS - but "Your account is locked, call
  * 1-800-…", rendered by the genuine site under its own domain and styling, *is* the attack;
  * the markup was never the point. This is the reasoning behind the OAuth 2.0 Security BCP
  * treating `error_description` as developer-facing and not for end users.
@@ -36,7 +36,7 @@ export function safeReturnTo(value: string | null | undefined): string {
  * Taking the copy from the contract instead costs nothing that matters here: the codes are
  * a closed enum of three, so the message is knowable from the code alone, and the backend
  * still owns the words. The one thing it gives up is changing that wording without a
- * contracts bump — a real trade, but not one worth rendering unauthenticated text for.
+ * contracts bump - a real trade, but not one worth rendering unauthenticated text for.
  */
 export function oauthErrorMessage(code: string | null | undefined): string | null {
   if (!code) return null;

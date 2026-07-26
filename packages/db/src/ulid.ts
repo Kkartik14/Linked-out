@@ -5,9 +5,9 @@ import { Prisma } from '../generated/client';
 /**
  * Monotonic, not the plain `ulid()`: within a single millisecond the plain factory
  * randomizes the low 80 bits, so rows created in the same tick sort arbitrarily. Every
- * list in the API keysets on `ORDER BY id`, and contract.md §1.3 promises "sort by id asc
- * = oldest-first" — that only holds if ids strictly increase. The factory increments the
- * random component instead. Across processes the guarantee degrades to the millisecond.
+ * list in the API keysets on `ORDER BY id`, and the public contract promises that ascending
+ * id means oldest-first — that only holds if ids strictly increase. The factory increments
+ * the random component instead. Across processes the guarantee degrades to the millisecond.
  */
 const ulid = monotonicFactory();
 
@@ -29,8 +29,8 @@ export function modelUsesUlid(model: string): boolean {
 
 /**
  * ORM boundary: Prisma types write-`data` as a broad union, so we narrow at runtime and
- * only touch a plain object that is missing an `id`. This is the one sanctioned place we
- * accept `unknown` (per CLAUDE.md §1 — a true system boundary with a runtime check).
+ * only touch a plain object that is missing an `id`. The repo bans `unknown` as an escape
+ * hatch; this is the sanctioned exception — a true system boundary, guarded by a runtime check.
  */
 function assignUlid(target: unknown): void {
   if (target !== null && typeof target === 'object' && !Array.isArray(target)) {

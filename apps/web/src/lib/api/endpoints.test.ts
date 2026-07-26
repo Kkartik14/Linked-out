@@ -81,8 +81,8 @@ describe("API endpoint helpers", () => {
 
   it("declares the composing principal on every authenticated mutation", () => {
     // A missing declaration is a 409, not an exemption, so this is the difference between a
-    // working write and a dead one. Asserted across three shapes — body, no body, and no
-    // arguments at all — because those are the three ways an endpoint could forget it.
+    // working write and a dead one. Asserted across three shapes - body, no body, and no
+    // arguments at all - because those are the three ways an endpoint could forget it.
     void createL(COMPOSED, { title: "t", story: "s" });
     void addReaction(COMPOSED, "01HZY", "HELPFUL");
     void logout(COMPOSED);
@@ -144,7 +144,7 @@ describe("API endpoint helpers", () => {
 
   it("forwards the cursor for comment and reply pagination", () => {
     // A dropped cursor here still returns page 1, so only an assertion on the URL catches
-    // it — every page past the first would silently repeat the first.
+    // it - every page past the first would silently repeat the first.
     void getComments("01HZY", "comments-next", 6);
     void getComments("01HZY");
     void getReplies("01HZZ", "replies-next", 7);
@@ -175,7 +175,7 @@ describe("API endpoint helpers", () => {
   it("fetches the discovery rails from the one aggregate route, on a short budget", () => {
     void getFeedSidebar();
 
-    // The rails fail independently of the centre feed (public contract §2), which is only true
+    // The rails fail independently of the centre feed, which is only true
     // if they actually fail: the tighter timeout is what stops a slow backend holding the
     // feed page open for something the page is allowed to drop.
     expect(apiFetch).toHaveBeenCalledWith("/feed/sidebar", { timeoutMs: 3_000 });

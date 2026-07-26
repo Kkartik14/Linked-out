@@ -7,10 +7,10 @@ const { lDetailSchema, notificationSchema, paginatedSchema } = require('@linkedo
 const h = require('../_harness.cjs');
 
 /**
- * Counters are denormalized and written in the same transaction as their trigger
- * (CLAUDE.md §3). If that transaction is not race-safe, counts silently drift and the
- * frontend renders numbers that never converge. These tests hammer the write paths
- * concurrently and then reconcile every counter against the source-of-truth rows.
+ * Counters are denormalized and written in the same transaction as their trigger. If that
+ * transaction is not race-safe, counts silently drift and the frontend renders numbers that
+ * never converge. These tests hammer the write paths concurrently and then reconcile every
+ * counter against the source-of-truth rows.
  */
 describe('20 · counter integrity under concurrency', () => {
   let author;

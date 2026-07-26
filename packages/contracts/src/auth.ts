@@ -155,7 +155,7 @@ export type OAuthHandoffExchangeResponse = z.infer<
 >;
 
 /**
- * Session introspection for the one-origin BFF (ADR 0001 §4.2).
+ * Session introspection for the one-origin BFF.
  *
  * The BFF presents the opaque `lo_sid` to the private API. A purpose-scoped caller assertion
  * authenticates the BFF; the cookie selects the session. The API returns its own short-lived

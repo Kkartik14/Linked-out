@@ -21,7 +21,7 @@ function setCookies(headers) {
   return out;
 }
 
-describe('02 · auth & sessions (contract §1.1, §4.1)', () => {
+describe('02 · auth & sessions', () => {
   beforeEach(async () => {
     await h.resetDb();
   });

@@ -12,15 +12,15 @@ import type { Session } from "@/components/session-provider";
 /**
  * Current session, deduped per request via React `cache`.
  *
- * Never throws — but, crucially, no longer flattens every failure to "logged out" (AUTH-06).
+ * Never throws - but, crucially, no longer flattens every failure to "logged out" (AUTH-06).
  * `/auth/me` distinguishes its answers and so does this:
  *
  *  - a viewer, or a clean guest (`200 { user: null }`) → `authenticated` / `guest`;
  *  - a rejected credential (`401`) → `rejected`, **not** `guest`: a credential was presented and
- *    the API refused it, which the contract forbids downgrading to a clean guest (§0, AUTH-06).
+ *    the API refused it, which the contract forbids downgrading to a clean guest.
  *    Both still offer sign-in, but keeping them distinct is what lets a bad cookie be cleared and
  *    a single expiry invalidation published rather than pretending the visitor was never signed in;
- *  - anything else — 5xx, a network error, a timeout → `unavailable`: identity is *unknown*,
+ *  - anything else - 5xx, a network error, a timeout → `unavailable`: identity is *unknown*,
  *    which is not the same as *absent*. Rendering it as guest would turn an outage into a
  *    confident sign-out and is exactly the downgrade `public-read.ts` already refuses to make.
  */
@@ -39,13 +39,13 @@ export const getSession = cache(async (): Promise<Session> => {
   }
 });
 
-/** A session narrowed to a present viewer — what a protected page has after {@link requireViewer}. */
+/** A session narrowed to a present viewer - what a protected page has after {@link requireViewer}. */
 type AuthenticatedSession = Extract<Session, { status: "authenticated" }>;
 
 /**
  * Gate a protected page on a real viewer, degrading each non-authenticated state honestly.
  *
- * `guest` and `rejected` both go to `/login` — they can fix it by signing in (a rejected
+ * `guest` and `rejected` both go to `/login` - they can fix it by signing in (a rejected
  * credential needs re-auth just as an absent one does; in handoff mode the BFF edge has already
  * cleared the bad cookie by the time this runs). `unavailable` throws to the error boundary
  * instead, deliberately **not** to `/login`: we do not know they are logged out, only that we

@@ -1,7 +1,7 @@
 declare const composedPrincipal: unique symbol;
 
 /**
- * The principal a view was **composed under** — not whoever the cookie names right now.
+ * The principal a view was **composed under** - not whoever the cookie names right now.
  *
  * Every authenticated mutation echoes this back as `X-LinkedOut-Principal`, and the API
  * rejects it with `409 PRINCIPAL_MISMATCH` when it disagrees with the live credential. That
@@ -11,7 +11,7 @@ declare const composedPrincipal: unique symbol;
  * what the user meant.
  *
  * Branded, and that is the whole point of this file. The value is a plain user id, so a
- * `string` parameter would accept `usePrincipal()` — the *live* principal — and that single
+ * `string` parameter would accept `usePrincipal()` - the *live* principal - and that single
  * substitution silently defeats the feature: the header would always agree with the session,
  * every mutation would pass, and nothing would ever fail to reveal it. The brand makes that
  * a compile error instead of a security hole nobody notices. `useComposedPrincipal()` is the

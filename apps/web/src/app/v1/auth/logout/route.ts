@@ -12,12 +12,12 @@ import { publicWebOrigin } from "@/lib/bff/public-origin";
 import { logCsrfRejection } from "@/lib/bff/security-rejection";
 
 /**
- * Tombstone-first BFF logout (ADR 0001 §4.5). A more specific route than the `/v1/[...path]`
+ * Tombstone-first BFF logout. A more specific route than the `/v1/[...path]`
  * catch-all, so it owns `/v1/auth/logout` instead of forwarding it to the legacy token endpoint.
  *
  * Order matters: revoke the server session BEFORE clearing the browser cookie, so a crash between
  * the two can never strand a live server session with no cookie left to revoke it. Idempotent by
- * the API's design — an absent, invalid, expired, or already-revoked cookie still yields
+ * the API's design - an absent, invalid, expired, or already-revoked cookie still yields
  * `{ ok: true }`, so a repeat logout stays a `200`.
  *
  * Inert until the cutover: `404` in legacy, where the browser logs out against Nest directly.

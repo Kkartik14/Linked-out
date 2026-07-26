@@ -6,7 +6,7 @@ import * as React from "react";
  * A countdown that gates the "resend code" control.
  *
  * The backend keeps the same OTP alive for its whole 10-minute window and rate-limits issuance, so
- * a resend button that a user can hammer is pure frustration — it cannot produce a new code and
+ * a resend button that a user can hammer is pure frustration - it cannot produce a new code and
  * will start earning `429`s. This throttles the control client-side to a short, visible cooldown so
  * the common case never reaches the limiter. It is advisory UX, not the security boundary.
  */

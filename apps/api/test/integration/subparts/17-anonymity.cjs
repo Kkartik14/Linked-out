@@ -6,11 +6,11 @@ const { describe, test, beforeEach } = require('node:test');
 const h = require('../_harness.cjs');
 
 /**
- * Anonymity is server-enforced (CLAUDE.md §3): when `isAnonymous`, the mapper sets
- * `author: null` in EVERY response — even to the author themselves and their followers.
- * This subpart sweeps every surface that can carry an author.
+ * Anonymity is server-enforced: when `isAnonymous`, the mapper sets `author: null` in EVERY
+ * response — even to the author themselves and their followers. This subpart sweeps every
+ * surface that can carry an author.
  */
-describe('17 · anonymity is absolute across every surface (contract §3)', () => {
+describe('17 · anonymity is absolute across every surface', () => {
   let author;
   let follower;
   let stranger;

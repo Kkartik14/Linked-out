@@ -48,7 +48,7 @@ const SHAPE = createLInputSchema.shape;
 /**
  * Read the wire's own bounds rather than restating them, so raising a limit in the contract
  * needs no edit here. `maxLength` is nullable for a `ZodString` with no `.max()`; these have
- * one, and throwing at import is the right failure if that ever stops being true — a silent
+ * one, and throwing at import is the right failure if that ever stops being true - a silent
  * fallback would quietly let the counter disagree with what the API accepts.
  */
 function maxLengthOf(field: "title" | "story"): number {
@@ -63,7 +63,7 @@ const LIMITS = { title: maxLengthOf("title"), story: maxLengthOf("story") } as c
  * Mirrors `createLInputSchema` from the public contract, restated here only to attach the
  * human-facing messages the API's stable field codes don't carry, and to trim before
  * validating. Every bound comes from the contract above. The public L contract has no category,
- * company, tags, or event date — those concepts are gone from the wire.
+ * company, tags, or event date - those concepts are gone from the wire.
  */
 const formSchema = z.object({
   title: z.string().trim().min(1, "Give your L a title.").max(LIMITS.title),
@@ -76,8 +76,8 @@ type FormValues = z.infer<typeof formSchema>;
 
 /**
  * What the API applies when a field is omitted. The composer shows a control for each, so
- * it must preselect *something* — but which value is the backend's call (public contract §1),
- * so take it from the schema instead of hardcoding `PUBLIC` here. A privacy default is
+ * it must preselect *something* - but which value is the backend's call, so take it from the
+ * shared schema instead of hardcoding `PUBLIC` here. A privacy default is
  * exactly the thing a dumb client should not be choosing.
  */
 const WIRE_DEFAULTS = createLInputSchema.parse({ title: "_", story: "_" });
@@ -249,7 +249,7 @@ export function LComposer({ initial }: { initial?: LDetail }) {
               <div className="space-y-0.5">
                 <FormLabel>Post anonymously</FormLabel>
                 <FormDescription>
-                  Your name and avatar are hidden — even from your followers.
+                  Your name and avatar are hidden - even from your followers.
                 </FormDescription>
               </div>
               <FormControl>

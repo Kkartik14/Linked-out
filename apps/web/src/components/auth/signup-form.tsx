@@ -28,10 +28,10 @@ type Step = "credentials" | "otp";
  * code. Keeping both steps in a single client component lets the email *and* the password survive
  * the transition in local state.
  *
- * The password is deliberately **not** sent at signup — signup carries only the email and starts
+ * The password is deliberately **not** sent at signup - signup carries only the email and starts
  * verification. The credential is authored at `/verify`, submitted together with the code, so it
- * reaches the server only with proof of inbox control. This is the account pre-hijacking defence
- * (contract §0.1): a password seeded at signup could be silently committed by a victim's later
+ * reaches the server only with proof of inbox control. This is the account pre-hijacking defence:
+ * a password seeded at signup could be silently committed by a victim's later
  * verification. We still collect it here for a one-screen experience, but hold it until verify.
  *
  * The whole flow is account-enumeration safe by construction: `signup` answers the same generic
@@ -60,7 +60,7 @@ export function SignupForm({ returnTo }: { returnTo: string }) {
     setBusy(true);
     setError(null);
     try {
-      // Email only — the password is held locally and authored at verify (see the component note).
+      // Email only - the password is held locally and authored at verify (see the component note).
       await emailSignup({ email });
       setStep("otp");
     } catch (err) {
@@ -79,7 +79,7 @@ export function SignupForm({ returnTo }: { returnTo: string }) {
     setBusy(true);
     setError(null);
     try {
-      // Author the credential now, with the code — the password reaches the server only alongside
+      // Author the credential now, with the code - the password reaches the server only alongside
       // proof of inbox control.
       const handoff = await emailVerify({ email, otp: code, password, returnTo });
       // Navigates away and establishes the session; keep `busy` so the form stays inert until then.

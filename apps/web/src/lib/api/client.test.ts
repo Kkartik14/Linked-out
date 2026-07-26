@@ -40,7 +40,7 @@ describe("apiFetch", () => {
     // Asserted against the contract's own constant: the API matches on this exact name, and
     // a typo here is a 409 on every write with nothing in the diff to see.
     expect(new Headers(init?.headers).get(PRINCIPAL_BINDING_HEADER)).toBe(COMPOSED);
-    // `principal` is ours, not `fetch`'s — it must be consumed, not forwarded as an option.
+    // `principal` is ours, not `fetch`'s - it must be consumed, not forwarded as an option.
     expect(init).not.toHaveProperty("principal");
   });
 
@@ -120,7 +120,7 @@ describe("apiFetch", () => {
   // The rotated cookie is deliberately NOT asserted on the retry: `Set-Cookie` is a
   // forbidden response header and `Cookie` a forbidden request header, so in a real browser
   // no userland code can read the rotation or replay it. The browser's own jar carries it,
-  // and `credentials: "include"` is what puts it on the wire — which is the one thing worth
+  // and `credentials: "include"` is what puts it on the wire - which is the one thing worth
   // pinning here. Asserting a cookie header would only pass against a fabricated Response.
   it("refreshes once on TOKEN_EXPIRED, then retries the original request", async () => {
     vi.mocked(fetch)

@@ -97,11 +97,11 @@ and their CI/test boundaries. Newest first.
 
 ### Documentation
 
-- Added this backend-specific changelog. Internal design and contract narratives now live in the
-  ignored local documentation set; shared Zod contracts and generated v1 OpenAPI remain the
-  tracked executable API references.
-- Removed the obsolete public-doc sync command and its prose-only CI test after the canonical
-  narrative moved local; credential behavior remains gated at the executable route/OpenAPI seam.
+- Added this backend-specific changelog. Design and contract narratives are no longer tracked in
+  this repository; the shared Zod contracts and the generated v1 OpenAPI are the authoritative API
+  references.
+- Removed the obsolete public-doc sync command and its prose-only CI test; credential behavior
+  remains gated at the executable route/OpenAPI seam.
 
 ## [1.1.0] — 2026-07-17
 

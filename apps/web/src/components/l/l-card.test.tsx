@@ -49,7 +49,7 @@ describe("LCard", () => {
   });
 
   // The public API removed category, company, tags, and eventDate from the wire. The app now talks to
-  // that contract only, so nothing should send them — but a card that renders whatever it is handed
+  // that contract only, so nothing should send them - but a card that renders whatever it is handed
   // would fail open if that ever stopped being true. Assert it ignores them.
   // `Object.assign` widens the type honestly (LCardType & the extras) instead of asserting
   // a foreign shape *is* an LCardType, which would defeat the contract this test defends.

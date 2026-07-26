@@ -63,7 +63,15 @@ pnpm install
 pnpm dev
 ```
 
-The web app runs on `http://localhost:3000` and expects `NEXT_PUBLIC_API_BASE_URL` to point at the API.
+The web app runs on `http://localhost:3000`. Its `OAUTH_SESSION_MODE` must match the API's:
+
+- **`handoff`** (what production and preview run) — the browser talks only to the web origin, so
+  `NEXT_PUBLIC_API_BASE_URL=/v1` and the app also needs `INTERNAL_API_BASE_URL` plus the shared
+  `BFF_CALLER_SECRET`. The browser holds one host-only `lo_sid` cookie and never calls Nest.
+- **`legacy`** — the browser calls Nest directly, so `NEXT_PUBLIC_API_BASE_URL=http://localhost:4000/v1`.
+  Retained for a bounded compatibility window; email sign-in cannot complete in this mode.
+
+See `apps/web/README.md` for the full `.env.local` for each.
 
 ## Useful Commands
 
@@ -178,5 +186,5 @@ For more frontend details, see `apps/web/README.md`.
 
 Production retention work is exposed as the external `pnpm maintenance:cleanup` job. Database
 expiry cleanup runs by default, while avatar deletion is dry-run unless `--apply-assets` is passed.
-Use `pnpm maintenance:cleanup --help` for the bounded scan/apply options; operational design notes
-are kept in the ignored local documentation set.
+Use `pnpm maintenance:cleanup --help` for the bounded scan/apply options, including the per-table
+row cap, the asset grace window, and the pagination cursor for resuming a capped scan.

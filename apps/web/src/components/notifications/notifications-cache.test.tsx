@@ -68,7 +68,7 @@ describe("notifications bell + page share a QueryClient without colliding", () =
       { session: { status: "authenticated", user: mockUser, needsOnboarding: false } },
     );
 
-    // The infinite page rendered its item — its `{ pages }` shape was not clobbered by the
+    // The infinite page rendered its item - its `{ pages }` shape was not clobbered by the
     // finite preview's `Paginated` shape.
     expect(await screen.findByText(notification.message)).toBeInTheDocument();
     expect(getNotifications).toHaveBeenCalledTimes(1);

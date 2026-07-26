@@ -149,7 +149,7 @@ export class AuthController {
   }
 
   /**
-   * Private session introspection for the one-origin BFF (ADR 0001 §4.2).
+   * Private session introspection for the one-origin BFF.
    *
    * Always answers `200` for a valid resolve request: liveness is the body, while transport or
    * infrastructure failure remains non-2xx. A dedicated BFF capability guards the call, and Nest

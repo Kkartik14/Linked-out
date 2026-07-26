@@ -1,4 +1,4 @@
-# Changelog — @linkedout/web
+# Changelog - @linkedout/web
 
 Notable changes to the LinkedOut frontend. Newest first.
 
@@ -25,7 +25,7 @@ This file covers `apps/web` only. Its executable API contract is
   browser journeys for follow visibility, profile edits, L lifecycle writes, engagement reranking,
   Saved membership, and persistence through the real API/Postgres.
 
-## [1.1.4] — 2026-07-23
+## [1.1.4] - 2026-07-23
 
 ### Profile cleanup
 
@@ -57,7 +57,7 @@ This file covers `apps/web` only. Its executable API contract is
   screens, and an email/password form on `/login`. Verify and login complete through the existing
   OAuth handoff route, so there is no second session type.
 - Successful verify/login reuse `/auth/callback/handoff`; the one-time code sets the `lo_sid`
-  session cookie server-side and redirects to the server-bound `returnTo` — no token is ever held
+  session cookie server-side and redirects to the server-bound `returnTo` - no token is ever held
   in client storage.
 - Screens follow the backend's account-enumeration-safe behaviour: signup and forgot-password
   always advance on the generic `202`, and login shows one message for any rejected credential.
@@ -95,39 +95,39 @@ This file covers `apps/web` only. Its executable API contract is
   People tabs cancel superseded requests, an empty query restores the normal feed in-place, and
   deliberate navigation entry can focus the full search without competing with the header input.
 
-### One-origin BFF / session boundary (ADR 0001) — built behind `OAUTH_SESSION_MODE`
+### One-origin BFF / session boundary - built behind `OAUTH_SESSION_MODE`
 
 The public web tier for the one-origin session boundary is now implemented and shipped **dark
 behind `OAUTH_SESSION_MODE`** (default `legacy`, so nothing below is live in production yet). The
 whole path is proven end-to-end against the real API + Postgres by a handoff-mode acceptance suite
 (`pnpm test:e2e:handoff`): **AUTH-01/02/03/05/06/07/08 all green**, with an independent CI job.
 
-- **`proxy.ts`** — the thin routing boundary (Next 16's `middleware` successor): optimistic
+- **`proxy.ts`** - the thin routing boundary (Next 16's `middleware` successor): optimistic
   protected-route gating on the presence of `lo_sid` (handoff only), plus a `private, no-store`
   cache default on authenticated HTML. No session resolution or state.
-- **`app/v1/[...path]/route.ts`** — the BFF for ordinary `/v1` traffic: CSRF check → resolve
+- **`app/v1/[...path]/route.ts`** - the BFF for ordinary `/v1` traffic: CSRF check → resolve
   `lo_sid` against the private API → inject the short-lived `X-Internal-Auth` assertion → forward
   to Nest. Absent cookie forwarded anonymously; a rejected credential is cleared at the edge and
   answered `401` (never downgraded to guest); an outage is `503`; OAuth legs relay faithfully. The
   browser's cookie header never reaches Nest.
-- **`app/v1/auth/logout/route.ts`** — tombstone-first logout (revoke, then clear `lo_sid`),
+- **`app/v1/auth/logout/route.ts`** - tombstone-first logout (revoke, then clear `lo_sid`),
   idempotent.
-- **`app/auth/callback/handoff`** — an atomic browser-visible route exchanges the OAuth handoff
+- **`app/auth/callback/handoff`** - an atomic browser-visible route exchanges the OAuth handoff
   `code`, sets the host-only `lo_sid`, and redirects only to the server-bound `returnTo`.
-- **`src/lib/bff/`** — the server-only session-lifecycle client (`resolve`, `revoke`, handoff
+- **`src/lib/bff/`** - the server-only session-lifecycle client (`resolve`, `revoke`, handoff
   `exchange`) over validated internal/public origins, plus strict CSRF/content-type policy,
   sanitized rejection telemetry, private-route shielding, OAuth cookie filtering, and canonical
   cache policy.
-- **`src/lib/api/client.ts`** — routes by topology: browser → same-origin `/v1` in handoff (Nest
+- **`src/lib/api/client.ts`** - routes by topology: browser → same-origin `/v1` in handoff (Nest
   directly in legacy); a Server Component in handoff self-hops through its own `/v1` handler; legacy
   paths unchanged. Only `SESSION_REJECTED` publishes a debounced expiry invalidation; RSC-only
   rejection clears `lo_sid` through a browser-visible healer.
-- **Session state** — `getSession()` distinguishes a rejected credential (`401` → `rejected`) from
-  a clean guest (§0/AUTH-06); `useComposedPrincipal` mints the brand only from a real viewer id,
+- **Session state** - `getSession()` distinguishes a rejected credential (`401` → `rejected`) from
+  a clean guest; `useComposedPrincipal` mints the brand only from a real viewer id,
   never `"anon"`.
 
 Still legacy-only and intentionally deferred to the coordinated cutover: removing `public-read.ts`,
-the legacy token refresh, and the `lo_access`/`lo_refresh` cookie handling — all still required
+the legacy token refresh, and the `lo_access`/`lo_refresh` cookie handling - all still required
 while `OAUTH_SESSION_MODE=legacy` serves production. Enabling `handoff` also depends on the platform
 making Nest private and provisioning the split caller/API secrets.
 
@@ -143,33 +143,33 @@ deletes what the cutover left behind, and pins invariants that were only being u
 ### Enforced
 
 - **`eslint-config-next` carries no type-safety rules**, and the root config that has them
-  scopes itself to `apps/api`/`packages/*` — so CLAUDE.md §1's "No `any`. No `unknown` as an
+  scopes itself to `apps/api`/`packages/*` - so the repo rule "No `any`. No `unknown` as an
   escape hatch" applied to nothing here (`tsc --strict` rejects only *implicit* any). Added
   `typescript-eslint` with `no-explicit-any`, `consistent-type-assertions`
   (`objectLiteralTypeAssertions: never`) and `no-unnecessary-type-assertion`. The existing
   code was already clean; nothing now stops the next `as any` at the API boundary.
 - **`pnpm lint` is `--max-warnings=0`.** `react-hooks/exhaustive-deps` and 24 other rules are
-  warn-level: they ran in CI and could not fail it. (No violations existed — the gate is
+  warn-level: they ran in CI and could not fail it. (No violations existed - the gate is
   regression prevention.) Fixed in `package.json`, so CI and local dev cannot diverge.
-- Vendored `components/ui/**` is exempt from `consistent-type-assertions` — `shadcn add`
+- Vendored `components/ui/**` is exempt from `consistent-type-assertions` - `shadcn add`
   regenerates those files, and both patterns it emits (`createContext({} as T)`,
   `as React.CSSProperties` for CSS custom properties) are defensible.
 
 ### Fixed
 
 - **The composer no longer chooses the privacy default.** Request bodies were typed
-  `z.infer<typeof createLInputSchema>` — the schema's *output*, where `.default()` makes
+  `z.infer<typeof createLInputSchema>` - the schema's *output*, where `.default()` makes
   `type`/`visibility`/`isAnonymous` **required**. `createL({ title, story })` did not compile,
   so the composer hardcoded `visibility: "PUBLIC"`. Bodies are now `z.input<…>`; form defaults
-  are read from the contract. This also unbroke `patchL(id, { resolvedAt: "<ISO>" })` — the
-  shape §1 documents, which previously failed to typecheck.
-- **`flattenComments` no longer re-sorts by ULID.** It ordered the list by comparing ids —
-  depending on internals of a value the contract calls opaque (line 14), and on their case:
+  are read from the contract. This also unbroke `patchL(id, { resolvedAt: "<ISO>" })` - the
+  shape the contract documents, which previously failed to typecheck.
+- **`flattenComments` no longer re-sorts by ULID.** It ordered the list by comparing ids -
+  depending on internals of a value the contract calls opaque, and on their case:
   `ulidSchema` accepts lowercase, which sorts after every uppercase id. Pages already arrive
   ordered. Dedupe now re-seats an id at its *last-seen* position, so a canonical page is
   authoritative for position as well as value and an optimistic append's guessed slot cannot
-  outrank the server's real order (§4).
-- **No request can hang forever.** `apiFetch` had no timeout, which quietly voided §2's "the
+  outrank the server's real order.
+- **No request can hang forever.** `apiFetch` had no timeout, which quietly voided the contract's "the
   sidebar fails independently of the centre feed": a request that never settles never
   rejects, so the rails' `.catch()` never fired and held the feed page open. Default 10s;
   `getFeedSidebar` takes 3s, being explicitly droppable.
@@ -189,7 +189,7 @@ deletes what the cutover left behind, and pins invariants that were only being u
 - **~35 lines of cookie-rotation machinery in `client.ts`** (`splitSetCookie`,
   `mergeCookieHeader`, `setCookiesFrom`, the `cookieHeader` plumbing) that could never run.
   Refresh is browser-gated, and in a browser `Set-Cookie` is a forbidden *response* header
-  and `Cookie` a forbidden *request* header — userland can neither read a rotation nor
+  and `Cookie` a forbidden *request* header - userland can neither read a rotation nor
   replay it. Retry works because the browser's jar applies it and `credentials: "include"`
   sends it. Its test only passed by fabricating a `Response` with a working `getSetCookie()`
   via `as unknown as Response`, asserting a cookie header a real browser never sends.
@@ -199,7 +199,7 @@ deletes what the cutover left behind, and pins invariants that were only being u
 ### Changed
 
 - `FeedControls`' `canFollow` prop is now `canUseFollowingFeed`. `canFollow` is the contract's
-  name for `SuggestedUser.viewer.canFollow` — a per-user permission §2 says not to recreate —
+  name for `SuggestedUser.viewer.canFollow` - a per-user permission the client must not recreate -
   and this only meant "is there a Following tab".
 - `endpoints.ts`'s hand-written `FeedQuery` shadowed the contract's own `FeedQuery` one import
   path away, with `sort`/`cursor`/`limit` duplicated by hand. Now `FeedRequest extends
@@ -212,14 +212,14 @@ deletes what the cutover left behind, and pins invariants that were only being u
 
 - Mutation testing (44 injected bugs) scored **31 killed / 13 survived**. Closed the survivors
   that mattered: `public-read.ts` had **zero** unit coverage (its only tests need Postgres, so
-  `pnpm test` could go green while §2's credential rule regressed); the sidebar's
+  `pnpm test` could go green while the credential rule regressed); the sidebar's
   `refreshAfter - generatedAt` derivation was unpinned; `FeedSidebarLeft`'s failure-hides-rail
   had no test though `FeedSidebarRight`'s did; `truncate`/`initials` asserted only length and
   suffix, never output; comment/reply cursors were uncovered.
-- `l-card.test.tsx` built a foreign shape with `} as LCardType` — a cast defeating the contract
+- `l-card.test.tsx` built a foreign shape with `} as LCardType` - a cast defeating the contract
   in the test meant to defend it. Now `Object.assign`, which widens honestly.
 
-## [1.1.0] — 2026-07-17
+## [1.1.0] - 2026-07-17
 
 Introduces the clean API contract and the feed's discovery rails. The contract is now the sole v1.
 
@@ -227,14 +227,14 @@ Introduces the clean API contract and the feed's discovery rails. The contract i
 
 - **Feed discovery rails** on `/`, from the single optional-auth `GET /feed/sidebar`
   aggregate. Left: viewer box, then People to Follow in its own container. Right: Top Ls,
-  then L of the day. The wire does not encode left/right — placement is a frontend
+  then L of the day. The wire does not encode left/right - placement is a frontend
   decision, recorded in `README.md`.
   - Both rails read one shared principal-scoped query, so they cost a single request.
   - Rendered exactly as returned: the array order is authoritative, `interactionLabel` and
     `reason.text` are shown verbatim, and `viewer.canFollow` is used rather than
     recomputing follow permission.
   - Anonymous Ls appear in Top Ls unattributed and never linked to a profile. L of the day
-    cannot be anonymous — `AttributedFeaturedL` types its author as non-null, so that
+    cannot be anonymous - `AttributedFeaturedL` types its author as non-null, so that
     branch does not exist rather than being defended against at runtime.
   - Following a suggestion drops the row optimistically, rolls back on failure, then
     invalidates so the backend can rank a replacement into the vacated slot.
@@ -242,15 +242,15 @@ Introduces the clean API contract and the feed's discovery rails. The contract i
     emphasis on followers"; `{n} {label}` is composed from raw counts plus `/meta/enums`.
   - `refreshAfter` becomes a derived `staleTime` rather than a poll: refetching reshuffles
     both rails, so they refresh on remount and after a follow, never under a reader.
-  - The aggregate fails independently of the feed — the rails hide, the page stays whole.
-- **`src/lib/public-read.ts`** — the API rejects a presented-but-invalid credential with `401`
-  on every optional-auth read instead of silently serving the guest view (contract §2), so
+  - The aggregate fails independently of the feed - the rails hide, the page stays whole.
+- **`src/lib/public-read.ts`** - the API rejects a presented-but-invalid credential with `401`
+  on every optional-auth read instead of silently serving the guest view, so
   a stale cookie now fails even a public page. The app cannot clear an httpOnly cookie from
-  a Server Component (ADR 0001 §1.1), so it sends those viewers to `/login`: the one
+  a Server Component, so it sends those viewers to `/login`: the one
   recoverable answer that neither pretends the credential is valid nor re-fetches as a
   guest, which would just move the forbidden downgrade into the client.
-- The feed route is now three landmarks — two `complementary` rails around a `region`
-  named "The Feed" — because the same L can appear in both the feed and a rail, and
+- The feed route is now three landmarks - two `complementary` rails around a `region`
+  named "The Feed" - because the same L can appear in both the feed and a rail, and
   "the feed" has to be addressable.
 
 ### Changed
@@ -269,7 +269,7 @@ Introduces the clean API contract and the feed's discovery rails. The contract i
 The public contract deletes `category`, `company`, `tags` and `eventDate` from the L wire, so
 the interface they backed is gone:
 
-- feed and search **category filter chips**, and the `filter` search param — a saved URL
+- feed and search **category filter chips**, and the `filter` search param - a saved URL
   carrying one still renders the full feed, the param is simply ignored
 - the composer's **category, company, event-date and tags** fields, the whole `TagsInput`,
   and its `/tags/popular` autocomplete (that route does not exist in the public API)
@@ -282,7 +282,7 @@ the interface they backed is gone:
 
 - **The rails were never hidden on narrow viewports.** `cn` is tailwind-merge, and the
   shared rail class carried a base `flex` that cancelled the `hidden` it was composed with
-  — same conflict slot, later wins — so both rails rendered at every width, stacked under
+  - same conflict slot, later wins - so both rails rendered at every width, stacked under
   an infinite feed. Each rail now owns its display outright (`hidden` → `lg:flex`/
   `xl:flex`). Two unit guards cover it: the e2e spec false-passed, and jsdom applies no CSS,
   so the merged class list is the only thing that can observe this.
@@ -302,6 +302,6 @@ the interface they backed is gone:
 ### Verification
 
 Typecheck and lint clean. 73 unit/component tests. Playwright: **55 passed, 1 skipped** (the
-pre-existing `AUTH-01` fixme) against the real API and real Postgres — including the
+pre-existing `AUTH-01` fixme) against the real API and real Postgres - including the
 rails driven by the backend's real ranking over seeded interactions, and every pre-existing
 journey, which is what establishes the migration did not break current flows.

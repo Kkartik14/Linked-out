@@ -22,9 +22,9 @@ import { SidebarSection } from "@/components/feed/sidebar/sidebar-section";
  * Where a row sends a viewer who cannot follow yet, or `null` when the union says there is
  * nowhere to send them.
  *
- * `canFollow: false` does not mean "guest". `personalized` is true only for `READY`
- * (contract §2), so `SIGNED_OUT` and `ONBOARDING_REQUIRED` both arrive here with the flag
- * false — and an onboarding viewer is already authenticated, so /login is a dead end for
+ * `canFollow: false` does not mean "guest". The API sets `personalized` true only for `READY`,
+ * so `SIGNED_OUT` and `ONBOARDING_REQUIRED` both arrive here with the flag
+ * false - and an onboarding viewer is already authenticated, so /login is a dead end for
  * them. Only `viewer.state` tells the two apart; the flag never does. This chooses a
  * destination and nothing else: the permission itself is still read from `viewer.canFollow`.
  */
@@ -79,7 +79,7 @@ function SuggestionRow({
           {name}
         </Link>
         {/*
-         * Server-composed, rendered verbatim — the frontend never infers why someone is
+         * Server-composed, rendered verbatim - the frontend never infers why someone is
          * suggested. Its length is the backend's choice, so wrap to two lines rather than
          * truncating: "Active builder this week" clipped to "Active builder this …" reads
          * like a bug, and a rail this narrow clips more copy than it keeps.
@@ -99,7 +99,7 @@ function SuggestionRow({
         </Button>
       ) : followHref ? (
         // The backend says this viewer cannot follow. Never fire the write it would
-        // reject — offer the route to acquiring the permission instead.
+        // reject - offer the route to acquiring the permission instead.
         <Button
           asChild
           variant="outline"
@@ -144,7 +144,7 @@ export function PeopleToFollow({
     onMutate: async (username) => {
       await queryClient.cancelQueries({ queryKey: sidebarKey, exact: true });
       const current = queryClient.getQueryData<FeedSidebarResponse>(sidebarKey);
-      // Remember only this row and the slot it occupied, never a whole-list snapshot —
+      // Remember only this row and the slot it occupied, never a whole-list snapshot -
       // see `onError`.
       const index =
         current?.peopleToFollow.items.findIndex((item) => item.user.username === username) ?? -1;
@@ -170,8 +170,8 @@ export function PeopleToFollow({
     onError: (err, _username, context) => {
       // Surgical, because one mutation serves every row and rows overlap in flight.
       // Restoring the list this row snapshotted would write back builders the *other*
-      // in-flight follows had already removed: follow A then B, A fails, and B — whom you
-      // now genuinely follow — reappears in the rail. Re-insert only the row that failed,
+      // in-flight follows had already removed: follow A then B, A fails, and B - whom you
+      // now genuinely follow - reappears in the rail. Re-insert only the row that failed,
       // into the slot the backend gave it. The order stays the backend's; nothing re-sorts.
       const removed = context?.removed;
       const index = context?.index ?? -1;

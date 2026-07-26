@@ -13,7 +13,7 @@ const accessSecret = process.env.E2E_JWT_ACCESS_SECRET ?? "e2e-access-secret-012
 
 // BFF/session-authority secrets. Optional in legacy mode, so setting them here activates the
 // internal `/v1/auth/sessions/{resolve,revoke}` + handoff-exchange endpoints without flipping
-// OAUTH_SESSION_MODE — the legacy suite is unaffected. `bffCallerSecret` MUST match
+// OAUTH_SESSION_MODE - the legacy suite is unaffected. `bffCallerSecret` MUST match
 // backend.cjs's default so a caller assertion a spec signs is one the API accepts. Both are
 // ≥32 bytes (the API's minimum for a set internal secret).
 const bffCallerSecret =
@@ -23,7 +23,7 @@ const internalApiSecret =
 
 /**
  * The e2e suite drives the real Next.js app against the real NestJS API and a real
- * Postgres — no mock backend. A pass therefore proves the browser, the fetch layer,
+ * Postgres - no mock backend. A pass therefore proves the browser, the fetch layer,
  * cookie auth, and the API contract all agree.
  *
  * Prerequisites (from the repo root):

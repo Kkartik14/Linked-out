@@ -5,7 +5,7 @@ const OAUTH_ROUTE_PATH = /^\/v1\/auth\/(?:google|github)(?:\/callback)?$/;
 
 /**
  * The OAuth start and callback legs. These establish a *new* session, so the BFF must forward them
- * to Nest **without** resolving the browser's existing `lo_sid` — otherwise a stale/expired cookie
+ * to Nest **without** resolving the browser's existing `lo_sid` - otherwise a stale/expired cookie
  * would 401 the very request meant to sign the user back in.
  */
 export function isOAuthRelayPath(pathname: string): boolean {

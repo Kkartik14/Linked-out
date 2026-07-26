@@ -10,7 +10,7 @@ const h = require('../_harness.cjs');
 
 const VALID = { contentType: 'image/jpeg', contentLength: 204_800 };
 
-describe('16 · avatar uploads (contract §4.9)', () => {
+describe('16 · avatar uploads', () => {
   let user;
 
   beforeEach(async () => {

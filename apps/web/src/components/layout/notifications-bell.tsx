@@ -38,7 +38,7 @@ export function NotificationsBell() {
     refetchInterval: () => notificationPollIntervalMs(),
   });
 
-  // Finite page for the dropdown — a DISTINCT key from the infinite page list
+  // Finite page for the dropdown - a DISTINCT key from the infinite page list
   // (FRONTEND-01: a shared key stored incompatible shapes and could crash the page).
   const list = useQuery({
     queryKey: queryKeys.notifications.preview(principal),

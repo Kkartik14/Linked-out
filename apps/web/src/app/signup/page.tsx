@@ -17,7 +17,7 @@ export default async function SignupPage({
   return (
     <AuthShell
       title="Create your account"
-      subtitle="Share the Ls that shaped you — the rejections, pivots, and lessons."
+      subtitle="Share the Ls that shaped you - the rejections, pivots, and lessons."
     >
       <SignupForm returnTo={returnTo} />
     </AuthShell>

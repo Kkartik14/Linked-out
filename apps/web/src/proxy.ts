@@ -4,19 +4,19 @@ import { isHandoffMode } from "@/lib/bff/mode";
 import { PRIVATE_NO_STORE } from "@/lib/bff/cache-policy";
 
 /**
- * The thin routing boundary (ADR 0001 §4.1; the Next 16 successor to `middleware.ts`).
+ * The thin routing boundary - the Next 16 successor to `middleware.ts`.
  *
  * Next's own Proxy guidance is explicit that it must NOT be a session or authorization layer, so
  * this does exactly one thing: **optimistic** protected-route gating. It redirects an obviously
  * signed-out navigation away from a protected page based on the mere presence of the `lo_sid`
- * cookie — no session resolution, no DB lookup, no state. The page still resolves the session
+ * cookie - no session resolution, no DB lookup, no state. The page still resolves the session
  * server-side and is the real gate; this only avoids rendering a protected shell we already know
  * will bounce. Ordinary `/v1/*` traffic is served by the `app/v1/[...path]` route handler, so
  * nothing is rewritten here.
  *
  * The optimistic gating is handoff-only (legacy auth rides the access cookie, and this `lo_sid`
  * signal does not exist there). The private/no-store cache default it also applies is correct in
- * both modes — authenticated HTML is viewer-dependent regardless of session topology.
+ * both modes - authenticated HTML is viewer-dependent regardless of session topology.
  */
 
 const LO_SID = "lo_sid";

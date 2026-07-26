@@ -15,11 +15,11 @@ import { LOfTheDay } from "@/components/feed/sidebar/l-of-the-day";
 import { SidebarNavigation } from "@/components/feed/sidebar/sidebar-navigation";
 
 /**
- * The feed's discovery rails, from one optional-auth aggregate (public contract §2).
+ * The feed's discovery rails, from one optional-auth aggregate (`GET /feed/sidebar`).
  *
  * Both rails read the same principal-scoped query, so the two components below share a
  * single request rather than fetching twice. They are separate exports because they are
- * separate grid children — the wire deliberately does not encode left/right, so placement
+ * separate grid children - the wire deliberately does not encode left/right, so placement
  * is decided by the page.
  */
 function useFeedSidebar(initial: FeedSidebarResponse | undefined) {
@@ -31,7 +31,7 @@ function useFeedSidebar(initial: FeedSidebarResponse | undefined) {
     ...(initial
       ? {
           initialData: initial,
-          // The server fetched this at `generatedAt`, not now — date the cache entry from
+          // The server fetched this at `generatedAt`, not now - date the cache entry from
           // the response so its freshness is measured from when it was actually composed.
           initialDataUpdatedAt: () => Date.parse(initial.generatedAt),
         }
@@ -52,7 +52,7 @@ function useFeedSidebar(initial: FeedSidebarResponse | undefined) {
  * Deliberately carries no base `display` utility.
  *
  * `cn` is tailwind-merge, so a `flex` here would silently cancel the `hidden` each rail
- * composes it with — they occupy the same conflict slot, and the later one wins. Each rail
+ * composes it with - they occupy the same conflict slot, and the later one wins. Each rail
  * owns its display entirely (`hidden` → `lg:flex` / `xl:flex`), so nothing collides.
  */
 const RAIL = "flex-col gap-3 lg:sticky lg:top-[4.5rem] lg:max-h-[calc(100dvh-5.5rem)] lg:overflow-y-auto";

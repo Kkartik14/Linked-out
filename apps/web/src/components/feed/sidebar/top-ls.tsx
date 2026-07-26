@@ -9,7 +9,7 @@ function FeaturedRow({ item, rank }: { item: FeaturedL; rank: number }) {
   return (
     <div className="flex gap-2.5 px-4 py-2.5">
       {/* Full `--muted-foreground`, not `/70`: at 70% this computed 2.95:1 light / 3.47:1
-          dark, under even the 3:1 non-text floor. `aria-hidden` does not exempt it — 1.4.3's
+          dark, under even the 3:1 non-text floor. `aria-hidden` does not exempt it - 1.4.3's
           incidental-text exception is for invisible or pictorial text, and a low-vision
           sighted reader still has to read the rank. Size and position already de-emphasise
           it without help from the contrast. */}
@@ -29,7 +29,7 @@ function FeaturedRow({ item, rank }: { item: FeaturedL; rank: number }) {
               {l.author.name ?? l.author.username}
             </Link>
           ) : (
-            // Anonymous Ls are eligible here, and stay unattributed (contract §2).
+            // Anonymous Ls are eligible here, and stay unattributed.
             <span>Anonymous builder</span>
           )}
           {" · "}
@@ -48,7 +48,7 @@ export function TopLs({ items, windowLabel }: { items: FeaturedL[]; windowLabel:
   return (
     <SidebarSection title="Top Ls" caption={windowLabel}>
       {/*
-       * `items` order is authoritative — rendered as given, never re-ranked. An `ol`, not
+       * `items` order is authoritative - rendered as given, never re-ranked. An `ol`, not
        * a `ul`: the rank is the point of this rail, and the number beside each row is
        * `aria-hidden` decoration, so on a `ul` the backend's ranking was available to
        * sighted users only (WCAG 1.3.1). Preflight strips list styling from both, so this

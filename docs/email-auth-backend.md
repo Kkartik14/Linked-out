@@ -1,10 +1,13 @@
 # Email login backend — feature 1.1.3
 
 This documents the backend contract for email/password signup, email verification, normal password
-login, resend, and forgot/reset password. The web app implements the matching screens separately
-(signup, OTP verification, login, resend, forgot/reset), against the shapes in
-[`local/contract.md` §6](../local/contract.md). A real email provider is still deferred — delivery
-runs through the stub until it is wired.
+login, resend, and forgot/reset password. The web app implements the matching screens (signup, OTP
+verification, login, resend, forgot/reset) and completes sign-in through the shared
+`/auth/callback/handoff` route. A real email provider is still deferred — delivery runs through the
+stub until it is wired.
+
+The authority for these rules is the `@linkedout/contracts` export and the generated
+`/v1/openapi.json`. This file is the narrative that goes with them.
 
 ## Credential-authoring rule (read first)
 
@@ -103,9 +106,15 @@ Successful verify/login returns:
 }
 ```
 
-The frontend should send `code` through its existing private OAuth handoff exchange, set the
-returned opaque `lo_sid` as an HttpOnly cookie, and then navigate to `returnTo`. Never store the
-handoff or browser-session cookie in local storage.
+The frontend sends `code` through the existing private OAuth handoff exchange, which sets the
+returned opaque `lo_sid` as an HttpOnly cookie and then redirects to the server-bound `returnTo`.
+Never store the handoff or browser-session cookie in local storage.
+
+**Implemented** as `apps/web/src/lib/email-auth.ts` → `/auth/callback/handoff`: the same route
+OAuth returns through, so there is one exchange path and no second session type. Because that route
+is part of the one-origin BFF, email sign-in completes a session only under
+`OAUTH_SESSION_MODE=handoff`. Under `legacy` the screens render and the API calls succeed, but the
+final exchange is inert.
 
 ## Deferred provider work
 

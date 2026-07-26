@@ -89,7 +89,7 @@ export function InfiniteList<T>({
       ))}
 
       {/* `alert`: this appears below content the reader has already passed, so nothing
-          would draw them back to it — they would be left waiting on a page that has
+          would draw them back to it - they would be left waiting on a page that has
           silently stopped loading, unaware a retry now exists. */}
       {query.isError ? (
         <div role="alert" className="flex flex-col items-center gap-2 py-6">
@@ -108,7 +108,7 @@ export function InfiniteList<T>({
         </div>
       ) : null}
 
-      {/* Only once the list is genuinely exhausted — never while a page is still coming, and
+      {/* Only once the list is genuinely exhausted - never while a page is still coming, and
           never as a consolation for a list that failed to load. */}
       {endNote && !hasNextPage && !query.isError && items.length > 0 ? endNote : null}
     </div>

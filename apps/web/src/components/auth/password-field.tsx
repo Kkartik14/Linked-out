@@ -17,7 +17,7 @@ export interface PasswordFieldProps
  * The toggle is a real `<button type="button">` (never a submit) carrying `aria-pressed` and an
  * accessible name that flips with state, and the input's `type` swaps between `password` and
  * `text`. Everything else is a plain `Input`, so `autoComplete`, `aria-invalid`, `aria-describedby`
- * and friends pass straight through — the caller decides `new-password` vs `current-password`.
+ * and friends pass straight through - the caller decides `new-password` vs `current-password`.
  */
 export function PasswordField({ className, toggleLabel, ...props }: PasswordFieldProps) {
   const [revealed, setRevealed] = React.useState(false);

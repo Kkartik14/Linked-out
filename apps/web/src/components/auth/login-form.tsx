@@ -15,7 +15,7 @@ import { PasswordField } from "@/components/auth/password-field";
  * Email/password login. On success the API returns the same one-time handoff OAuth does, which
  * {@link completeEmailSession} exchanges for the session cookie.
  *
- * Wrong password and unknown account both surface as one `INVALID_CREDENTIALS` message — the
+ * Wrong password and unknown account both surface as one `INVALID_CREDENTIALS` message - the
  * backend refuses to distinguish them and neither does this form, so login is not an account oracle.
  * An unverified sign-up also lands here: it reads as "incorrect", and the fix is to finish signing
  * up, which the link below offers.

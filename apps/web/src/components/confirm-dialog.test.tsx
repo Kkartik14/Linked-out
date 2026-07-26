@@ -8,7 +8,7 @@ import { renderWithProviders } from "@/test/utils";
 
 /**
  * jsdom has no layout, but it does have real focus semantics and it runs Radix's actual
- * focus-scope timers — which is exactly what these turn on. A Playwright pass is still the
+ * focus-scope timers - which is exactly what these turn on. A Playwright pass is still the
  * stronger oracle for focus, but the failure here is structural (a null `triggerRef` making
  * Radix's restore a no-op), so it reproduces without a viewport.
  */
@@ -77,7 +77,7 @@ describe("ConfirmDialog focus", () => {
   });
 
   it("moves focus into the dialog, landing on the non-destructive choice", async () => {
-    // The capture handler must not disturb the focus scope's own entry behaviour — it only
+    // The capture handler must not disturb the focus scope's own entry behaviour - it only
     // reads `document.activeElement`. Cancel first is APG's guidance for a destructive step.
     const user = userEvent.setup();
     renderWithProviders(<Harness />);

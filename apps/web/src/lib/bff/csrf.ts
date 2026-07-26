@@ -1,8 +1,8 @@
 /**
- * CSRF checks for the one-origin BFF edge (ADR 0001 §4.5; AUTH-07).
+ * CSRF checks for the one-origin BFF edge.
  *
  * Once `lo_sid` is a host-only cookie the browser attaches automatically, a cross-site request
- * would carry it too — CORS is not CSRF protection. So before the edge resolves a session for an
+ * would carry it too - CORS is not CSRF protection. So before the edge resolves a session for an
  * unsafe method, it verifies the request actually came from our own page: the `Origin` (or, as a
  * fallback, the origin parsed from `Referer`) must be the approved public origin. Safe methods
  * (GET/HEAD/OPTIONS) are exempt because they must never mutate.
@@ -37,7 +37,7 @@ export function hasDisallowedContentType(request: Request): boolean {
 }
 
 /**
- * The request's declared origin — from `Origin`, or parsed out of `Referer` when `Origin` is
+ * The request's declared origin - from `Origin`, or parsed out of `Referer` when `Origin` is
  * absent (some requests omit it). `null` when neither is present or parseable, which the caller
  * treats as a failed check for an unsafe method.
  */

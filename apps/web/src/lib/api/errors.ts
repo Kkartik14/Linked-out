@@ -1,9 +1,9 @@
 import type { FieldError } from "@linkedout/contracts";
 
-/** A non-2xx response, decoded from the standard error envelope (contract §1.7). */
+/** A non-2xx response, decoded from the API's `{ error: { code, message, details? } }` envelope. */
 export class ApiError extends Error {
   readonly status: number;
-  /** Stable machine string — switch on this, not on `message`. */
+  /** Stable machine string - switch on this, not on `message`. */
   readonly code: string;
   /** Present on VALIDATION_ERROR: per-field problems. */
   readonly details?: FieldError[];

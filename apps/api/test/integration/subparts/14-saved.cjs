@@ -8,7 +8,7 @@ const h = require('../_harness.cjs');
 
 const savedSchema = paginatedSchema(lCardSchema);
 
-describe('14 · GET /me/saved (contract §4.5)', () => {
+describe('14 · GET /me/saved', () => {
   let me;
   let author;
 

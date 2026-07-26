@@ -17,7 +17,7 @@ import { Button } from "@/components/ui/button";
  * A destructive confirmation, opened programmatically rather than from a `DialogTrigger`.
  *
  * That distinction is the whole reason this file manages focus by hand. Radix restores focus
- * on close by calling `triggerRef.current?.focus()` — and `triggerRef` is populated *only* by
+ * on close by calling `triggerRef.current?.focus()` - and `triggerRef` is populated *only* by
  * `<DialogTrigger>`. Opened from a plain button, the ref is null, so Radix's own restore is a
  * no-op *and* its `preventDefault()` has already disabled the focus-scope fallback that would
  * otherwise have returned focus to wherever it came from. Focus lands on `<body>`: the viewer
@@ -28,7 +28,7 @@ import { Button } from "@/components/ui/button";
  *
  *  - `onCloseAutoFocus` is wrapped in `composeEventHandlers`, which runs Radix's handler after
  *    ours *unless ours prevents default*. So the `preventDefault()` below is load-bearing, not
- *    ceremony — without it Radix would still run and stomp whatever we just focused. Omitting
+ *    ceremony - without it Radix would still run and stomp whatever we just focused. Omitting
  *    it only appears to work while no `DialogTrigger` exists; add one later and focus silently
  *    starts jumping.
  *  - `onOpenAutoFocus` is passed straight through (`onMountAutoFocus: onOpenAutoFocus`), not
@@ -69,11 +69,12 @@ export function ConfirmDialog({
           event.preventDefault();
           const previous = openedFrom.current;
           // Guarded rather than focused blindly: Radix has no `isConnected` check anywhere,
-          // and `.focus()` on a detached or disabled element is a silent no-op. Cancelling —
-          // by far the common path — always lands here, because the opener is still there.
+          // and `.focus()` on a detached or disabled element is a silent no-op. Cancelling -
+          // by far the common path - always lands here, because the opener is still there.
           // Confirming a delete that unmounts its own opener (a comment row) still ends at
           // `<body>`; that needs a stable fallback target this component cannot invent, and
-          // is tracked in the local TODO rather than papered over with a prop nobody passes.
+          // is tracked as accessibility follow-up work rather than papered over with a prop
+          // nobody passes.
           if (previous?.isConnected && !previous.matches(":disabled")) {
             previous.focus({ preventScroll: true });
           }

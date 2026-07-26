@@ -2,12 +2,12 @@ import next from "eslint-config-next";
 import tseslint from "typescript-eslint";
 
 /**
- * `eslint-config-next` brings the React/Next/a11y rules but no type-safety policy, so
- * CLAUDE.md §1 ("No `any`. No `unknown` as an escape hatch") was documented and unenforced —
+ * `eslint-config-next` brings the React/Next/a11y rules but no type-safety policy, so the
+ * repo's "no `any`, no `unknown` as an escape hatch" rule was documented and unenforced -
  * `tsc --strict` only rejects *implicit* any. These rules are the enforcement.
  *
  * Run with `--max-warnings=0` (see package.json): several of the rules that matter most
- * here — `react-hooks/exhaustive-deps` above all — ship at warn level, and a warning that
+ * here - `react-hooks/exhaustive-deps` above all - ship at warn level, and a warning that
  * cannot fail CI is a warning nobody reads.
  */
 const eslintConfig = [
@@ -37,7 +37,7 @@ const eslintConfig = [
   },
   {
     // Vendored shadcn/ui primitives: `shadcn add` regenerates these verbatim, so a local
-    // deviation is lost on the next update. Both patterns it emits are defensible —
+    // deviation is lost on the next update. Both patterns it emits are defensible -
     // `createContext({} as T)` (no sensible default) and `as React.CSSProperties` (CSS
     // custom properties genuinely aren't expressible in that type).
     files: ["src/components/ui/**"],

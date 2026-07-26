@@ -80,7 +80,7 @@ describe("SessionProvider cache lifecycle", () => {
 
   it("leaves cache alone when the snapshot changes but the principal does not", async () => {
     // An ordinary profile edit re-renders the layout with a new snapshot. Same principal, so
-    // the viewer's own cache must survive — otherwise every settings save nukes the feed.
+    // the viewer's own cache must survive - otherwise every settings save nukes the feed.
     const queryClient = new QueryClient();
     queryClient.setQueryData(["feed", mockUser.id], { viewer: "kartik" });
 
@@ -97,7 +97,7 @@ describe("useComposedPrincipal", () => {
     // The bug this whole mechanism exists to stop: a form composed under A must keep
     // declaring A while the cookie already says B, so the API can reject the write. If this
     // ever tracked the live principal it would agree with the session on every request and
-    // the 409 would never fire — passing tests, silent hole.
+    // the 409 would never fire - passing tests, silent hole.
     const seen: (string | null)[] = [];
     const view = renderProvider(signedIn, new QueryClient(), routerSpy(), <Composed seen={seen} />);
 
@@ -118,7 +118,7 @@ describe("useComposedPrincipal", () => {
 
   it("does not remount when the snapshot changes but the principal does not", () => {
     // A profile edit re-renders the layout. Remounting there would throw away whatever the
-    // viewer was in the middle of typing, for no safety gain — same person, same session.
+    // viewer was in the middle of typing, for no safety gain - same person, same session.
     const seen: (string | null)[] = [];
     const view = renderProvider(signedIn, new QueryClient(), routerSpy(), <Composed seen={seen} />);
     view.rerenderWith({ status: "authenticated", user: { ...mockUser, bio: "edited" }, needsOnboarding: false });
@@ -126,7 +126,7 @@ describe("useComposedPrincipal", () => {
     expect(new Set(seen)).toEqual(new Set([mockUser.id]));
   });
 
-  it("mints no principal when signed out — never brands the 'anon' placeholder", () => {
+  it("mints no principal when signed out - never brands the 'anon' placeholder", () => {
     // A guest has no principal to compose a mutation under. The hook returns null rather than
     // branding the "anon" cache-scoping placeholder as an authenticated principal.
     const seen: (string | null)[] = [];
@@ -148,7 +148,7 @@ describe("SessionProvider cross-tab lifecycle", () => {
     await settle();
     elsewhere.close();
 
-    // Not "trust the message and swap the user" — the tab asks the one authority that can
+    // Not "trust the message and swap the user" - the tab asks the one authority that can
     // read the cookie. `router.refresh()` re-runs the layout, which re-runs `getSession()`.
     expect(router.refresh).toHaveBeenCalledTimes(1);
   });

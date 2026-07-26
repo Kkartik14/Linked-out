@@ -25,7 +25,7 @@ export async function followDirectoryMetadata(
 ): Promise<Metadata> {
   try {
     const profile = await loadProfile(username);
-    return { title: `${profile.name ?? profile.username} — ${HEADING[variant]}` };
+    return { title: `${profile.name ?? profile.username} - ${HEADING[variant]}` };
   } catch {
     return { title: HEADING[variant] };
   }

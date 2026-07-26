@@ -7,14 +7,14 @@ const crossFeatureRepositoryImport = {
 };
 
 /**
- * claude.md §2: "Repository (DAL) — all Prisma access." This was previously enforced only on
- * `*.service.ts`, so a controller or mapper reaching straight for Prisma linted clean and the
- * layering rule held by habit alone. Banned everywhere under `apps/api/src`, then re-allowed
- * below for the files whose whole job is Prisma access.
+ * The layering rule: all Prisma access lives in a repository. This was previously enforced only
+ * on `*.service.ts`, so a controller or mapper reaching straight for Prisma linted clean and the
+ * rule held by habit alone. Banned everywhere under `apps/api/src`, then re-allowed below for the
+ * files whose whole job is Prisma access.
  */
 const prismaOutsideRepository = {
   name: "@linkedout/db",
-  message: "All Prisma access lives in a repository (claude.md §2).",
+  message: "All Prisma access lives in a repository.",
 };
 
 /** Node's CommonJS globals — the test suites and scripts are `.cjs`, not bundled modules. */

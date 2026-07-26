@@ -28,7 +28,7 @@ afterEach(() => {
   vi.unstubAllEnvs();
 });
 
-describe("getSession — distinguishing states instead of flattening to logged-out (AUTH-06)", () => {
+describe("getSession - distinguishing states instead of flattening to logged-out (AUTH-06)", () => {
   it("establishes request scope before handling API availability failures", async () => {
     const requestContextSignal = new Error("NEXT_DYNAMIC_SERVER_USAGE");
     vi.mocked(connection).mockRejectedValueOnce(requestContextSignal);
@@ -52,14 +52,14 @@ describe("getSession — distinguishing states instead of flattening to logged-o
     await expect(getSession()).resolves.toEqual({ status: "guest" });
   });
 
-  it("reports rejected — not guest — when a presented credential is refused (401)", async () => {
-    // Contract §0/AUTH-06: a credential was presented and the API refused it. That is not the
-    // same fact as a clean guest, and collapsing them is the forbidden downgrade.
+  it("reports rejected - not guest - when a presented credential is refused (401)", async () => {
+    // A credential was presented and the API refused it. That is not the same fact as a clean
+    // guest, and collapsing them is the downgrade the API contract forbids.
     vi.mocked(getMe).mockRejectedValue(new ApiError(401, "UNAUTHENTICATED", "no"));
     await expect(getSession()).resolves.toEqual({ status: "rejected" });
   });
 
-  it("reports unavailable — not guest — when identity cannot be determined", async () => {
+  it("reports unavailable - not guest - when identity cannot be determined", async () => {
     // The whole point of AUTH-06: a 5xx is an outage, not a sign-out. Rendering it as guest
     // would hide the user's own menu and bounce them to /login on a live session.
     vi.mocked(getMe).mockRejectedValue(new ApiError(500, "INTERNAL", "boom"));
@@ -71,13 +71,13 @@ describe("getSession — distinguishing states instead of flattening to logged-o
     await expect(getSession()).resolves.toEqual({ status: "unavailable" });
   });
 
-  it("never throws — the layout renders on every outcome", async () => {
+  it("never throws - the layout renders on every outcome", async () => {
     vi.mocked(getMe).mockRejectedValue(new Error("anything"));
     await expect(getSession()).resolves.toBeDefined();
   });
 });
 
-describe("requireViewer — gating a protected page", () => {
+describe("requireViewer - gating a protected page", () => {
   it("returns the viewer when authenticated", () => {
     const session = { status: "authenticated" as const, user: mockUser, needsOnboarding: false };
     expect(requireViewer(session, "/settings")).toBe(session);
@@ -108,7 +108,7 @@ describe("requireViewer — gating a protected page", () => {
     expect(redirect).toHaveBeenCalledWith("/login?returnTo=%2F");
   });
 
-  it("throws to the error boundary when unavailable — never to /login", () => {
+  it("throws to the error boundary when unavailable - never to /login", () => {
     // We do not know they are logged out, only that we could not find out; redirecting them
     // to sign in would assert a fact we don't have and could trap a live session in a loop.
     expect(() => requireViewer({ status: "unavailable" }, "/settings")).toThrow(

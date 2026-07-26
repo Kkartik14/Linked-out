@@ -4,7 +4,7 @@
 @custom-variant dark (&:is(.dark *));
 
 /*
-  LinkedOut design tokens — calm, honest, human, reflective, minimal.
+  LinkedOut design tokens - calm, honest, human, reflective, minimal.
   Warm near-neutral paper in light; warm near-black in dark. One restrained
   slate-indigo accent. Low chroma throughout so the writing carries the page.
   shadcn-compatible variable set, mapped into Tailwind via @theme inline.
@@ -67,7 +67,7 @@
   /* Darker than the light-mode red, which reads backwards until you notice the text on it
      is white either way: lightening the fill in dark mode is what pushed `white` on
      destructive down to 3.99:1 (WCAG 1.4.3 wants 4.5:1), and it dragged `text-destructive`
-     on `--card`/`--popover` to 4.49:1 with it. At L=0.55 both clear — ~4.9:1 and ~5.5:1 —
+     on `--card`/`--popover` to 4.49:1 with it. At L=0.55 both clear - ~4.9:1 and ~5.5:1 -
      and it is still unmistakably red. */
   --destructive: oklch(0.55 0.19 25);
   --destructive-foreground: oklch(0.98 0 0);
@@ -120,7 +120,7 @@
       Helvetica, Arial, sans-serif;
 
     /* The header is `sticky top-0 h-14`, so scrolling a focused control into view could park
-       it underneath — a short one lands entirely beneath, which fails WCAG 2.4.11 Focus Not
+       it underneath - a short one lands entirely beneath, which fails WCAG 2.4.11 Focus Not
        Obscured (Minimum). Matches `h-14`; keep the two in step. */
     scroll-padding-top: 3.5rem;
   }

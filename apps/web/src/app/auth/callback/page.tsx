@@ -35,7 +35,7 @@ function CallbackInner() {
     let cancelled = false;
 
     // Shared tail: confirm who the (now-established) session belongs to and route accordingly.
-    // A new principal owns the shared cookies, so announce it before navigating — other tabs are
+    // A new principal owns the shared cookies, so announce it before navigating - other tabs are
     // still rendering the previous viewer. Onboarding-required is still a completed sign-in.
     const confirmAndRoute = async (destination: string) => {
       const me = await getMe();

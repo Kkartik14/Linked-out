@@ -9,7 +9,7 @@ import type { ComposedPrincipal } from "@/lib/principal";
 import { ApiError } from "./errors";
 
 /**
- * A relative base URL (`/v1`) means the browser talks to its own origin — the one-origin BFF is
+ * A relative base URL (`/v1`) means the browser talks to its own origin - the one-origin BFF is
  * present. This is the browser-visible signal for handoff mode: the server-only
  * `OAUTH_SESSION_MODE` cannot be read in the browser, and a relative base is exactly what a
  * handoff deployment sets. It selects debounced expiry invalidation over legacy token refresh.
@@ -25,7 +25,7 @@ export interface ApiFetchInit extends RequestInit {
   /**
    * Render-time identity for an authenticated mutation. The API rejects any authenticated
    * unsafe method whose declaration is missing or disagrees with the live credential
-   * (`409 PRINCIPAL_MISMATCH`), so every mutating endpoint must carry one — see
+   * (`409 PRINCIPAL_MISMATCH`), so every mutating endpoint must carry one - see
    * {@link ComposedPrincipal} for why it may not be read from the current session.
    */
   principal?: ComposedPrincipal;
@@ -33,14 +33,13 @@ export interface ApiFetchInit extends RequestInit {
 
 /**
  * No request may hang forever. A Server Component render blocks on its fetches, so an
- * unresponsive backend would hold the whole page open until the platform kills it — and
- * anything relying on a rejection to degrade (public contract §2: the sidebar "fails
- * independently of the center feed") never degrades, because a request that never settles
- * never fails.
+ * unresponsive backend would hold the whole page open until the platform kills it - and
+ * anything relying on a rejection to degrade (the sidebar is specified to fail independently of
+ * the centre feed) never degrades, because a request that never settles never fails.
  */
 const DEFAULT_TIMEOUT_MS = 10_000;
 
-/** Honour a caller's signal *and* the timeout — whichever aborts first wins. */
+/** Honour a caller's signal *and* the timeout - whichever aborts first wins. */
 function withTimeout(signal: AbortSignal | null | undefined, ms: number): AbortSignal {
   const timeout = AbortSignal.timeout(ms);
   return signal ? AbortSignal.any([signal, timeout]) : timeout;
@@ -112,7 +111,7 @@ export async function apiFetch<T>(path: string, init: ApiFetchInit = {}): Promis
     if (typeof window !== "undefined" && !skipRefresh && forwardsCredentials) {
       if (IS_BFF_CLIENT && (body as ErrorEnvelope | null)?.error?.code === "SESSION_REJECTED") {
         // One-origin (handoff): there is no token to refresh. An authenticated request that 401s
-        // means the session was rejected or expired and the `/v1` edge already cleared `lo_sid` —
+        // means the session was rejected or expired and the `/v1` edge already cleared `lo_sid` -
         // publish a single debounced expiry invalidation so every tab re-derives to a guest.
         publishSessionExpired();
       } else if ((body as ErrorEnvelope | null)?.error?.code === "TOKEN_EXPIRED") {
@@ -130,20 +129,20 @@ export async function apiFetch<T>(path: string, init: ApiFetchInit = {}): Promis
 }
 
 /**
- * Route a request to the right backend for the session topology (ADR 0001).
+ * Route a request to the right backend for the session topology.
  *
  * This module is reachable from Client Components (via `endpoints.ts`), so it must never import a
- * `server-only`/`next/headers` module — even a dynamic `import()` of one poisons the client bundle
+ * `server-only`/`next/headers` module - even a dynamic `import()` of one poisons the client bundle
  * (Turbopack traces it in and `server-only` fails the build). It therefore only ever dynamically
  * imports `next/headers`, which Next tolerates.
  *
- *  - **handoff + Server Component** — self-hop through this origin's own `/v1` route handler, which
+ *  - **handoff + Server Component** - self-hop through this origin's own `/v1` route handler, which
  *    is where the session resolution + assertion injection legitimately lives (it *is* server-only).
  *    Only `lo_sid` (same-origin, to our own handler) is forwarded; the handler strips cookies before
  *    Nest, so the browser's cookie header still never reaches Nest.
- *  - **browser (either mode)** — `credentials: "include"` carries the cookie; in handoff the base
+ *  - **browser (either mode)** - `credentials: "include"` carries the cookie; in handoff the base
  *    URL is same-origin `/v1` (the BFF route handler), in legacy it is the Nest origin.
- *  - **legacy + Server Component** — forward the incoming request's cookies to Nest.
+ *  - **legacy + Server Component** - forward the incoming request's cookies to Nest.
  */
 async function sendRequest(
   path: string,
@@ -189,11 +188,11 @@ async function sendRequest(
 }
 
 /**
- * Rotate the access cookie (contract §1.1).
+ * Rotate the access cookie (`POST /auth/refresh`; legacy session mode only).
  *
  * Nothing is read off the response, and nothing needs to be: this only ever runs in the
  * browser (see the `typeof window` guard above), where `Set-Cookie` is a forbidden response
- * header — it is stripped before JS can see it — and `Cookie` is a forbidden request header,
+ * header - it is stripped before JS can see it - and `Cookie` is a forbidden request header,
  * so the retry could not attach one either. The browser applies the rotated cookie to its
  * own jar, and `credentials: "include"` puts it on the retry. Any attempt to carry cookies
  * across in userland here is dead code that only appears to work under a mocked `Response`.
@@ -211,7 +210,7 @@ async function refreshSession(): Promise<void> {
 }
 
 /**
- * A burst of expired requests must rotate once, not once each — a second rotation would
+ * A burst of expired requests must rotate once, not once each - a second rotation would
  * race the first and could revoke the token it just issued. Module-level state is safe
  * only because refresh is browser-gated; a server-side caller would share it across users.
  */

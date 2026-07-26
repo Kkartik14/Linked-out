@@ -9,9 +9,9 @@ import {
 } from "@linkedout/contracts";
 
 /**
- * Canonical enum display metadata, mirroring the public contract §3. The app fetches
- * `GET /meta/enums` at boot; this is the resilient fallback if that request
- * fails, so labels/emoji never come back empty.
+ * Canonical enum display metadata, mirroring what `GET /meta/enums` serves. The app fetches
+ * that at boot; this is the resilient fallback if the request fails, so labels/emoji never
+ * come back empty.
  *
  * The public API has no `lCategory` member: the category concept is removed from the wire.
  */

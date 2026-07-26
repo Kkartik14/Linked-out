@@ -12,7 +12,7 @@ const h = require('../_harness.cjs');
 
 const followList = paginatedSchema(followListUserSchema);
 
-describe('09 · follows (contract §4.7)', () => {
+describe('09 · follows', () => {
   let me;
   let target;
 

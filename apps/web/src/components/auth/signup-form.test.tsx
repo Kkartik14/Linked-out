@@ -80,7 +80,7 @@ describe("SignupForm", () => {
 
     await reachOtpStep(user);
 
-    // Signup carries the email only; the password is held and authored at verify (contract §0.1).
+    // Signup carries the email only; the password is held and authored at verify.
     expect(emailSignup).toHaveBeenCalledWith({ email: EMAIL });
     expect(vi.mocked(emailSignup).mock.calls[0]?.[0]).not.toHaveProperty("password");
     expect(screen.getByText(EMAIL)).toBeInTheDocument();

@@ -9,7 +9,7 @@ const h = require('../_harness.cjs');
 const lsSchema = paginatedSchema(lCardSchema);
 const usersSchema = paginatedSchema(userSummarySchema);
 
-describe('12 · search (contract §4.10)', () => {
+describe('12 · search', () => {
   let author;
   let viewer;
 

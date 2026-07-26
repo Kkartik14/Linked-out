@@ -10,7 +10,7 @@ const ALL_TYPES = ['BEEN_THERE', 'HELPFUL', 'RESPECT', 'PAIN', 'SAVED'];
 /** popularityScore weights, guarded against runtime/seed drift by seed-policy.test.cjs */
 const WEIGHTS = { BEEN_THERE: 2, HELPFUL: 3, RESPECT: 2, PAIN: 1, SAVED: 0 };
 
-describe('07 · reactions (contract §4.5)', () => {
+describe('07 · reactions', () => {
   let author;
   let reactor;
   let l;

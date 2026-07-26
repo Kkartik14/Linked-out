@@ -13,9 +13,9 @@ import { cn } from "@/lib/utils";
 export function FeedControls({
   scope,
   sort,
-  // Deliberately not `canFollow`: that name belongs to `SuggestedUser.viewer.canFollow`
-  // (public contract §2) — a per-user permission the backend owns and §2 says not to recreate.
-  // This is only "is there a Following tab to offer", which is a session fact.
+  // Deliberately not `canFollow`: that name belongs to `SuggestedUser.viewer.canFollow`, a
+  // per-user permission the backend owns and the client must not recreate. This is only
+  // "is there a Following tab to offer", which is a session fact.
   canUseFollowingFeed,
 }: {
   scope: FeedScope;

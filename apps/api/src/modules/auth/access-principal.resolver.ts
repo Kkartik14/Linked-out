@@ -23,8 +23,8 @@ interface CachedPrincipal {
  * live for only 15 minutes, so their immutable claims form a bounded cache key. Positive and
  * negative decisions expire with the token; concurrent first requests share one lookup. As
  * with any short-lived bearer token, deleting a user after a positive decision is eventually
- * consistent until that token expires; immediate revocation belongs to the stateful BFF design
- * in ADR 0001.
+ * consistent until that token expires. This applies only to the legacy access-token path;
+ * the `lo_sid` browser session is stateful and revocable immediately.
  */
 @Injectable()
 export class AccessPrincipalResolver {

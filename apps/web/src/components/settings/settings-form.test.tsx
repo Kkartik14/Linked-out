@@ -48,7 +48,7 @@ describe("SettingsForm", () => {
     const user = userEvent.setup();
     const push = vi.fn();
     const refresh = vi.fn();
-    // The canonical username comes from the response, not the form — a rename must be honored.
+    // The canonical username comes from the response, not the form - a rename must be honored.
     vi.mocked(patchMe).mockResolvedValue({ ...mockUser, username: "kartik-new" });
 
     renderWithProviders(<SettingsForm user={mockUser} />, {
