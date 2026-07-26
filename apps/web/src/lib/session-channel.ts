@@ -26,8 +26,11 @@
  * *does* deliver to sibling objects in the same tab - `postMessage()` removes only `source`
  * from its destination set, not the source's document. So publish and subscribe deliberately
  * share one module-level channel: that is what makes "other tabs, never me" true, rather
- * than a tab id filter bolted on afterwards. Verified against jsdom, which implements the
- * same rule.
+ * than a tab id filter bolted on afterwards. The unit tests verify that rule against Node's
+ * implementation, not a browser's: jsdom ships no `BroadcastChannel`, so the Node global is
+ * what they reach. It honours the same never-echo-to-the-poster rule, but it delivers on the
+ * event loop rather than a DOM task source - see the note in the test file before adding a
+ * timing assumption there.
  *
  * Not sufficient alone: a bfcache'd document is not "fully active", so it is excluded from
  * the destination set and gets no replay on restore. `SessionProvider` pairs this with a
